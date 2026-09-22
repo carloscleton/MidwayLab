@@ -3,6 +3,12 @@
 .env.local
 .env.*.local
 
+# Build outputs
+.next/
+out/
+build/
+dist/
+
 # Node modules
 node_modules/
 
@@ -16,3 +22,5 @@ scratch/
 Thumbs.db
 .vscode/
 .idea/
+
+.vercel
