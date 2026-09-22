@@ -24,9 +24,9 @@ export class SoftlabClient {
     });
   }
 
-  /**
-   * Autentica na API do Softlab Apoio obtendo o Bearer JWT Token
-   */
+  // ---------------------------------------------------------------------------
+  // 1. AUTENTICAÇÃO
+  // ---------------------------------------------------------------------------
   async authenticate(): Promise<string> {
     const now = Date.now();
     if (this.token && this.tokenExpiresAt > now + 60000) {
@@ -60,60 +60,127 @@ export class SoftlabClient {
     };
   }
 
-  /**
-   * Busca o catálogo completo de exames do Softlab (1.311 exames)
-   */
-  async getTiposDeExames(): Promise<any[]> {
-    const headers = await this.getAuthHeaders();
-    const response = await this.http.get('/api/TipoDeExame', { headers });
-    return response.data;
-  }
-
-  /**
-   * Cadastra um novo pedido no Softlab Apoio
-   */
+  // ---------------------------------------------------------------------------
+  // 2. PEDIDOS (/api/Pedido)
+  // ---------------------------------------------------------------------------
   async criarPedido(payloadPedido: any): Promise<any> {
     const headers = await this.getAuthHeaders();
     const response = await this.http.post('/api/Pedido', payloadPedido, { headers });
     return response.data;
   }
 
-  /**
-   * Obtém detalhes dos tubos e amostras geradas para o pedido (inclui EPL)
-   */
+  async getDetalhesPedido(codigoLis: string): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get(`/api/Pedido/${codigoLis}`, { headers });
+    return response.data;
+  }
+
+  async atualizarDetalhesPedido(codigoLis: string, payload: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.put(`/api/Pedido/${codigoLis}/detalhe`, payload, { headers });
+    return response.data;
+  }
+
+  async excluirPedido(codigoLis: string): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.delete(`/api/Pedido/${codigoLis}`, { headers });
+    return response.data;
+  }
+
+  async salvarCamposDeColeta(codigoLis: string, camposValores: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.post(`/api/Pedido/${codigoLis}/campos-de-coleta`, camposValores, { headers });
+    return response.data;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3. AMOSTRAS & ETIQUETAS (/api/Amostra)
+  // ---------------------------------------------------------------------------
   async getAmostras(codigoLis: string): Promise<any> {
     const headers = await this.getAuthHeaders();
     const response = await this.http.get(`/api/Amostra/${codigoLis}`, { headers });
     return response.data;
   }
 
-  /**
-   * Busca a lista de laudos liberados prontos para serem consumidos
-   */
-  async getLaudosDisponiveis(statusLaudo: number = 0): Promise<any[]> {
+  async getEtiquetaEpl(codigoLis: string): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const response = await this.http.get('/api/Laudo', {
+    const response = await this.http.get(`/api/Amostra/${codigoLis}/etiqueta/epl`, { headers });
+    return response.data;
+  }
+
+  async getRecoletas(dataInicial?: string, dataFinal?: string): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get('/api/Amostra/recoletas', {
       headers,
-      params: { statusLaudo },
+      params: { dataInicial, dataFinal }
     });
     return response.data;
   }
 
-  /**
-   * Obtém o conteúdo do laudo de um exame em formato HTML ou RTF
-   */
-  async getLaudoConteudo(codigoPedidoLis: string, codigoExameLis: string, formato: 'html' | 'rtf' = 'html'): Promise<string> {
+  async realizarRecoleta(payload: any): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const response = await this.http.get(`/api/Laudo/${formato}`, {
+    const response = await this.http.post('/api/Amostra/recoletas', payload, { headers });
+    return response.data;
+  }
+
+  async cancelarAmostras(payload: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.post('/api/Amostra/cancelar', payload, { headers });
+    return response.data;
+  }
+
+  async atualizarDataHoraColeta(payload: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.put('/api/Amostra/dataHoraColeta', payload, { headers });
+    return response.data;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. EXAMES (/api/Exame)
+  // ---------------------------------------------------------------------------
+  async cancelarColetaExames(payload: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.post('/api/Exame/cancelar-coleta', payload, { headers });
+    return response.data;
+  }
+
+  async excluirExames(payload: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.post('/api/Exame/excluir-exames', payload, { headers });
+    return response.data;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. LAUDOS & RESULTADOS (/api/Laudo)
+  // ---------------------------------------------------------------------------
+  async getLaudosDisponiveis(statusLaudo: number = 0, dataLiberacaoInicial?: string, dataLiberacaoFinal?: string): Promise<any[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get('/api/Laudo', {
+      headers,
+      params: { statusLaudo, dataLiberacaoInicial, dataLiberacaoFinal },
+    });
+    return response.data;
+  }
+
+  async getResumoLaudos(statusLaudo?: number): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get('/api/Laudo/resumo', {
+      headers,
+      params: { statusLaudo }
+    });
+    return response.data;
+  }
+
+  async getLaudoConteudo(codigoPedidoLis: string, codigoExameLis: string, formato: 'html' | 'rtf' | 'multi-formato' = 'html'): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const endpoint = formato === 'multi-formato' ? '/api/Laudo/multi-formato' : `/api/Laudo/${formato}`;
+    const response = await this.http.get(endpoint, {
       headers,
       params: { codigoPedidoLis, codigoExameLis },
     });
     return response.data;
   }
 
-  /**
-   * Marca o laudo como consumido no Softlab Apoio
-   */
   async marcarComoConsumido(codigoPedidoLis: string, codigoExameLis: string): Promise<void> {
     const headers = await this.getAuthHeaders();
     await this.http.post(
@@ -124,5 +191,44 @@ export class SoftlabClient {
         params: { codigoPedidoLis, codigoExameLis },
       }
     );
+  }
+
+  async marcarComoPendente(codigoPedidoLis: string, codigoExameLis: string): Promise<void> {
+    const headers = await this.getAuthHeaders();
+    await this.http.post(
+      '/api/Laudo/marcar-como-pendente',
+      {},
+      {
+        headers,
+        params: { codigoPedidoLis, codigoExameLis },
+      }
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. AUXILIARES E TABELAS (/api/TipoDeExame, /api/TipoDeJejum, etc)
+  // ---------------------------------------------------------------------------
+  async getTiposDeExames(): Promise<any[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get('/api/TipoDeExame', { headers });
+    return response.data;
+  }
+
+  async getConfiguracaoExame(codigo: string): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get(`/api/TipoDeExame/${codigo}`, { headers });
+    return response.data;
+  }
+
+  async getTiposDeJejum(): Promise<any[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get('/api/TipoDeJejum', { headers });
+    return response.data;
+  }
+
+  async getTiposDeJustificativa(): Promise<any[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await this.http.get('/api/TipoDeJustificativa', { headers });
+    return response.data;
   }
 }

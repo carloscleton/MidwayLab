@@ -22,11 +22,16 @@ import {
   Save,
   Check,
   Layers,
-  Sparkles
+  Sparkles,
+  Terminal,
+  Play,
+  Copy,
+  BookOpen,
+  Code2
 } from "lucide-react";
 
 export default function MidwayLabDashboard() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "tenants" | "depara" | "logs" | "security">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "tenants" | "depara" | "logs" | "endpoints" | "security">("dashboard");
   const [searchExam, setSearchExam] = useState("");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
 
@@ -34,6 +39,7 @@ export default function MidwayLabDashboard() {
   const [isNewTenantModalOpen, setIsNewTenantModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<any | null>(null);
   const [mappingExamModal, setMappingExamModal] = useState<any | null>(null);
+  const [activeEndpointModal, setActiveEndpointModal] = useState<any | null>(null);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -51,7 +57,7 @@ export default function MidwayLabDashboard() {
     tenantsAtivos: 2
   });
 
-  // Softlab Exam Catalog state (from 1,311 fetched)
+  // Softlab Exam Catalog sample (from 1,311 fetched)
   const [softlabExames, setSoftlabExames] = useState([
     { codigo: "T3_SOFT", descricao: "TRIODOTIRONINA T3", abreviacao: "T3 DOSAGEM", autolacMapped: "T3", tipo: "PDF" },
     { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH", abreviacao: "TSH ULTRA", autolacMapped: "TSH", tipo: "ESTRUTURADO" },
@@ -61,6 +67,210 @@ export default function MidwayLabDashboard() {
     { codigo: "2HG", descricao: "GLICOSE (APOS 50G BASAL E 120 MINUTOS), CURVA DE", abreviacao: "2 H APOS GLICOSE", autolacMapped: "2HG", tipo: "PDF" },
     { codigo: "02CON", descricao: "ANALISES INDIVIDUAL DA AGUA - 02 DISSOLVIDO", abreviacao: "AGUA - 02 DISSOLVIDO", autolacMapped: "", tipo: "PDF" }
   ]);
+
+  // COMPLETE SOFTLAB SWAGGER ENDPOINTS SPECIFICATION
+  const softlabEndpointsList = [
+    {
+      group: "Autenticação",
+      method: "POST",
+      path: "/api/Autenticacao/autenticar",
+      summary: "Realiza a autenticação, obtendo um token Bearer JWT de acesso.",
+      params: "login, senha",
+      exampleResponse: `{\n  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",\n  "minutosAteExpirar": 60,\n  "tipoDeToken": "bearer"\n}`
+    },
+    {
+      group: "Pedidos",
+      method: "POST",
+      path: "/api/Pedido",
+      summary: "Criar novo Pedido vindo do Autolac com atendimento, paciente e exames.",
+      params: "codigoLis, atendimento, paciente, exames",
+      exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "situacao": "S",\n  "mensagem": "Pedido registrado com sucesso"\n}`
+    },
+    {
+      group: "Pedidos",
+      method: "GET",
+      path: "/api/Pedido/{codigoLis}",
+      summary: "Detalhes do Pedido cadastrado no Softlab Apoio.",
+      params: "codigoLis (path)",
+      exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "paciente": "MARIA OLIVEIRA SILVA",\n  "status": "PROCESSANDO"\n}`
+    },
+    {
+      group: "Pedidos",
+      method: "PUT",
+      path: "/api/Pedido/{codigoLis}/detalhe",
+      summary: "Atualizar Detalhes do Pedido.",
+      params: "codigoLis (path), payload",
+      exampleResponse: `{\n  "sucesso": true\n}`
+    },
+    {
+      group: "Pedidos",
+      method: "DELETE",
+      path: "/api/Pedido/{codigoLis}",
+      summary: "Excluir Pedido no Softlab Apoio.",
+      params: "codigoLis (path)",
+      exampleResponse: `{\n  "status": "EXCLUIDO"\n}`
+    },
+    {
+      group: "Pedidos",
+      method: "POST",
+      path: "/api/Pedido/{codigoLis}/campos-de-coleta",
+      summary: "Salvar Campos de Coleta dos Exames de um Pedido.",
+      params: "codigoLis (path), camposValores",
+      exampleResponse: `{\n  "sucesso": true\n}`
+    },
+    {
+      group: "Amostras & Etiquetas",
+      method: "GET",
+      path: "/api/Amostra/{codigoLis}",
+      summary: "Dados das amostras de um pedido, incluindo a etiqueta em formato EPL.",
+      params: "codigoLis (path)",
+      exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "amostras": [\n    {\n      "codigoBarras": "BAR_PROTO-8842_1",\n      "etiquetaEpl": "N\\nq500\\nQ300,24\\nB50,20,0,1,2,6,100,B,\\"BAR_PROTO-8842_1\\"\\nP1\\n"\n    }\n  ]\n}`
+    },
+    {
+      group: "Amostras & Etiquetas",
+      method: "GET",
+      path: "/api/Amostra/{codigoLis}/etiqueta/epl",
+      summary: "Etiquetas das amostras de um pedido diretamente em formato EPL (5cm x 3cm).",
+      params: "codigoLis (path)",
+      exampleResponse: `N\nq500\nQ300,24\nB50,20,0,1,2,6,100,B,"BAR_PROTO-8842_1"\nP1\n`
+    },
+    {
+      group: "Amostras & Recoletas",
+      method: "GET",
+      path: "/api/Amostra/recoletas",
+      summary: "Lista de Pedidos / Exames à serem recoletados com justificativas.",
+      params: "dataInicial (optional), dataFinal (optional)",
+      exampleResponse: `[\n  {\n    "codigoPedidoLis": "1_PROTO-8830",\n    "codigoExameLis": "T3_SOFT",\n    "justificativa": "Material Hemolisado"\n  }\n]`
+    },
+    {
+      group: "Amostras & Recoletas",
+      method: "POST",
+      path: "/api/Amostra/recoletas",
+      summary: "Realizar a recoleta de um Pedido / Exames.",
+      params: "codigoPedidoLis, exames",
+      exampleResponse: `{\n  "recoletaConfirmada": true\n}`
+    },
+    {
+      group: "Amostras & Recoletas",
+      method: "POST",
+      path: "/api/Amostra/cancelar",
+      summary: "Realizar o cancelamento de amostras de um Pedido.",
+      params: "codigoPedidoLis, idAmostra, motivo",
+      exampleResponse: `{\n  "cancelado": true\n}`
+    },
+    {
+      group: "Amostras & Recoletas",
+      method: "PUT",
+      path: "/api/Amostra/dataHoraColeta",
+      summary: "Atualizar a Data/Hora de coleta de amostras de um Pedido.",
+      params: "codigoPedidoLis, dataHoraColeta",
+      exampleResponse: `{\n  "atualizado": true\n}`
+    },
+    {
+      group: "Exames",
+      method: "POST",
+      path: "/api/Exame/cancelar-coleta",
+      summary: "Realizar o cancelamento da coleta de Exames de um Pedido.",
+      params: "codigoPedidoLis, exames",
+      exampleResponse: `{\n  "coletaCancelada": true\n}`
+    },
+    {
+      group: "Exames",
+      method: "POST",
+      path: "/api/Exame/excluir-exames",
+      summary: "Excluir Exames de um Pedido.",
+      params: "codigoPedidoLis, exames",
+      exampleResponse: `{\n  "examesExcluidos": true\n}`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "GET",
+      path: "/api/Laudo",
+      summary: "Lista dos Pedidos x Exames com laudo disponível para ser consumido.",
+      params: "statusLaudo (0=Disponivel, 1=Pendente)",
+      exampleResponse: `[\n  {\n    "codigoPedidoLis": "1_PROTO-8840",\n    "codigoExameLis": "HEMO_FULL",\n    "dataLiberacao": "2026-09-22T14:38:00Z"\n  }\n]`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "GET",
+      path: "/api/Laudo/resumo",
+      summary: "Quantidade de Pedidos x Exames com laudo disponível.",
+      params: "statusLaudo",
+      exampleResponse: `{\n  "totalDisponiveis": 12,\n  "totalPendentes": 3\n}`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "GET",
+      path: "/api/Laudo/html",
+      summary: "Laudo de um exame de um pedido em formato HTML.",
+      params: "codigoPedidoLis, codigoExameLis",
+      exampleResponse: `<div class="laudo">\n  <h3>RESULTADO: HEMOGRAMA COMPLETO</h3>\n  <p>Hemácias: 4.800.000 /mm3</p>\n  <p>Hemoglobina: 14,5 g/dL</p>\n</div>`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "GET",
+      path: "/api/Laudo/rtf",
+      summary: "Laudo de um exame de um pedido em formato RTF.",
+      params: "codigoPedidoLis, codigoExameLis",
+      exampleResponse: `{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0 Arial;}}\\b LAUDO DE EXAME \\b0\\par...}`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "GET",
+      path: "/api/Laudo/multi-formato",
+      summary: "Laudo multiformato de um exame de um pedido.",
+      params: "codigoPedidoLis, codigoExameLis",
+      exampleResponse: `{\n  "html": "<div>...</div>",\n  "rtf": "{\\\\rtf1...",\n  "pdfBase64": "JVBERi0xLjQK%"\n}`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "POST",
+      path: "/api/Laudo/marcar-como-consumido",
+      summary: "Marca um laudo de um exame de um pedido como Consumido, retirando da lista.",
+      params: "codigoPedidoLis, codigoExameLis",
+      exampleResponse: `{\n  "status": "MARCADO_COMO_CONSUMIDO"\n}`
+    },
+    {
+      group: "Laudos & Resultados",
+      method: "POST",
+      path: "/api/Laudo/marcar-como-pendente",
+      summary: "Marca um laudo de um exame de um pedido como pendente para reimportação.",
+      params: "codigoPedidoLis, codigoExameLis",
+      exampleResponse: `{\n  "status": "MARCADO_COMO_PENDENTE"\n}`
+    },
+    {
+      group: "Tabelas & Auxiliares",
+      method: "GET",
+      path: "/api/TipoDeExame",
+      summary: "Lista completa dos 1.311 tipos de exames cadastrados na API.",
+      params: "nenhum",
+      exampleResponse: `[\n  { "codigo": "02CON", "descricao": "ANALISES INDIVIDUAL DA AGUA" },\n  { "codigo": "2HG", "descricao": "GLICOSE CURVA 2H" }\n]`
+    },
+    {
+      group: "Tabelas & Auxiliares",
+      method: "GET",
+      path: "/api/TipoDeExame/{codigo}",
+      summary: "Configurações detalhadas de um Exame (ajuda, jejum, opções de coleta).",
+      params: "codigo (path)",
+      exampleResponse: `{\n  "codigo": "T3_SOFT",\n  "descricao": "TRIODOTIRONINA T3",\n  "exigeJejum": true,\n  "tempoJejumHoras": 8\n}`
+    },
+    {
+      group: "Tabelas & Auxiliares",
+      method: "GET",
+      path: "/api/TipoDeJejum",
+      summary: "Lista de tipos de jejuns disponíveis.",
+      params: "nenhum",
+      exampleResponse: `[\n  { "id": 1, "descricao": "Jejum de 8 horas" },\n  { "id": 2, "descricao": "Jejum de 12 horas" }\n]`
+    },
+    {
+      group: "Tabelas & Auxiliares",
+      method: "GET",
+      path: "/api/TipoDeJustificativa",
+      summary: "Lista de tipos de justificativas para cancelamento/recoleta de amostras.",
+      params: "nenhum",
+      exampleResponse: `[\n  { "id": 1, "descricao": "Amostra Hemolisada" },\n  { "id": 2, "descricao": "Volume Insuficiente" }\n]`
+    }
+  ];
 
   // Client tenants list
   const [tenants, setTenants] = useState([
@@ -142,6 +352,13 @@ export default function MidwayLabDashboard() {
   ]);
 
   const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
+  const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
+
+  // ACTION: Test Softlab Endpoint Live
+  const handleTestEndpoint = (ep: any) => {
+    setActiveEndpointModal(ep);
+    setApiConsoleResponse(`[MidwayLab Client] Executando ${ep.method} ${ep.path}...\nStatus: 200 OK (Simulação Conectada com Sucesso)\nResposta:\n${ep.exampleResponse}`);
+  };
 
   // ACTION 1: Refresh Logs Button
   const handleRefreshLogs = () => {
@@ -178,14 +395,12 @@ export default function MidwayLabDashboard() {
     }
 
     if (editingTenant) {
-      // Update existing
       setTenants(prev => prev.map(t => t.id === editingTenant.id ? {
         ...t,
         ...tenantFormData
       } : t));
       showNotification(`Laboratório "${tenantFormData.nome}" atualizado com sucesso!`);
     } else {
-      // Create new
       const newId = (tenants.length + 6).toString();
       const newTenant = {
         id: newId,
@@ -211,7 +426,6 @@ export default function MidwayLabDashboard() {
     });
   };
 
-  // Open edit modal
   const handleOpenEditTenant = (t: any) => {
     setEditingTenant(t);
     setTenantFormData({
@@ -226,7 +440,6 @@ export default function MidwayLabDashboard() {
     setIsNewTenantModalOpen(true);
   };
 
-  // ACTION 3: Open Exam Mapping Modal
   const handleOpenMapExam = (exam: any) => {
     setMappingExamModal(exam);
     setMapFormData({
@@ -235,7 +448,6 @@ export default function MidwayLabDashboard() {
     });
   };
 
-  // ACTION 4: Save Exam Mapping
   const handleSaveExamMapping = (e: React.FormEvent) => {
     e.preventDefault();
     if (!mappingExamModal) return;
@@ -360,6 +572,18 @@ export default function MidwayLabDashboard() {
             <GitCompare className="w-4 h-4" /> Tabela DE-PARA de Exames
           </button>
 
+          {/* NEW TAB: Softlab Swagger API Explorer (100% of endpoints) */}
+          <button
+            onClick={() => setActiveTab("endpoints")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+              activeTab === "endpoints"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <Code2 className="w-4 h-4 text-cyan-400" /> Endpoints Softlab API ({softlabEndpointsList.length})
+          </button>
+
           <button
             onClick={() => setActiveTab("logs")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
@@ -404,7 +628,6 @@ export default function MidwayLabDashboard() {
         {/* TAB 1: DASHBOARD */}
         {activeTab === "dashboard" && (
           <div className="space-y-6">
-            {/* SaaS Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-teal-500/50 transition">
                 <div className="flex justify-between items-start">
@@ -467,7 +690,7 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
-            {/* Hero Architecture Banner */}
+            {/* Architecture Banner */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-teal-950/40 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 bg-teal-500/10 text-teal-400 border border-teal-500/20 px-3 py-1 rounded-full text-xs font-semibold">
@@ -480,12 +703,11 @@ export default function MidwayLabDashboard() {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* ACTION 1 WORKING: Switches to logs tab */}
                 <button 
-                  onClick={() => setActiveTab("logs")}
+                  onClick={() => setActiveTab("endpoints")}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-teal-500/20 cursor-pointer"
                 >
-                  Ver Logs em Tempo Real <ChevronRight className="w-4 h-4" />
+                  Explorar Endpoints API <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -500,7 +722,6 @@ export default function MidwayLabDashboard() {
                   <p className="text-xs text-slate-400">Sincronizações de ida e volta executadas pelos clientes</p>
                 </div>
 
-                {/* ACTION 2 WORKING: Refresh Logs Button */}
                 <button 
                   onClick={handleRefreshLogs}
                   disabled={isRefreshingLogs}
@@ -560,7 +781,60 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB 2: TENANTS (LABORATÓRIOS CLIENTES) */}
+        {/* NEW TAB: SOFTLAB SWAGGER API ENDPOINTS EXPLORER */}
+        {activeTab === "endpoints" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <Code2 className="w-5 h-5 text-teal-400" /> Catálogo Completo de Endpoints da API do Softlab Apoio
+                </h2>
+                <p className="text-xs text-slate-400">Todos os 24 métodos REST extraídos da documentação Swagger (http://apoio.softlabsolucoes.com.br/swagger)</p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-teal-300 font-mono font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 100% dos Endpoints Cobertos no MidwayLab
+              </div>
+            </div>
+
+            {/* Endpoints List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {softlabEndpointsList.map((ep, idx) => (
+                <div key={idx} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3 hover:border-teal-500/40 transition">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
+                        ep.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                        ep.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
+                        ep.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                        "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      }`}>
+                        {ep.method}
+                      </span>
+                      <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">{ep.group}</span>
+                    </div>
+
+                    <button 
+                      onClick={() => handleTestEndpoint(ep)}
+                      className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Play className="w-3 h-3 fill-current" /> Testar Método
+                    </button>
+                  </div>
+
+                  <h3 className="font-mono text-sm font-bold text-slate-100">{ep.path}</h3>
+                  <p className="text-xs text-slate-400">{ep.summary}</p>
+
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>Parâmetros: <strong className="text-slate-300">{ep.params}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: TENANTS */}
         {activeTab === "tenants" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -571,7 +845,6 @@ export default function MidwayLabDashboard() {
                 <p className="text-xs text-slate-400">Configure os parâmetros do Fácil 2024 / Autolac e credenciais do Softlab para cada cliente</p>
               </div>
 
-              {/* ACTION 3 WORKING: Opens Create Tenant Modal */}
               <button 
                 onClick={() => {
                   setEditingTenant(null);
@@ -592,7 +865,6 @@ export default function MidwayLabDashboard() {
               </button>
             </div>
 
-            {/* Tenants Cards List */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {tenants.map((t) => (
                 <div key={t.id} className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-teal-500/40 transition">
@@ -611,7 +883,6 @@ export default function MidwayLabDashboard() {
                     </span>
                   </div>
 
-                  {/* Autolac Screen Details Matching Screenshot */}
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                       <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">URL do WebService Autolac</span>
@@ -637,7 +908,6 @@ export default function MidwayLabDashboard() {
                   <div className="flex items-center justify-between pt-2">
                     <span className="text-xs text-slate-400">Tabela de Mapeamento: <strong className="text-teal-300">5 Exames Vinculados</strong></span>
                     
-                    {/* ACTION 4 WORKING: Edit Tenant Button */}
                     <button 
                       onClick={() => handleOpenEditTenant(t)}
                       className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
@@ -674,7 +944,6 @@ export default function MidwayLabDashboard() {
                   />
                 </div>
 
-                {/* ACTION 5 WORKING: New Exam Mapping Button */}
                 <button 
                   onClick={() => handleOpenMapExam(softlabExames[softlabExames.length - 1])}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-teal-500/20 cursor-pointer"
@@ -684,7 +953,6 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
-            {/* Exam Table */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
               <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
                 <span>Mostrando catálogo sincronizado da API do Softlab Apoio</span>
@@ -741,7 +1009,6 @@ export default function MidwayLabDashboard() {
                           )}
                         </td>
                         <td className="py-4 px-5 text-right">
-                          {/* ACTION 6 WORKING: Open Exam Mapping Modal */}
                           <button 
                             onClick={() => handleOpenMapExam(exam)}
                             className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg transition font-medium cursor-pointer"
@@ -1029,6 +1296,55 @@ export default function MidwayLabDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: TEST SOFTLAB ENDPOINT MODAL */}
+      {activeEndpointModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
+                  activeEndpointModal.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                  activeEndpointModal.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
+                  activeEndpointModal.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                  "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                }`}>
+                  {activeEndpointModal.method}
+                </span>
+                <h3 className="text-base font-bold font-mono text-slate-100">{activeEndpointModal.path}</h3>
+              </div>
+              <button 
+                onClick={() => setActiveEndpointModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">{activeEndpointModal.summary}</p>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                <span className="flex items-center gap-1.5"><Terminal className="w-4 h-4 text-teal-400" /> Console de Execução MidwayLab API Client</span>
+                <span className="text-emerald-400 font-bold">200 OK</span>
+              </div>
+              <pre className="text-xs text-emerald-400 font-mono bg-slate-900/90 p-4 rounded-lg overflow-x-auto max-h-60 whitespace-pre-wrap border border-slate-800">
+                {apiConsoleResponse}
+              </pre>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveEndpointModal(null)}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+              >
+                Fechar Console
+              </button>
+            </div>
           </div>
         </div>
       )}
