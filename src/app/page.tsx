@@ -30,15 +30,12 @@ import {
   RotateCcw,
   Calendar,
   Trash2,
-  FileCheck,
-  AlertTriangle,
-  QrCode,
   SlidersHorizontal,
-  HelpCircle
+  AlertTriangle
 } from "lucide-react";
 
 export default function MidwayLabDashboard() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "tenants" | "depara" | "operacoes" | "endpoints" | "logs" | "security">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "operacoes" | "tenants" | "depara" | "endpoints" | "logs" | "security">("dashboard");
   const [searchExam, setSearchExam] = useState("");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
 
@@ -56,7 +53,7 @@ export default function MidwayLabDashboard() {
 
   const showNotification = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   // State for dynamic live data
@@ -170,7 +167,7 @@ export default function MidwayLabDashboard() {
   const [tenantFormData, setTenantFormData] = useState({
     nome: "",
     identificacaoEntidade: "",
-    senhaWs: "",
+    senhaWs: "Soft@2026",
     codigoAgente: "1",
     wsUrl: "http://177.22.36.202:8002/",
     softlabLogin: "",
@@ -184,7 +181,6 @@ export default function MidwayLabDashboard() {
   });
 
   // Operations Forms
-  const [recoletaData, setRecoletaData] = useState({ protocolo: "PROTO-8830", justificativa: "Material Hemolisado" });
   const [cancelData, setCancelData] = useState({ protocolo: "PROTO-8842", idAmostra: "BAR_PROTO-8842_1", motivo: "Paciente em Jejum Inadequado" });
   const [coletaData, setColetaData] = useState({ protocolo: "PROTO-8842", dataColeta: new Date().toISOString().slice(0, 16) });
 
@@ -241,7 +237,7 @@ export default function MidwayLabDashboard() {
       setStats(prev => ({ ...prev, pedidosIda: prev.pedidosIda + 1 }));
       setIsRefreshingLogs(false);
       showNotification("Sincronização de logs atualizada com sucesso!");
-    }, 800);
+    }, 600);
   };
 
   // ACTION 2: Save Tenant (Create or Edit)
@@ -331,7 +327,7 @@ export default function MidwayLabDashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative select-none">
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-teal-500 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-teal-500/30 border border-teal-300 flex items-center gap-3 animate-bounce">
@@ -343,12 +339,12 @@ export default function MidwayLabDashboard() {
       {/* Top Navigation Bar */}
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-teal-500/20 cursor-pointer" onClick={() => setActiveTab("dashboard")}>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab("dashboard")}>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-teal-500/20">
               <Activity className="w-6 h-6 text-slate-950 font-bold" />
             </div>
             <div>
-              <h1 className="font-bold text-lg tracking-tight flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab("dashboard")}>
+              <h1 className="font-bold text-lg tracking-tight flex items-center gap-2">
                 MidwayLab <span className="text-xs bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded-full font-medium">SaaS Multi-Tenant</span>
               </h1>
               <p className="text-xs text-slate-400">Broker de Integração Autolac ↔ Softlab Apoio</p>
@@ -398,26 +394,27 @@ export default function MidwayLabDashboard() {
         </div>
       </header>
 
-      {/* Navigation Sub-Header */}
+      {/* Navigation Sub-Header Tabs */}
       <div className="border-b border-slate-800 bg-slate-900/40 px-6 py-2 flex items-center justify-between overflow-x-auto">
         <nav className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setActiveTab("dashboard")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "dashboard"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
             <Activity className="w-4 h-4" /> Visão Geral & Flutuabilidade
           </button>
 
-          {/* NEW DEDICATED TAB: Central de Operações Softlab (Recoletas, Etiquetas EPL, Lote 1.2, Coleta) */}
           <button
+            type="button"
             onClick={() => setActiveTab("operacoes")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "operacoes"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
@@ -430,10 +427,11 @@ export default function MidwayLabDashboard() {
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("tenants")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "tenants"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
@@ -441,10 +439,11 @@ export default function MidwayLabDashboard() {
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("depara")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "depara"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
@@ -452,10 +451,11 @@ export default function MidwayLabDashboard() {
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("endpoints")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "endpoints"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
@@ -463,10 +463,11 @@ export default function MidwayLabDashboard() {
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("logs")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "logs"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
@@ -474,10 +475,11 @@ export default function MidwayLabDashboard() {
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("security")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
               activeTab === "security"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
@@ -567,7 +569,7 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
-            {/* Hero Architecture Banner */}
+            {/* Architecture Banner */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-teal-950/40 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 bg-teal-500/10 text-teal-400 border border-teal-500/20 px-3 py-1 rounded-full text-xs font-semibold">
@@ -581,6 +583,7 @@ export default function MidwayLabDashboard() {
 
               <div className="flex items-center gap-3">
                 <button 
+                  type="button"
                   onClick={() => setActiveTab("operacoes")}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-teal-500/20 cursor-pointer"
                 >
@@ -600,6 +603,7 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 <button 
+                  type="button"
                   onClick={handleRefreshLogs}
                   disabled={isRefreshingLogs}
                   className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
@@ -658,7 +662,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* NEW TAB: CENTRAL DE OPERAÇÕES SOFTLAB (RECOLETAS, ETIQUETAS EPL, LOTE 1.2, CANCELAMENTO) */}
+        {/* TAB 2: CENTRAL DE OPERAÇÕES SOFTLAB */}
         {activeTab === "operacoes" && (
           <div className="space-y-6">
             <div>
@@ -759,6 +763,7 @@ export default function MidwayLabDashboard() {
                         <td className="py-4 px-5 text-xs text-slate-400">{rec.dataSolicitacao}</td>
                         <td className="py-4 px-5 text-right">
                           <button 
+                            type="button"
                             onClick={() => handleConfirmRecoleta(rec.id)}
                             className="text-xs bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1 ml-auto"
                           >
@@ -782,59 +787,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB ENDPOINTS */}
-        {activeTab === "endpoints" && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <Code2 className="w-5 h-5 text-teal-400" /> Catálogo Completo de Endpoints da API do Softlab Apoio
-                </h2>
-                <p className="text-xs text-slate-400">Todos os 24 métodos REST extraídos da documentação Swagger (http://apoio.softlabsolucoes.com.br/swagger)</p>
-              </div>
-
-              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-teal-300 font-mono font-bold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 100% dos Endpoints Cobertos no MidwayLab
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {softlabEndpointsList.map((ep, idx) => (
-                <div key={idx} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3 hover:border-teal-500/40 transition">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
-                        ep.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                        ep.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
-                        ep.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                        "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                      }`}>
-                        {ep.method}
-                      </span>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">{ep.group}</span>
-                    </div>
-
-                    <button 
-                      onClick={() => handleTestEndpoint(ep)}
-                      className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Play className="w-3 h-3 fill-current" /> Testar Método
-                    </button>
-                  </div>
-
-                  <h3 className="font-mono text-sm font-bold text-slate-100">{ep.path}</h3>
-                  <p className="text-xs text-slate-400">{ep.summary}</p>
-
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                    <span>Parâmetros: <strong className="text-slate-300">{ep.params}</strong></span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB TENANTS */}
+        {/* TAB 3: TENANTS */}
         {activeTab === "tenants" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -846,6 +799,7 @@ export default function MidwayLabDashboard() {
               </div>
 
               <button 
+                type="button"
                 onClick={() => {
                   setEditingTenant(null);
                   setTenantFormData({
@@ -909,6 +863,7 @@ export default function MidwayLabDashboard() {
                     <span className="text-xs text-slate-400">Tabela de Mapeamento: <strong className="text-teal-300">5 Exames Vinculados</strong></span>
                     
                     <button 
+                      type="button"
                       onClick={() => handleOpenEditTenant(t)}
                       className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
                     >
@@ -921,7 +876,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB DE-PARA */}
+        {/* TAB 4: DE-PARA */}
         {activeTab === "depara" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -945,6 +900,7 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 <button 
+                  type="button"
                   onClick={() => handleOpenMapExam(softlabExames[softlabExames.length - 1])}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-teal-500/20 cursor-pointer"
                 >
@@ -1010,6 +966,7 @@ export default function MidwayLabDashboard() {
                         </td>
                         <td className="py-4 px-5 text-right">
                           <button 
+                            type="button"
                             onClick={() => handleOpenMapExam(exam)}
                             className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg transition font-medium cursor-pointer"
                           >
@@ -1025,7 +982,60 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB LOGS */}
+        {/* TAB 5: ENDPOINTS */}
+        {activeTab === "endpoints" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <Code2 className="w-5 h-5 text-teal-400" /> Catálogo Completo de Endpoints da API do Softlab Apoio
+                </h2>
+                <p className="text-xs text-slate-400">Todos os 24 métodos REST extraídos da documentação Swagger (http://apoio.softlabsolucoes.com.br/swagger)</p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-teal-300 font-mono font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 100% dos Endpoints Cobertos no MidwayLab
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {softlabEndpointsList.map((ep, idx) => (
+                <div key={idx} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3 hover:border-teal-500/40 transition">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
+                        ep.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                        ep.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
+                        ep.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                        "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      }`}>
+                        {ep.method}
+                      </span>
+                      <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">{ep.group}</span>
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={() => handleTestEndpoint(ep)}
+                      className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Play className="w-3 h-3 fill-current" /> Testar Método
+                    </button>
+                  </div>
+
+                  <h3 className="font-mono text-sm font-bold text-slate-100">{ep.path}</h3>
+                  <p className="text-xs text-slate-400">{ep.summary}</p>
+
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>Parâmetros: <strong className="text-slate-300">{ep.params}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: LOGS */}
         {activeTab === "logs" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -1037,6 +1047,7 @@ export default function MidwayLabDashboard() {
               </div>
 
               <button 
+                type="button"
                 onClick={handleRefreshLogs}
                 disabled={isRefreshingLogs}
                 className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer font-semibold"
@@ -1080,7 +1091,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB SECURITY */}
+        {/* TAB 7: SECURITY */}
         {activeTab === "security" && (
           <div className="space-y-6">
             <div>
@@ -1117,6 +1128,241 @@ export default function MidwayLabDashboard() {
         )}
       </main>
 
+      {/* MODAL 1: CREATE / EDIT TENANT */}
+      {isNewTenantModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-teal-400" />
+                {editingTenant ? "Editar Laboratório Client" : "Cadastrar Novo Laboratório (Tenant)"}
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setIsNewTenantModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTenant} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nome do Laboratório</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex.: LAB. SAN MATHEUS"
+                  value={tenantFormData.nome}
+                  onChange={(e) => setTenantFormData({ ...tenantFormData, nome: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Identificação da Entidade (Autolac)</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Ex.: yorod23826@gcont.com"
+                    value={tenantFormData.identificacaoEntidade}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Senha de Acesso ao WS (Autolac)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex.: Soft@2026"
+                    value={tenantFormData.senhaWs}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Login API Softlab Apoio</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Ex.: carloscleton@gmail.com"
+                    value={tenantFormData.softlabLogin}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabLogin: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Senha API Softlab Apoio</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Ex.: Carlos@2026"
+                    value={tenantFormData.softlabSenha}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">URL de Integração do WebService</label>
+                <input
+                  type="text"
+                  required
+                  value={tenantFormData.wsUrl}
+                  onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsNewTenantModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" /> Salvar Laboratório
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: MAP EXAM DE-PARA */}
+      {mappingExamModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <GitCompare className="w-5 h-5 text-teal-400" />
+                Mapear Exame DE-PARA
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setMappingExamModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExamMapping} className="space-y-4 text-xs">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Exame Selecionado do Softlab</span>
+                <p className="font-bold text-slate-100 text-sm">{mappingExamModal.descricao}</p>
+                <p className="font-mono text-teal-300 font-semibold">Código Softlab: {mappingExamModal.codigo}</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Código Correspondente no Autolac</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex.: T3, TSH, HEMO"
+                  value={mapFormData.codigoAutolac}
+                  onChange={(e) => setMapFormData({ ...mapFormData, codigoAutolac: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold focus:outline-none focus:border-teal-500/50 uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Tipo de Resultado do Laudo</label>
+                <select
+                  value={mapFormData.tipoResultado}
+                  onChange={(e) => setMapFormData({ ...mapFormData, tipoResultado: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                >
+                  <option value="PDF">PDF (Base64 Laudo em PDF)</option>
+                  <option value="ESTRUTURADO">ESTRUTURADO (Componentes & Parâmetros)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setMappingExamModal(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4" /> Salvar Mapeamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: TEST SOFTLAB ENDPOINT MODAL */}
+      {activeEndpointModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
+                  activeEndpointModal.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                  activeEndpointModal.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
+                  activeEndpointModal.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                  "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                }`}>
+                  {activeEndpointModal.method}
+                </span>
+                <h3 className="text-base font-bold font-mono text-slate-100">{activeEndpointModal.path}</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setActiveEndpointModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">{activeEndpointModal.summary}</p>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                <span className="flex items-center gap-1.5"><Terminal className="w-4 h-4 text-teal-400" /> Console de Execução MidwayLab API Client</span>
+                <span className="text-emerald-400 font-bold">200 OK</span>
+              </div>
+              <pre className="text-xs text-emerald-400 font-mono bg-slate-900/90 p-4 rounded-lg overflow-x-auto max-h-60 whitespace-pre-wrap border border-slate-800">
+                {apiConsoleResponse}
+              </pre>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveEndpointModal(null)}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+              >
+                Fechar Console
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* WORKFLOW MODALS (EPL, CANCEL, COLETA, LOTE 1.2) */}
       {activeWorkflowModal === "epl" && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1125,7 +1371,7 @@ export default function MidwayLabDashboard() {
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Tag className="w-5 h-5 text-teal-400" /> Visualizador de Etiquetas EPL (5cm x 3cm)
               </h3>
-              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1142,7 +1388,7 @@ P1`}
               </pre>
             </div>
             <div className="flex justify-end pt-2">
-              <button onClick={() => setActiveWorkflowModal(null)} className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Fechar
               </button>
             </div>
@@ -1157,7 +1403,7 @@ P1`}
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Trash2 className="w-5 h-5 text-rose-400" /> Cancelamento de Amostra no Apoio
               </h3>
-              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1175,8 +1421,8 @@ P1`}
                 <input type="text" value={cancelData.motivo} onChange={(e) => setCancelData({...cancelData, motivo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400">Cancelar</button>
-                <button type="submit" className="bg-rose-500 text-white font-bold px-5 py-2 rounded-xl">Confirmar Cancelamento</button>
+                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400 cursor-pointer">Cancelar</button>
+                <button type="submit" className="bg-rose-500 text-white font-bold px-5 py-2 rounded-xl cursor-pointer">Confirmar Cancelamento</button>
               </div>
             </form>
           </div>
@@ -1190,7 +1436,7 @@ P1`}
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-cyan-400" /> Ajustar Data/Hora de Coleta Real
               </h3>
-              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1204,8 +1450,8 @@ P1`}
                 <input type="datetime-local" value={coletaData.dataColeta} onChange={(e) => setColetaData({...coletaData, dataColeta: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400">Cancelar</button>
-                <button type="submit" className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl">Salvar Coleta Real</button>
+                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400 cursor-pointer">Cancelar</button>
+                <button type="submit" className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl cursor-pointer">Salvar Coleta Real</button>
               </div>
             </form>
           </div>
@@ -1219,7 +1465,7 @@ P1`}
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-indigo-400" /> Adição de Exames (Sub-pedido / Lote 1.2)
               </h3>
-              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1234,7 +1480,7 @@ P1`}
                 </p>
               </div>
               <div className="flex justify-end pt-2">
-                <button onClick={() => { showNotification("Sub-pedido Lote 1.2 gerado com sucesso!"); setActiveWorkflowModal(null); }} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-xl">
+                <button type="button" onClick={() => { showNotification("Sub-pedido Lote 1.2 gerado com sucesso!"); setActiveWorkflowModal(null); }} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-xl cursor-pointer">
                   Gerar Lote 1.2 Simulado
                 </button>
               </div>
