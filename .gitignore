@@ -1,0 +1,18 @@
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+
+# Logs and scratch files
+*.log
+scratch/
+.system_generated/
+
+# OS / IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
