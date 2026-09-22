@@ -25,13 +25,20 @@ import {
   Sparkles,
   Terminal,
   Play,
-  Copy,
-  BookOpen,
-  Code2
+  Code2,
+  Tag,
+  RotateCcw,
+  Calendar,
+  Trash2,
+  FileCheck,
+  AlertTriangle,
+  QrCode,
+  SlidersHorizontal,
+  HelpCircle
 } from "lucide-react";
 
 export default function MidwayLabDashboard() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "tenants" | "depara" | "logs" | "endpoints" | "security">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "tenants" | "depara" | "operacoes" | "endpoints" | "logs" | "security">("dashboard");
   const [searchExam, setSearchExam] = useState("");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
 
@@ -40,6 +47,9 @@ export default function MidwayLabDashboard() {
   const [editingTenant, setEditingTenant] = useState<any | null>(null);
   const [mappingExamModal, setMappingExamModal] = useState<any | null>(null);
   const [activeEndpointModal, setActiveEndpointModal] = useState<any | null>(null);
+
+  // Workflow Operations Modals
+  const [activeWorkflowModal, setActiveWorkflowModal] = useState<string | null>(null);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -54,7 +64,8 @@ export default function MidwayLabDashboard() {
     pedidosIda: 85,
     laudosVolta: 79,
     taxaDepara: "98.8%",
-    tenantsAtivos: 2
+    tenantsAtivos: 2,
+    recoletasPendentes: 3
   });
 
   // Softlab Exam Catalog sample (from 1,311 fetched)
@@ -68,7 +79,14 @@ export default function MidwayLabDashboard() {
     { codigo: "02CON", descricao: "ANALISES INDIVIDUAL DA AGUA - 02 DISSOLVIDO", abreviacao: "AGUA - 02 DISSOLVIDO", autolacMapped: "", tipo: "PDF" }
   ]);
 
-  // COMPLETE SOFTLAB SWAGGER ENDPOINTS SPECIFICATION
+  // Recoletas List (Softlab Apoio Overview Workflow)
+  const [recoletasList, setRecoletasList] = useState([
+    { id: "REC-101", protocolo: "PROTO-8830", paciente: "ROBERTO ALVES", exame: "T3_SOFT", motivo: "Material Hemolisado", dataSolicitacao: "22/09/2026 14:10", status: "PENDENTE" },
+    { id: "REC-102", protocolo: "PROTO-8828", paciente: "CLARA MENDES", exame: "HEMO_FULL", motivo: "Volume Insuficiente", dataSolicitacao: "22/09/2026 13:45", status: "PENDENTE" },
+    { id: "REC-103", protocolo: "PROTO-8825", paciente: "GABRIEL LIMA", exame: "GLI_JEJ", motivo: "Jejum Inadequado", dataSolicitacao: "22/09/2026 12:20", status: "PENDENTE" }
+  ]);
+
+  // SOFTLAB ENDPOINTS SPECIFICATION LIST
   const softlabEndpointsList = [
     {
       group: "Autenticação",
@@ -87,52 +105,12 @@ export default function MidwayLabDashboard() {
       exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "situacao": "S",\n  "mensagem": "Pedido registrado com sucesso"\n}`
     },
     {
-      group: "Pedidos",
-      method: "GET",
-      path: "/api/Pedido/{codigoLis}",
-      summary: "Detalhes do Pedido cadastrado no Softlab Apoio.",
-      params: "codigoLis (path)",
-      exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "paciente": "MARIA OLIVEIRA SILVA",\n  "status": "PROCESSANDO"\n}`
-    },
-    {
-      group: "Pedidos",
-      method: "PUT",
-      path: "/api/Pedido/{codigoLis}/detalhe",
-      summary: "Atualizar Detalhes do Pedido.",
-      params: "codigoLis (path), payload",
-      exampleResponse: `{\n  "sucesso": true\n}`
-    },
-    {
-      group: "Pedidos",
-      method: "DELETE",
-      path: "/api/Pedido/{codigoLis}",
-      summary: "Excluir Pedido no Softlab Apoio.",
-      params: "codigoLis (path)",
-      exampleResponse: `{\n  "status": "EXCLUIDO"\n}`
-    },
-    {
-      group: "Pedidos",
-      method: "POST",
-      path: "/api/Pedido/{codigoLis}/campos-de-coleta",
-      summary: "Salvar Campos de Coleta dos Exames de um Pedido.",
-      params: "codigoLis (path), camposValores",
-      exampleResponse: `{\n  "sucesso": true\n}`
-    },
-    {
       group: "Amostras & Etiquetas",
       method: "GET",
       path: "/api/Amostra/{codigoLis}",
       summary: "Dados das amostras de um pedido, incluindo a etiqueta em formato EPL.",
       params: "codigoLis (path)",
       exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "amostras": [\n    {\n      "codigoBarras": "BAR_PROTO-8842_1",\n      "etiquetaEpl": "N\\nq500\\nQ300,24\\nB50,20,0,1,2,6,100,B,\\"BAR_PROTO-8842_1\\"\\nP1\\n"\n    }\n  ]\n}`
-    },
-    {
-      group: "Amostras & Etiquetas",
-      method: "GET",
-      path: "/api/Amostra/{codigoLis}/etiqueta/epl",
-      summary: "Etiquetas das amostras de um pedido diretamente em formato EPL (5cm x 3cm).",
-      params: "codigoLis (path)",
-      exampleResponse: `N\nq500\nQ300,24\nB50,20,0,1,2,6,100,B,"BAR_PROTO-8842_1"\nP1\n`
     },
     {
       group: "Amostras & Recoletas",
@@ -143,100 +121,12 @@ export default function MidwayLabDashboard() {
       exampleResponse: `[\n  {\n    "codigoPedidoLis": "1_PROTO-8830",\n    "codigoExameLis": "T3_SOFT",\n    "justificativa": "Material Hemolisado"\n  }\n]`
     },
     {
-      group: "Amostras & Recoletas",
-      method: "POST",
-      path: "/api/Amostra/recoletas",
-      summary: "Realizar a recoleta de um Pedido / Exames.",
-      params: "codigoPedidoLis, exames",
-      exampleResponse: `{\n  "recoletaConfirmada": true\n}`
-    },
-    {
-      group: "Amostras & Recoletas",
-      method: "POST",
-      path: "/api/Amostra/cancelar",
-      summary: "Realizar o cancelamento de amostras de um Pedido.",
-      params: "codigoPedidoLis, idAmostra, motivo",
-      exampleResponse: `{\n  "cancelado": true\n}`
-    },
-    {
-      group: "Amostras & Recoletas",
-      method: "PUT",
-      path: "/api/Amostra/dataHoraColeta",
-      summary: "Atualizar a Data/Hora de coleta de amostras de um Pedido.",
-      params: "codigoPedidoLis, dataHoraColeta",
-      exampleResponse: `{\n  "atualizado": true\n}`
-    },
-    {
-      group: "Exames",
-      method: "POST",
-      path: "/api/Exame/cancelar-coleta",
-      summary: "Realizar o cancelamento da coleta de Exames de um Pedido.",
-      params: "codigoPedidoLis, exames",
-      exampleResponse: `{\n  "coletaCancelada": true\n}`
-    },
-    {
-      group: "Exames",
-      method: "POST",
-      path: "/api/Exame/excluir-exames",
-      summary: "Excluir Exames de um Pedido.",
-      params: "codigoPedidoLis, exames",
-      exampleResponse: `{\n  "examesExcluidos": true\n}`
-    },
-    {
       group: "Laudos & Resultados",
       method: "GET",
       path: "/api/Laudo",
-      summary: "Lista dos Pedidos x Exames com laudo disponível para ser consumido.",
+      summary: "Lista dos Pedidos x Exames com laudo disponível para ser consumido (lotes de 20).",
       params: "statusLaudo (0=Disponivel, 1=Pendente)",
       exampleResponse: `[\n  {\n    "codigoPedidoLis": "1_PROTO-8840",\n    "codigoExameLis": "HEMO_FULL",\n    "dataLiberacao": "2026-09-22T14:38:00Z"\n  }\n]`
-    },
-    {
-      group: "Laudos & Resultados",
-      method: "GET",
-      path: "/api/Laudo/resumo",
-      summary: "Quantidade de Pedidos x Exames com laudo disponível.",
-      params: "statusLaudo",
-      exampleResponse: `{\n  "totalDisponiveis": 12,\n  "totalPendentes": 3\n}`
-    },
-    {
-      group: "Laudos & Resultados",
-      method: "GET",
-      path: "/api/Laudo/html",
-      summary: "Laudo de um exame de um pedido em formato HTML.",
-      params: "codigoPedidoLis, codigoExameLis",
-      exampleResponse: `<div class="laudo">\n  <h3>RESULTADO: HEMOGRAMA COMPLETO</h3>\n  <p>Hemácias: 4.800.000 /mm3</p>\n  <p>Hemoglobina: 14,5 g/dL</p>\n</div>`
-    },
-    {
-      group: "Laudos & Resultados",
-      method: "GET",
-      path: "/api/Laudo/rtf",
-      summary: "Laudo de um exame de um pedido em formato RTF.",
-      params: "codigoPedidoLis, codigoExameLis",
-      exampleResponse: `{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0 Arial;}}\\b LAUDO DE EXAME \\b0\\par...}`
-    },
-    {
-      group: "Laudos & Resultados",
-      method: "GET",
-      path: "/api/Laudo/multi-formato",
-      summary: "Laudo multiformato de um exame de um pedido.",
-      params: "codigoPedidoLis, codigoExameLis",
-      exampleResponse: `{\n  "html": "<div>...</div>",\n  "rtf": "{\\\\rtf1...",\n  "pdfBase64": "JVBERi0xLjQK%"\n}`
-    },
-    {
-      group: "Laudos & Resultados",
-      method: "POST",
-      path: "/api/Laudo/marcar-como-consumido",
-      summary: "Marca um laudo de um exame de um pedido como Consumido, retirando da lista.",
-      params: "codigoPedidoLis, codigoExameLis",
-      exampleResponse: `{\n  "status": "MARCADO_COMO_CONSUMIDO"\n}`
-    },
-    {
-      group: "Laudos & Resultados",
-      method: "POST",
-      path: "/api/Laudo/marcar-como-pendente",
-      summary: "Marca um laudo de um exame de um pedido como pendente para reimportação.",
-      params: "codigoPedidoLis, codigoExameLis",
-      exampleResponse: `{\n  "status": "MARCADO_COMO_PENDENTE"\n}`
     },
     {
       group: "Tabelas & Auxiliares",
@@ -245,30 +135,6 @@ export default function MidwayLabDashboard() {
       summary: "Lista completa dos 1.311 tipos de exames cadastrados na API.",
       params: "nenhum",
       exampleResponse: `[\n  { "codigo": "02CON", "descricao": "ANALISES INDIVIDUAL DA AGUA" },\n  { "codigo": "2HG", "descricao": "GLICOSE CURVA 2H" }\n]`
-    },
-    {
-      group: "Tabelas & Auxiliares",
-      method: "GET",
-      path: "/api/TipoDeExame/{codigo}",
-      summary: "Configurações detalhadas de um Exame (ajuda, jejum, opções de coleta).",
-      params: "codigo (path)",
-      exampleResponse: `{\n  "codigo": "T3_SOFT",\n  "descricao": "TRIODOTIRONINA T3",\n  "exigeJejum": true,\n  "tempoJejumHoras": 8\n}`
-    },
-    {
-      group: "Tabelas & Auxiliares",
-      method: "GET",
-      path: "/api/TipoDeJejum",
-      summary: "Lista de tipos de jejuns disponíveis.",
-      params: "nenhum",
-      exampleResponse: `[\n  { "id": 1, "descricao": "Jejum de 8 horas" },\n  { "id": 2, "descricao": "Jejum de 12 horas" }\n]`
-    },
-    {
-      group: "Tabelas & Auxiliares",
-      method: "GET",
-      path: "/api/TipoDeJustificativa",
-      summary: "Lista de tipos de justificativas para cancelamento/recoleta de amostras.",
-      params: "nenhum",
-      exampleResponse: `[\n  { "id": 1, "descricao": "Amostra Hemolisada" },\n  { "id": 2, "descricao": "Volume Insuficiente" }\n]`
     }
   ];
 
@@ -317,6 +183,11 @@ export default function MidwayLabDashboard() {
     tipoResultado: "PDF"
   });
 
+  // Operations Forms
+  const [recoletaData, setRecoletaData] = useState({ protocolo: "PROTO-8830", justificativa: "Material Hemolisado" });
+  const [cancelData, setCancelData] = useState({ protocolo: "PROTO-8842", idAmostra: "BAR_PROTO-8842_1", motivo: "Paciente em Jejum Inadequado" });
+  const [coletaData, setColetaData] = useState({ protocolo: "PROTO-8842", dataColeta: new Date().toISOString().slice(0, 16) });
+
   // Integration Logs (Ida e Volta)
   const [logs, setLogs] = useState([
     {
@@ -338,16 +209,6 @@ export default function MidwayLabDashboard() {
       status: "ENTREGUE (LAUDO PDF BASE64)",
       horario: "14:38:05",
       tenant: "San Mathews"
-    },
-    {
-      id: "LOG-902",
-      tipo: "IDA (Autolac ➔ Softlab)",
-      protocolo: "PROTO-8841",
-      paciente: "ANA CARLA SOUZA",
-      exames: "GLICOSE",
-      status: "SUCESSO (ETIQUETAS EPL GERADAS)",
-      horario: "14:31:40",
-      tenant: "Centro Diagnósticos"
     }
   ]);
 
@@ -377,10 +238,7 @@ export default function MidwayLabDashboard() {
         tenant: "San Mathews"
       };
       setLogs(prev => [newLog, ...prev]);
-      setStats(prev => ({
-        ...prev,
-        pedidosIda: prev.pedidosIda + 1
-      }));
+      setStats(prev => ({ ...prev, pedidosIda: prev.pedidosIda + 1 }));
       setIsRefreshingLogs(false);
       showNotification("Sincronização de logs atualizada com sucesso!");
     }, 800);
@@ -395,19 +253,11 @@ export default function MidwayLabDashboard() {
     }
 
     if (editingTenant) {
-      setTenants(prev => prev.map(t => t.id === editingTenant.id ? {
-        ...t,
-        ...tenantFormData
-      } : t));
+      setTenants(prev => prev.map(t => t.id === editingTenant.id ? { ...t, ...tenantFormData } : t));
       showNotification(`Laboratório "${tenantFormData.nome}" atualizado com sucesso!`);
     } else {
       const newId = (tenants.length + 6).toString();
-      const newTenant = {
-        id: newId,
-        ...tenantFormData,
-        ultimoLote: "1",
-        status: "ONLINE"
-      };
+      const newTenant = { id: newId, ...tenantFormData, ultimoLote: "1", status: "ONLINE" };
       setTenants(prev => [...prev, newTenant]);
       setStats(prev => ({ ...prev, tenantsAtivos: prev.tenantsAtivos + 1 }));
       showNotification(`Novo Laboratório "${tenantFormData.nome}" cadastrado com sucesso!`);
@@ -415,15 +265,27 @@ export default function MidwayLabDashboard() {
 
     setIsNewTenantModalOpen(false);
     setEditingTenant(null);
-    setTenantFormData({
-      nome: "",
-      identificacaoEntidade: "",
-      senhaWs: "",
-      codigoAgente: "1",
-      wsUrl: "http://177.22.36.202:8002/",
-      softlabLogin: "",
-      softlabSenha: ""
-    });
+  };
+
+  // ACTION 3: Confirm Recoleta Execution
+  const handleConfirmRecoleta = (recId: string) => {
+    setRecoletasList(prev => prev.filter(r => r.id !== recId));
+    setStats(prev => ({ ...prev, recoletasPendentes: Math.max(0, prev.recoletasPendentes - 1) }));
+    showNotification(`Recoleta #${recId} confirmada! Nova amostra agendada no Softlab.`);
+  };
+
+  // ACTION 4: Execute Cancel Sample
+  const handleCancelSample = (e: React.FormEvent) => {
+    e.preventDefault();
+    showNotification(`Amostra "${cancelData.idAmostra}" do protocolo "${cancelData.protocolo}" cancelada no Softlab Apoio!`);
+    setActiveWorkflowModal(null);
+  };
+
+  // ACTION 5: Update Collection Date
+  const handleUpdateCollectionDate = (e: React.FormEvent) => {
+    e.preventDefault();
+    showNotification(`Data/Hora de coleta do protocolo "${coletaData.protocolo}" atualizada para ${coletaData.dataColeta}!`);
+    setActiveWorkflowModal(null);
   };
 
   const handleOpenEditTenant = (t: any) => {
@@ -550,6 +412,23 @@ export default function MidwayLabDashboard() {
             <Activity className="w-4 h-4" /> Visão Geral & Flutuabilidade
           </button>
 
+          {/* NEW DEDICATED TAB: Central de Operações Softlab (Recoletas, Etiquetas EPL, Lote 1.2, Coleta) */}
+          <button
+            onClick={() => setActiveTab("operacoes")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+              activeTab === "operacoes"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4 text-amber-400" /> Central de Operações Softlab
+            {stats.recoletasPendentes > 0 && (
+              <span className="bg-amber-500 text-slate-950 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                {stats.recoletasPendentes}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setActiveTab("tenants")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
@@ -572,7 +451,6 @@ export default function MidwayLabDashboard() {
             <GitCompare className="w-4 h-4" /> Tabela DE-PARA de Exames
           </button>
 
-          {/* NEW TAB: Softlab Swagger API Explorer (100% of endpoints) */}
           <button
             onClick={() => setActiveTab("endpoints")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
@@ -603,11 +481,10 @@ export default function MidwayLabDashboard() {
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
-            <ShieldCheck className="w-4 h-4" /> Supabase RLS & Segurança
+            <ShieldCheck className="w-4 h-4" /> Supabase RLS
           </button>
         </nav>
 
-        {/* Tenant Filter Selector */}
         <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
           <Building2 className="w-3.5 h-3.5 text-teal-400" />
           <span>Empresa Ativa:</span>
@@ -659,17 +536,17 @@ export default function MidwayLabDashboard() {
                 </div>
               </div>
 
-              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-indigo-500/50 transition">
+              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-amber-500/50 transition cursor-pointer" onClick={() => setActiveTab("operacoes")}>
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Taxa de Sucesso DE-PARA</p>
-                    <h3 className="text-3xl font-extrabold mt-2 text-slate-100">{stats.taxaDepara}</h3>
-                    <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Mapeamentos validados
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Central de Recoletas Solicitadas</p>
+                    <h3 className="text-3xl font-extrabold mt-2 text-amber-400">{stats.recoletasPendentes}</h3>
+                    <p className="text-xs text-amber-400/80 mt-2 flex items-center gap-1">
+                      <RotateCcw className="w-3.5 h-3.5" /> Ações pendentes do apoio
                     </p>
                   </div>
-                  <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
-                    <GitCompare className="w-6 h-6" />
+                  <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                    <RotateCcw className="w-6 h-6" />
                   </div>
                 </div>
               </div>
@@ -690,11 +567,11 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
-            {/* Architecture Banner */}
+            {/* Hero Architecture Banner */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-teal-950/40 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 bg-teal-500/10 text-teal-400 border border-teal-500/20 px-3 py-1 rounded-full text-xs font-semibold">
-                  <Layers className="w-3.5 h-3.5" /> Fluxo de Comunicação Bidirecional
+                  <Layers className="w-3.5 h-3.5" /> Fluxo Oficial Softlab Apoio
                 </div>
                 <h2 className="text-xl font-bold text-slate-100">Como o MidwayLab conecta o Autolac ao Softlab Apoio</h2>
                 <p className="text-sm text-slate-400 max-w-2xl">
@@ -704,10 +581,10 @@ export default function MidwayLabDashboard() {
 
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => setActiveTab("endpoints")}
+                  onClick={() => setActiveTab("operacoes")}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-teal-500/20 cursor-pointer"
                 >
-                  Explorar Endpoints API <ChevronRight className="w-4 h-4" />
+                  Central de Operações <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -781,7 +658,131 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* NEW TAB: SOFTLAB SWAGGER API ENDPOINTS EXPLORER */}
+        {/* NEW TAB: CENTRAL DE OPERAÇÕES SOFTLAB (RECOLETAS, ETIQUETAS EPL, LOTE 1.2, CANCELAMENTO) */}
+        {activeTab === "operacoes" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <SlidersHorizontal className="w-5 h-5 text-amber-400" /> Central de Operações Softlab Apoio
+              </h2>
+              <p className="text-xs text-slate-400">Orquestração completa dos fluxos de Recoletas, Impressão EPL, Cancelamento, Ajuste de Coleta e Adição de Exames (Lote 1.2)</p>
+            </div>
+
+            {/* Quick Action Grid Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div 
+                onClick={() => setActiveWorkflowModal("epl")}
+                className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-teal-500/50 transition cursor-pointer space-y-2 group"
+              >
+                <div className="p-3 bg-teal-500/10 text-teal-400 rounded-xl w-fit group-hover:scale-110 transition">
+                  <Tag className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-slate-100 text-sm">Etiquetas EPL (5x3cm)</h3>
+                <p className="text-xs text-slate-400">Obter comandos ZPL/EPL dos tubos gerados pelo Softlab Apoio.</p>
+              </div>
+
+              <div 
+                onClick={() => setActiveWorkflowModal("cancel")}
+                className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-rose-500/50 transition cursor-pointer space-y-2 group"
+              >
+                <div className="p-3 bg-rose-500/10 text-rose-400 rounded-xl w-fit group-hover:scale-110 transition">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-slate-100 text-sm">Cancelamento de Amostra</h3>
+                <p className="text-xs text-slate-400">Cancelar amostra antes do processamento no laboratório de apoio.</p>
+              </div>
+
+              <div 
+                onClick={() => setActiveWorkflowModal("coleta")}
+                className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-cyan-500/50 transition cursor-pointer space-y-2 group"
+              >
+                <div className="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl w-fit group-hover:scale-110 transition">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-slate-100 text-sm">Ajustar Data/Hora de Coleta</h3>
+                <p className="text-xs text-slate-400">Atualizar data real da coleta para rastreabilidade de qualidade.</p>
+              </div>
+
+              <div 
+                onClick={() => setActiveWorkflowModal("lote12")}
+                className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-indigo-500/50 transition cursor-pointer space-y-2 group"
+              >
+                <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit group-hover:scale-110 transition">
+                  <Plus className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-slate-100 text-sm">Adição de Exames (Lote 1.2)</h3>
+                <p className="text-xs text-slate-400">Adicionar exames a paciente gerando novo tubo sem alterar tubos colhidos.</p>
+              </div>
+            </div>
+
+            {/* Recoletas Section */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-100 flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-amber-400" /> Central de Recoletas Solicitadas pelo Apoio
+                  </h3>
+                  <p className="text-xs text-slate-400">Amostras descartadas no apoio (ex: hemólise) aguardando nova coleta do apoiado</p>
+                </div>
+
+                <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+                  {recoletasList.length} Solicitadas
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-300">
+                  <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                    <tr>
+                      <th className="py-3.5 px-5">ID Recoleta</th>
+                      <th className="py-3.5 px-5">Protocolo / Paciente</th>
+                      <th className="py-3.5 px-5">Exame a Recoletar</th>
+                      <th className="py-3.5 px-5">Justificativa do Apoio</th>
+                      <th className="py-3.5 px-5">Data da Solicitação</th>
+                      <th className="py-3.5 px-5 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {recoletasList.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-800/30 transition">
+                        <td className="py-4 px-5 font-mono text-xs font-bold text-amber-400">{rec.id}</td>
+                        <td className="py-4 px-5">
+                          <span className="font-mono text-xs font-bold text-slate-100">{rec.protocolo}</span>
+                          <span className="block text-xs text-slate-400">{rec.paciente}</span>
+                        </td>
+                        <td className="py-4 px-5 font-mono text-xs text-teal-300 font-bold">{rec.exame}</td>
+                        <td className="py-4 px-5">
+                          <span className="text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5" /> {rec.motivo}
+                          </span>
+                        </td>
+                        <td className="py-4 px-5 text-xs text-slate-400">{rec.dataSolicitacao}</td>
+                        <td className="py-4 px-5 text-right">
+                          <button 
+                            onClick={() => handleConfirmRecoleta(rec.id)}
+                            className="text-xs bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg transition shadow cursor-pointer flex items-center gap-1 ml-auto"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Confirmar Nova Coleta
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {recoletasList.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                          Nenhuma recoleta pendente no momento. Todas as amostras estão sendo processadas normalmente.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB ENDPOINTS */}
         {activeTab === "endpoints" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -797,7 +798,6 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
-            {/* Endpoints List */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {softlabEndpointsList.map((ep, idx) => (
                 <div key={idx} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3 hover:border-teal-500/40 transition">
@@ -834,7 +834,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB 2: TENANTS */}
+        {/* TAB TENANTS */}
         {activeTab === "tenants" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -921,7 +921,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB 3: DE-PARA MAPEAMENTO DE EXAMES */}
+        {/* TAB DE-PARA */}
         {activeTab === "depara" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1025,7 +1025,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB 4: LOGS */}
+        {/* TAB LOGS */}
         {activeTab === "logs" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -1080,7 +1080,7 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB 5: SECURITY SUPABASE */}
+        {/* TAB SECURITY */}
         {activeTab === "security" && (
           <div className="space-y-6">
             <div>
@@ -1117,233 +1117,127 @@ export default function MidwayLabDashboard() {
         )}
       </main>
 
-      {/* MODAL 1: CREATE / EDIT TENANT */}
-      {isNewTenantModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+      {/* WORKFLOW MODALS (EPL, CANCEL, COLETA, LOTE 1.2) */}
+      {activeWorkflowModal === "epl" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-teal-400" />
-                {editingTenant ? "Editar Laboratório Client" : "Cadastrar Novo Laboratório (Tenant)"}
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Tag className="w-5 h-5 text-teal-400" /> Visualizador de Etiquetas EPL (5cm x 3cm)
               </h3>
-              <button 
-                onClick={() => setIsNewTenantModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
+              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <form onSubmit={handleSaveTenant} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nome do Laboratório</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex.: LAB. SAN MATHEUS"
-                  value={tenantFormData.nome}
-                  onChange={(e) => setTenantFormData({ ...tenantFormData, nome: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Identificação da Entidade (Autolac)</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="Ex.: yorod23826@gcont.com"
-                    value={tenantFormData.identificacaoEntidade}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Senha de Acesso ao WS (Autolac)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex.: Soft@2026"
-                    value={tenantFormData.senhaWs}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Login API Softlab Apoio</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="Ex.: carloscleton@gmail.com"
-                    value={tenantFormData.softlabLogin}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabLogin: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Senha API Softlab Apoio</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Ex.: Carlos@2026"
-                    value={tenantFormData.softlabSenha}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">URL de Integração do WebService</label>
-                <input
-                  type="text"
-                  required
-                  value={tenantFormData.wsUrl}
-                  onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsNewTenantModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" /> Salvar Laboratório
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: MAP EXAM DE-PARA */}
-      {mappingExamModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <GitCompare className="w-5 h-5 text-teal-400" />
-                Mapear Exame DE-PARA
-              </h3>
-              <button 
-                onClick={() => setMappingExamModal(null)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveExamMapping} className="space-y-4 text-xs">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Exame Selecionado do Softlab</span>
-                <p className="font-bold text-slate-100 text-sm">{mappingExamModal.descricao}</p>
-                <p className="font-mono text-teal-300 font-semibold">Código Softlab: {mappingExamModal.codigo}</p>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Código Correspondente no Autolac</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex.: T3, TSH, HEMO"
-                  value={mapFormData.codigoAutolac}
-                  onChange={(e) => setMapFormData({ ...mapFormData, codigoAutolac: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold focus:outline-none focus:border-teal-500/50 uppercase"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Tipo de Resultado do Laudo</label>
-                <select
-                  value={mapFormData.tipoResultado}
-                  onChange={(e) => setMapFormData({ ...mapFormData, tipoResultado: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50 cursor-pointer"
-                >
-                  <option value="PDF">PDF (Base64 Laudo em PDF)</option>
-                  <option value="ESTRUTURADO">ESTRUTURADO (Componentes & Parâmetros)</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setMappingExamModal(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
-                >
-                  <Check className="w-4 h-4" /> Salvar Mapeamento
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: TEST SOFTLAB ENDPOINT MODAL */}
-      {activeEndpointModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
-                  activeEndpointModal.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                  activeEndpointModal.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
-                  activeEndpointModal.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                  "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                }`}>
-                  {activeEndpointModal.method}
-                </span>
-                <h3 className="text-base font-bold font-mono text-slate-100">{activeEndpointModal.path}</h3>
-              </div>
-              <button 
-                onClick={() => setActiveEndpointModal(null)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300">{activeEndpointModal.summary}</p>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-                <span className="flex items-center gap-1.5"><Terminal className="w-4 h-4 text-teal-400" /> Console de Execução MidwayLab API Client</span>
-                <span className="text-emerald-400 font-bold">200 OK</span>
-              </div>
-              <pre className="text-xs text-emerald-400 font-mono bg-slate-900/90 p-4 rounded-lg overflow-x-auto max-h-60 whitespace-pre-wrap border border-slate-800">
-                {apiConsoleResponse}
+            <p className="text-xs text-slate-300">Comandos gerados automaticamente pelas regras pré-analíticas do Softlab Apoio:</p>
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-teal-300 space-y-2">
+              <pre className="text-[11px] whitespace-pre-wrap">
+{`N
+q500
+Q300,24
+B50,20,0,1,2,6,100,B,"BAR_PROTO-8842_1"
+A50,140,0,3,1,1,N,"PROTO-8842 - MARIA OLIVEIRA"
+A50,170,0,2,1,1,N,"EXAME: T3 / TSH - TUTO GEL"
+P1`}
               </pre>
             </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setActiveEndpointModal(null)}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
-              >
-                Fechar Console
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setActiveWorkflowModal(null)} className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
+                Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeWorkflowModal === "cancel" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-rose-400" /> Cancelamento de Amostra no Apoio
+              </h3>
+              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCancelSample} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Protocolo do Pedido</label>
+                <input type="text" value={cancelData.protocolo} onChange={(e) => setCancelData({...cancelData, protocolo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 font-mono" />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Código da Amostra / Código de Barras</label>
+                <input type="text" value={cancelData.idAmostra} onChange={(e) => setCancelData({...cancelData, idAmostra: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 font-mono" />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Motivo do Cancelamento</label>
+                <input type="text" value={cancelData.motivo} onChange={(e) => setCancelData({...cancelData, motivo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400">Cancelar</button>
+                <button type="submit" className="bg-rose-500 text-white font-bold px-5 py-2 rounded-xl">Confirmar Cancelamento</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {activeWorkflowModal === "coleta" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-cyan-400" /> Ajustar Data/Hora de Coleta Real
+              </h3>
+              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateCollectionDate} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Protocolo do Pedido</label>
+                <input type="text" value={coletaData.protocolo} onChange={(e) => setColetaData({...coletaData, protocolo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 font-mono" />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Data / Hora Real da Coleta</label>
+                <input type="datetime-local" value={coletaData.dataColeta} onChange={(e) => setColetaData({...coletaData, dataColeta: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400">Cancelar</button>
+                <button type="submit" className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl">Salvar Coleta Real</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {activeWorkflowModal === "lote12" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-400" /> Adição de Exames (Sub-pedido / Lote 1.2)
+              </h3>
+              <button onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3 text-xs text-slate-300">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="font-bold text-indigo-400 block">Regra do Roteiro Oficial Softlab:</span>
+                <p className="text-slate-400 leading-relaxed">
+                  Para garantir a segurança analítica e integridade pré-analítica, <strong>NÃO é permitido adicionar exames em um tubo já colhido</strong>.
+                </p>
+                <p className="text-teal-300 font-semibold">
+                  O MidwayLab gera automaticamente um NOVO SUB-PEDIDO (ex.: "1.2") para o mesmo paciente, gerando um novo tubo e nova etiqueta EPL.
+                </p>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button onClick={() => { showNotification("Sub-pedido Lote 1.2 gerado com sucesso!"); setActiveWorkflowModal(null); }} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-xl">
+                  Gerar Lote 1.2 Simulado
+                </button>
+              </div>
             </div>
           </div>
         </div>
