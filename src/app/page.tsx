@@ -34,20 +34,25 @@ import {
   AlertTriangle,
   Zap,
   Download,
-  Upload,
-  ArrowRight,
   Filter,
-  CheckCheck,
-  Link
+  Link,
+  ArrowLeftRight
 } from "lucide-react";
 
 export default function MidwayLabDashboard() {
   const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security">("depara");
-  const [searchExam, setSearchExam] = useState("");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
 
-  // DE-PARA Filters
+  // DUAL SEARCH BARS STATE (SOFTLAB & AUTOLAC)
+  const [searchSoftlab, setSearchSoftlab] = useState("");
+  const [searchAutolac, setSearchAutolac] = useState("");
+
+  // DE-PARA Status Filter
   const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("todos");
+
+  // Selection state for Dual Matcher
+  const [selectedSoftlabExam, setSelectedSoftlabExam] = useState<any | null>(null);
+  const [selectedAutolacExam, setSelectedAutolacExam] = useState<any | null>(null);
 
   // Modals state
   const [isNewTenantModalOpen, setIsNewTenantModalOpen] = useState(false);
@@ -73,24 +78,24 @@ export default function MidwayLabDashboard() {
     recoletasPendentes: 3
   });
 
-  // Sample Autolac Exams List (Left Side for Quick Matcher)
-  const autolacCatalog = [
+  // Autolac Exams Catalog (Right Side)
+  const [autolacCatalog, setAutolacCatalog] = useState([
     { codigo: "T3", nome: "Triiodotironina T3" },
     { codigo: "TSH", nome: "Hormônio Tireoestimulante Ultra" },
-    { codigo: "HEMO", nome: "Hemograma Completo" },
+    { codigo: "HEMO", nome: "Hemograma Completo com Plaquetas" },
     { codigo: "GLIC", nome: "Glicose em Jejum" },
-    { codigo: "5HIAA", nome: "Ácido 5 Hidroxi Indolacético" },
+    { codigo: "5HIAA", nome: "Ácido 5 Hidroxi Indolacético (Urina 24h)" },
     { codigo: "2HG", nome: "Glicose Curva 2 Horas" },
     { codigo: "CREAT", nome: "Creatinina Sérica" },
     { codigo: "UREIA", nome: "Ureia Sérica" },
     { codigo: "CHOLEST", nome: "Colesterol Total" },
-    { codigo: "TRIG", nome: "Triglicerídeos" },
-    { codigo: "PSA", nome: "PSA Antígeno Prostático" },
-    { codigo: "HIV", nome: "Anti-HIV 1 e 2" },
-    { codigo: "VDRL", nome: "VDRL Sífilis" }
-  ];
+    { codigo: "TRIG", nome: "Triglicerídeos Séricos" },
+    { codigo: "PSA", nome: "PSA Antígeno Prostático Específico" },
+    { codigo: "HIV", nome: "Anti-HIV 1 e 2 Sorologia" },
+    { codigo: "VDRL", nome: "VDRL Sorologia para Sífilis" }
+  ]);
 
-  // Softlab Exam Catalog (from 1,311 fetched)
+  // Softlab Exam Catalog (Left Side - 1,311 exames)
   const [softlabExames, setSoftlabExames] = useState([
     { codigo: "T3_SOFT", descricao: "TRIODOTIRONINA T3", abreviacao: "T3 DOSAGEM", autolacMapped: "T3", tipo: "PDF" },
     { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH", abreviacao: "TSH ULTRA", autolacMapped: "TSH", tipo: "ESTRUTURADO" },
@@ -128,14 +133,6 @@ export default function MidwayLabDashboard() {
       summary: "Criar novo Pedido vindo do Autolac com atendimento, paciente e exames.",
       params: "codigoLis, atendimento, paciente, exames",
       exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "situacao": "S",\n  "mensagem": "Pedido registrado com sucesso"\n}`
-    },
-    {
-      group: "Amostras & Etiquetas",
-      method: "GET",
-      path: "/api/Amostra/{codigoLis}",
-      summary: "Dados das amostras de um pedido, incluindo a etiqueta em formato EPL.",
-      params: "codigoLis (path)",
-      exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "amostras": [\n    {\n      "codigoBarras": "BAR_PROTO-8842_1",\n      "etiquetaEpl": "N\\nq500\\nQ300,24\\nB50,20,0,1,2,6,100,B,\\"BAR_PROTO-8842_1\\"\\nP1\\n"\n    }\n  ]\n}`
     }
   ];
 
@@ -215,7 +212,24 @@ export default function MidwayLabDashboard() {
   const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
-  // DYNAMIC FEATURE 1: AUTO-MAPPER BY SIMILARITY
+  // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (SOFTLAB ↔ AUTOLAC)
+  const handleLinkSelectedPair = () => {
+    if (!selectedSoftlabExam || !selectedAutolacExam) {
+      alert("Por favor, selecione um exame no painel do Softlab e um exame no painel do Autolac!");
+      return;
+    }
+
+    setSoftlabExames(prev => prev.map(item => item.codigo === selectedSoftlabExam.codigo ? {
+      ...item,
+      autolacMapped: selectedAutolacExam.codigo
+    } : item));
+
+    showNotification(`🔗 Vínculo criado com sucesso: ${selectedSoftlabExam.codigo} (Softlab) ↔ ${selectedAutolacExam.codigo} (Autolac)!`);
+    setSelectedSoftlabExam(null);
+    setSelectedAutolacExam(null);
+  };
+
+  // DYNAMIC FEATURE 2: AUTO-MAPPER BY SIMILARITY
   const handleAutoMapAll = () => {
     let count = 0;
     setSoftlabExames(prev => prev.map(item => {
@@ -232,12 +246,6 @@ export default function MidwayLabDashboard() {
       return item;
     }));
     showNotification(`⚡ Mapeamento Inteligente: ${count} exames foram vinculados automaticamente!`);
-  };
-
-  // DYNAMIC FEATURE 2: QUICK LINK FROM AUTOLAC LIST TO SOFTLAB
-  const handleQuickLinkAutolac = (autolacCode: string) => {
-    if (!mappingExamModal) return;
-    setMapFormData(prev => ({ ...prev, codigoAutolac: autolacCode }));
   };
 
   // DYNAMIC FEATURE 3: EXPORT DE-PARA TO CSV
@@ -366,15 +374,22 @@ export default function MidwayLabDashboard() {
     setMappingExamModal(null);
   };
 
-  const filteredExames = softlabExames.filter(e => {
-    const matchesSearch = e.codigo.toLowerCase().includes(searchExam.toLowerCase()) || 
-      e.descricao.toLowerCase().includes(searchExam.toLowerCase()) ||
-      e.autolacMapped.toLowerCase().includes(searchExam.toLowerCase());
+  // Filtered Softlab List
+  const filteredSoftlabExames = softlabExames.filter(e => {
+    const matchesSearch = e.codigo.toLowerCase().includes(searchSoftlab.toLowerCase()) || 
+      e.descricao.toLowerCase().includes(searchSoftlab.toLowerCase()) ||
+      e.autolacMapped.toLowerCase().includes(searchSoftlab.toLowerCase());
     
     if (deparaFilter === "mapeados") return matchesSearch && Boolean(e.autolacMapped);
     if (deparaFilter === "pendentes") return matchesSearch && !Boolean(e.autolacMapped);
     return matchesSearch;
   });
+
+  // Filtered Autolac List
+  const filteredAutolacCatalog = autolacCatalog.filter(a =>
+    a.codigo.toLowerCase().includes(searchAutolac.toLowerCase()) ||
+    a.nome.toLowerCase().includes(searchAutolac.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative select-none">
@@ -430,7 +445,7 @@ export default function MidwayLabDashboard() {
           </div>
         </div>
 
-        {/* User Account & Supabase Auth Badge */}
+        {/* User Account Badge */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-3 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-xl">
             <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-xs">
@@ -456,7 +471,7 @@ export default function MidwayLabDashboard() {
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
-            <GitCompare className="w-4 h-4 text-teal-400" /> Mapeador DE-PARA Dinâmico
+            <GitCompare className="w-4 h-4 text-teal-400" /> Mapeador DE-PARA Dinâmico (Dual-Search)
           </button>
 
           <button
@@ -537,28 +552,40 @@ export default function MidwayLabDashboard() {
 
       {/* Main Content Area */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
-        {/* TAB DE-PARA: ULTRA DYNAMIC EXAM MATCHER */}
+        {/* TAB DE-PARA: ULTRA DYNAMIC DUAL-SEARCH EXAM MATCHER */}
         {activeTab === "depara" && (
           <div className="space-y-6">
+            {/* Header & Productivity Actions */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico Autolac ↔ Softlab Apoio
+                  <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico DE-PARA (Softlab Apoio ↔ Autolac)
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                  Relacione os exames do catálogo do Autolac com o catálogo de 1.311 exames da API do Softlab com sugestão por IA/similaridade, filtros instantâneos e exportação CSV.
+                  Pesquise lado a lado nos catálogos do Softlab (1.311 exames) e do Autolac para relacionar exames instantaneamente com 1 clique!
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+                {/* PROMINENT + NOVO MAPEAMENTO BUTTON RESTORED */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenMapExam(softlabExames[0])}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> + Novo Mapeamento
+                </button>
+
+                {/* AUTO-MAP BUTTON */}
                 <button
                   type="button"
                   onClick={handleAutoMapAll}
-                  className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+                  className="bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-cyan-500/20 cursor-pointer"
                 >
-                  <Zap className="w-4 h-4 fill-current" /> Auto-Mapear por Similaridade
+                  <Zap className="w-4 h-4 fill-current text-amber-300" /> Auto-Mapear por Similaridade
                 </button>
 
+                {/* CSV EXPORT */}
                 <button
                   type="button"
                   onClick={handleExportCsv}
@@ -569,65 +596,142 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/40 border border-slate-800 p-4 rounded-xl">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-semibold flex items-center gap-1.5 mr-2">
-                  <Filter className="w-3.5 h-3.5 text-teal-400" /> Filtrar Status:
-                </span>
-                
-                <button
-                  type="button"
-                  onClick={() => setDeparaFilter("todos")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    deparaFilter === "todos"
-                      ? "bg-teal-500/20 text-teal-300 border border-teal-500/40"
-                      : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Todos ({softlabExames.length})
-                </button>
+            {/* DUAL SEARCH BARS LADO A LADO */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* SOFTLAB SEARCH COLUMN */}
+              <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-teal-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <CheckCircle2 className="w-4 h-4 text-teal-400" /> Catálogo Softlab Apoio (1.311 Exames)
+                  </span>
+                  <span className="text-[11px] font-mono bg-teal-500/10 text-teal-300 px-2 py-0.5 rounded border border-teal-500/20">
+                    {filteredSoftlabExames.length} Encontrados
+                  </span>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setDeparaFilter("mapeados")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    deparaFilter === "mapeados"
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                      : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDeparaFilter("pendentes")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    deparaFilter === "pendentes"
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                      : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Pendentes ({softlabExames.filter(e => !Boolean(e.autolacMapped)).length})
-                </button>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="🔍 Pesquisar código/exame no Softlab..."
+                    value={searchSoftlab}
+                    onChange={(e) => setSearchSoftlab(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
               </div>
 
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Pesquisar por código, nome ou exame..."
-                  value={searchExam}
-                  onChange={(e) => setSearchExam(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500/50 w-72"
-                />
+              {/* AUTOLAC SEARCH COLUMN */}
+              <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Building2 className="w-4 h-4 text-cyan-400" /> Catálogo Exames Autolac ({autolacCatalog.length})
+                  </span>
+                  <span className="text-[11px] font-mono bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/20">
+                    {filteredAutolacCatalog.length} Encontrados
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="🔍 Pesquisar código/exame no Autolac..."
+                    value={searchAutolac}
+                    onChange={(e) => setSearchAutolac(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
               </div>
             </div>
 
+            {/* DUAL MATCHING SPLIT VIEW PANEL */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* LEFT PANEL: SOFTLAB LIST */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
+                <p className="text-[11px] text-slate-400 font-semibold mb-2">1. Selecione um exame do Softlab Apoio:</p>
+                {filteredSoftlabExames.map((item) => (
+                  <div
+                    key={item.codigo}
+                    onClick={() => setSelectedSoftlabExam(item)}
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                      selectedSoftlabExam?.codigo === item.codigo
+                        ? "bg-teal-500/20 border-teal-500 text-teal-200 font-bold shadow-lg shadow-teal-500/10"
+                        : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
+                    }`}
+                  >
+                    <div>
+                      <span className="font-mono text-xs font-bold text-teal-300 block">{item.codigo}</span>
+                      <span className="font-semibold text-slate-100">{item.descricao}</span>
+                    </div>
+
+                    <div className="text-right">
+                      {item.autolacMapped ? (
+                        <span className="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-bold block">
+                          Mapped: {item.autolacMapped}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          Pendente
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* RIGHT PANEL: AUTOLAC LIST */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
+                <p className="text-[11px] text-slate-400 font-semibold mb-2">2. Selecione o exame correspondente no Autolac:</p>
+                {filteredAutolacCatalog.map((item) => (
+                  <div
+                    key={item.codigo}
+                    onClick={() => setSelectedAutolacExam(item)}
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                      selectedAutolacExam?.codigo === item.codigo
+                        ? "bg-cyan-500/20 border-cyan-500 text-cyan-200 font-bold shadow-lg shadow-cyan-500/10"
+                        : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
+                    }`}
+                  >
+                    <div>
+                      <span className="font-mono text-xs font-bold text-cyan-300 block">{item.codigo}</span>
+                      <span className="font-semibold text-slate-100">{item.nome}</span>
+                    </div>
+
+                    <Check className={`w-4 h-4 text-cyan-400 ${selectedAutolacExam?.codigo === item.codigo ? "opacity-100" : "opacity-0"}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* QUICK LINK ACTION BAR */}
+            {(selectedSoftlabExam || selectedAutolacExam) && (
+              <div className="bg-gradient-to-r from-slate-900 via-teal-950/60 to-slate-900 border border-teal-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
+                <div className="flex items-center gap-3 text-xs">
+                  <ArrowLeftRight className="w-5 h-5 text-teal-400" />
+                  <span>
+                    Vincular: <strong className="text-teal-300 font-mono">{selectedSoftlabExam ? selectedSoftlabExam.codigo : "Selecione no Softlab"}</strong>
+                    {" ↔ "}
+                    <strong className="text-cyan-300 font-mono">{selectedAutolacExam ? selectedAutolacExam.codigo : "Selecione no Autolac"}</strong>
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLinkSelectedPair}
+                  disabled={!selectedSoftlabExam || !selectedAutolacExam}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-teal-500/30 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Link className="w-4 h-4" /> Confirmar Vínculo DE-PARA
+                </button>
+              </div>
+            )}
+
+            {/* FULL RELATIONAL TABLE */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
               <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                <span>Mapeamento do laboratório: <strong className="text-teal-300 font-semibold">{selectedTenant}</strong></span>
-                <span className="font-mono text-teal-400 font-bold">1.311 Exames Sincronizados na API Softlab Apoio</span>
+                <span>Tabela Completa de Relacionamentos DE-PARA do Laboratório: <strong className="text-teal-300 font-semibold">{selectedTenant}</strong></span>
+                <span className="font-mono text-teal-400 font-bold">1.311 Exames Ativos</span>
               </div>
 
               <div className="overflow-x-auto">
@@ -643,7 +747,7 @@ export default function MidwayLabDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {filteredExames.map((exam) => (
+                    {filteredSoftlabExames.map((exam) => (
                       <tr key={exam.codigo} className="hover:bg-slate-800/30 transition">
                         <td className="py-4 px-5 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
                         <td className="py-4 px-5 font-medium text-slate-200">
@@ -1274,7 +1378,7 @@ export default function MidwayLabDashboard() {
         </div>
       )}
 
-      {/* DYNAMIC MODAL 2: MAP EXAM DE-PARA WITH SIDE-BY-SIDE AUTOLAC SELECTOR & IA SUGGESTION */}
+      {/* DYNAMIC MODAL 2: MAP EXAM DE-PARA */}
       {mappingExamModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
@@ -1313,7 +1417,7 @@ export default function MidwayLabDashboard() {
                     {autolacCatalog.map(a => (
                       <div
                         key={a.codigo}
-                        onClick={() => handleQuickLinkAutolac(a.codigo)}
+                        onClick={() => setMapFormData(prev => ({ ...prev, codigoAutolac: a.codigo }))}
                         className={`p-2 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition ${
                           mapFormData.codigoAutolac === a.codigo
                             ? "bg-teal-500/20 border-teal-500 text-teal-300 font-bold"
@@ -1426,7 +1530,7 @@ export default function MidwayLabDashboard() {
         </div>
       )}
 
-      {/* WORKFLOW MODALS (EPL, CANCEL, COLETA, LOTE 1.2) */}
+      {/* WORKFLOW MODALS */}
       {activeWorkflowModal === "epl" && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
@@ -1454,99 +1558,6 @@ P1`}
               <button type="button" onClick={() => setActiveWorkflowModal(null)} className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
                 Fechar
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeWorkflowModal === "cancel" && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Trash2 className="w-5 h-5 text-rose-400" /> Cancelamento de Amostra no Apoio
-              </h3>
-              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCancelSample} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Protocolo do Pedido</label>
-                <input type="text" value={cancelData.protocolo} onChange={(e) => setCancelData({...cancelData, protocolo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 font-mono" />
-              </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Código da Amostra / Código de Barras</label>
-                <input type="text" value={cancelData.idAmostra} onChange={(e) => setCancelData({...cancelData, idAmostra: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 font-mono" />
-              </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Motivo do Cancelamento</label>
-                <input type="text" value={cancelData.motivo} onChange={(e) => setCancelData({...cancelData, motivo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100" />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400 cursor-pointer">Cancelar</button>
-                <button type="submit" className="bg-rose-500 text-white font-bold px-5 py-2 rounded-xl cursor-pointer">Confirmar Cancelamento</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {activeWorkflowModal === "coleta" && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-cyan-400" /> Ajustar Data/Hora de Coleta Real
-              </h3>
-              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleUpdateCollectionDate} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Protocolo do Pedido</label>
-                <input type="text" value={coletaData.protocolo} onChange={(e) => setColetaData({...coletaData, protocolo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 font-mono" />
-              </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Data / Hora Real da Coleta</label>
-                <input type="datetime-local" value={coletaData.dataColeta} onChange={(e) => setColetaData({...coletaData, dataColeta: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100" />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setActiveWorkflowModal(null)} className="px-4 py-2 border border-slate-800 rounded-xl text-slate-400 cursor-pointer">Cancelar</button>
-                <button type="submit" className="bg-teal-500 text-slate-950 font-bold px-5 py-2 rounded-xl cursor-pointer">Salvar Coleta Real</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {activeWorkflowModal === "lote12" && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-400" /> Adição de Exames (Sub-pedido / Lote 1.2)
-              </h3>
-              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-3 text-xs text-slate-300">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="font-bold text-indigo-400 block">Regra do Roteiro Oficial Softlab:</span>
-                <p className="text-slate-400 leading-relaxed">
-                  Para garantir a segurança analítica e integridade pré-analítica, <strong>NÃO é permitido adicionar exames em um tubo já colhido</strong>.
-                </p>
-                <p className="text-teal-300 font-semibold">
-                  O MidwayLab gera automaticamente um NOVO SUB-PEDIDO (ex.: "1.2") para o mesmo paciente, gerando um novo tubo e nova etiqueta EPL.
-                </p>
-              </div>
-              <div className="flex justify-end pt-2">
-                <button type="button" onClick={() => { showNotification("Sub-pedido Lote 1.2 gerado com sucesso!"); setActiveWorkflowModal(null); }} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-xl cursor-pointer">
-                  Gerar Lote 1.2 Simulado
-                </button>
-              </div>
             </div>
           </div>
         </div>
