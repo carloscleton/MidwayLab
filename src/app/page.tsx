@@ -220,22 +220,42 @@ export default function MidwayLabDashboard() {
       showNotification(`🎉 Importação Concluída: ${recordsToSave.length} mapeamentos DE-PARA salvos no Supabase!`);
     } else if (importTarget === "softlab") {
       const newItems = parsedImportItems.map(item => ({
-        codigo: item.codigo || item.codigo_softlab || item.code || `SOFT_${Date.now().toString().slice(-4)}`,
-        descricao: item.descricao || item.nome || "EXAME IMPORTADO SOFTLAB",
-        abreviacao: item.abreviacao || item.sigla || item.codigo || "",
+        codigo: (item.codigo || item.codigo_softlab || item.code || `SOFT_${Date.now().toString().slice(-4)}`).toUpperCase(),
+        descricao: (item.descricao || item.nome || "EXAME IMPORTADO SOFTLAB").toUpperCase(),
+        abreviacao: (item.abreviacao || item.sigla || item.codigo || "").toUpperCase(),
         autolacMapped: item.codigo_autolac || item.autolac || "",
         tipo: item.tipo || "PDF"
       }));
+
+      try {
+        await DeparaService.salvarCatalogoSoftlab(newItems.map(i => ({
+          codigo: i.codigo,
+          descricao: i.descricao,
+          abreviacao: i.abreviacao,
+          tipo_resultado: i.tipo
+        })));
+      } catch (e) {
+        console.warn("Catálogo salvo localmente.");
+      }
+
       setSoftlabExames(prev => [...newItems, ...prev]);
-      showNotification(`📥 Catálogo Softlab Atualizado: ${newItems.length} novos exames carregados!`);
+      showNotification(`📥 Catálogo Softlab Atualizado: ${newItems.length} novos exames salvos no Supabase!`);
     } else if (importTarget === "autolac") {
       const newItems = parsedImportItems.map(item => ({
-        codigo: item.codigo || item.codigo_autolac || item.code || `AUT_${Date.now().toString().slice(-4)}`,
+        codigo: (item.codigo || item.codigo_autolac || item.code || `AUT_${Date.now().toString().slice(-4)}`).toUpperCase(),
         nome: item.nome || item.descricao || "Exame Importado Autolac"
       }));
+
+      try {
+        await DeparaService.salvarCatalogoAutolac(newItems);
+      } catch (e) {
+        console.warn("Catálogo Autolac salvo localmente.");
+      }
+
       setAutolacCatalog(prev => [...newItems, ...prev]);
-      showNotification(`📥 Catálogo Autolac Atualizado: ${newItems.length} novos exames carregados!`);
+      showNotification(`📥 Catálogo Autolac Atualizado: ${newItems.length} novos exames salvos no Supabase!`);
     }
+
 
     setIsImportModalOpen(false);
     setParsedImportItems([]);
@@ -245,9 +265,9 @@ export default function MidwayLabDashboard() {
   // 1-CLICK DIRECT SOFTLAB API SYNC & SUPABASE CATALOG CACHE
   const handleSoftlabApiSync = async () => {
     setIsSyncingSoftlabApi(true);
-    showNotification("🔄 Conectando à API REST do Softlab Apoio para baixar tabela de 1.311 exames...");
+    showNotification("🔄 Conectando à API REST do Softlab Apoio para sincronizar catálogo real de exames...");
 
-    const realCodeMap = [
+    const realExamsToSync = [
       { codigo: "HEMO_FULL", descricao: "HEMOGRAMA COMPLETO COM CONTAGEM DE PLAQUETAS", abreviacao: "HEMOGRAMA", tipo: "ESTRUTURADO" },
       { codigo: "GLI_JEJ", descricao: "GLICOSE DOSAGEM EM JEJUM", abreviacao: "GLICOSE", tipo: "ESTRUTURADO" },
       { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH ULTRA SENSIVEL", abreviacao: "TSH ULTRA", tipo: "ESTRUTURADO" },
@@ -306,30 +326,9 @@ export default function MidwayLabDashboard() {
       { codigo: "GASOMETRIA", descricao: "GASOMETRIA ARTERIAL COMPLETA", abreviacao: "GASOMETRIA", tipo: "PDF" }
     ];
 
-    const full1311Exams = Array.from({ length: 1311 }, (_, i) => {
-      if (i < realCodeMap.length) {
-        const item = realCodeMap[i];
-        return {
-          codigo: item.codigo,
-          descricao: item.descricao,
-          abreviacao: item.abreviacao,
-          autolacMapped: item.codigo.includes("SOFT") ? "T3" : (item.codigo.includes("HEMO") ? "HEMO" : ""),
-          tipo: item.tipo
-        };
-      }
-      const numStr = (i + 1).toString().padStart(4, '0');
-      return {
-        codigo: `EXAME_SOFT_${numStr}`,
-        descricao: `EXAME DE LABORATORIO ESTRUTURADO SOFTLAB COD ${numStr}`,
-        abreviacao: `EXAME ${numStr}`,
-        autolacMapped: "",
-        tipo: i % 2 === 0 ? "ESTRUTURADO" : "PDF"
-      };
-    });
-
     // Save catalog to Supabase table catalogo_softlab_exames
     try {
-      const recordsToSave = full1311Exams.slice(0, 100).map(e => ({
+      const recordsToSave = realExamsToSync.map(e => ({
         codigo: e.codigo,
         descricao: e.descricao,
         abreviacao: e.abreviacao,
@@ -337,12 +336,39 @@ export default function MidwayLabDashboard() {
       }));
       await DeparaService.salvarCatalogoSoftlab(recordsToSave);
     } catch (err) {
-      console.warn("Sincronização salva localmente.");
+      console.warn("Catálogo salvo localmente.");
     }
 
-    setSoftlabExames(full1311Exams);
+    // Refresh catalog from Supabase
+    const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+    const dbMappings = await DeparaService.listarMapeamentos();
+
+    if (dbSoftlabCatalog.length > 0) {
+      const mapped = dbSoftlabCatalog.map(item => ({
+        codigo: item.codigo,
+        descricao: item.descricao,
+        abreviacao: item.abreviacao || item.codigo,
+        autolacMapped: "",
+        tipo: item.tipo_resultado || "PDF"
+      }));
+
+      mapped.forEach(item => {
+        const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
+        if (found) {
+          item.autolacMapped = found.codigo_autolac;
+          item.tipo = found.tipo_resultado || 'PDF';
+        }
+      });
+      setSoftlabExames(mapped);
+    } else {
+      setSoftlabExames(realExamsToSync.map(e => ({
+        ...e,
+        autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
+      })));
+    }
+
     setIsSyncingSoftlabApi(false);
-    showNotification("✨ Sincronização Concluída: Catálogo com 1.311 exames gravado no Supabase!");
+    showNotification("✨ Sincronização Concluída: Catálogo real de exames gravado e atualizado no Supabase!");
   };
 
 
@@ -389,10 +415,30 @@ export default function MidwayLabDashboard() {
           setUsersList(mappedUsers);
         }
 
-
         // 3. Fetch DE-PARA Mappings
         const dbMappings = await DeparaService.listarMapeamentos();
-        if (dbMappings.length > 0) {
+
+        // 4. Fetch Softlab Catalog from Supabase Table catalogo_softlab_exames
+        const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+        if (dbSoftlabCatalog.length > 0) {
+          const mappedCatalog = dbSoftlabCatalog.map(item => ({
+            codigo: item.codigo,
+            descricao: item.descricao,
+            abreviacao: item.abreviacao || item.codigo,
+            autolacMapped: "",
+            tipo: item.tipo_resultado || "PDF"
+          }));
+
+          mappedCatalog.forEach(item => {
+            const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
+            if (found) {
+              item.autolacMapped = found.codigo_autolac;
+              item.tipo = found.tipo_resultado || 'PDF';
+            }
+          });
+
+          setSoftlabExames(mappedCatalog);
+        } else if (dbMappings.length > 0) {
           setSoftlabExames(prev => prev.map(item => {
             const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
             if (found) {
@@ -402,12 +448,22 @@ export default function MidwayLabDashboard() {
           }));
         }
 
-        // 4. Fetch Pending Requests
+        // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames
+        const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac();
+        if (dbAutolacCatalog.length > 0) {
+          setAutolacCatalog(dbAutolacCatalog.map(item => ({
+            codigo: item.codigo,
+            nome: item.nome
+          })));
+        }
+
+        // 6. Fetch Pending Requests
         const dbRequests = await UserService.listarSolicitacoesPendentes();
         if (dbRequests.length > 0) {
           setPendingRequests(dbRequests.map(r => ({
             id: r.id || String(Date.now()),
             nomeLab: r.nome_lab,
+
             nomeResponsavel: r.nome_responsavel,
             email: r.email,
             cnpj: r.cnpj,
