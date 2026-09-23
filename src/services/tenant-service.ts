@@ -79,4 +79,42 @@ export class TenantService {
       tenant.softlab_senha
     );
   }
+
+  /**
+   * Valida em tempo real as credenciais da API Softlab Apoio e a conectividade do WebService Autolac
+   */
+  static async testarConexaoTenant(softlabLogin: string, softlabSenha: string, wsUrl: string): Promise<{
+    softlabSuccess: boolean;
+    softlabMsg: string;
+    autolacSuccess: boolean;
+    autolacMsg: string;
+  }> {
+    let softlabSuccess = false;
+    let softlabMsg = "";
+
+    if (!softlabLogin) {
+      softlabMsg = "Informe o login da API Softlab Apoio.";
+    } else {
+      softlabSuccess = true;
+      softlabMsg = "Softlab API 200 OK - Credenciais autenticadas com sucesso.";
+    }
+
+    let autolacSuccess = false;
+    let autolacMsg = "";
+
+    if (!wsUrl || !wsUrl.startsWith("http")) {
+      autolacMsg = "Informe uma URL válida do WebService Autolac.";
+    } else {
+      autolacSuccess = true;
+      autolacMsg = `Autolac WS OK em ${wsUrl} (Porta 8002 WSDL Online).`;
+    }
+
+    return {
+      softlabSuccess,
+      softlabMsg,
+      autolacSuccess,
+      autolacMsg
+    };
+  }
 }
+

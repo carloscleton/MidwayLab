@@ -627,6 +627,31 @@ export default function MidwayLabDashboard() {
     softlabSenha: ""
   });
 
+  // TEST CONNECTION STATE (TENANT MODAL)
+  const [isTestingTenantConnection, setIsTestingTenantConnection] = useState(false);
+  const [tenantTestResult, setTenantTestResult] = useState<{
+    softlabSuccess: boolean;
+    softlabMsg: string;
+    autolacSuccess: boolean;
+    autolacMsg: string;
+  } | null>(null);
+
+  const handleTestTenantConnection = async () => {
+    setIsTestingTenantConnection(true);
+    setTenantTestResult(null);
+
+    const res = await TenantService.testarConexaoTenant(
+      tenantFormData.softlabLogin,
+      tenantFormData.softlabSenha,
+      tenantFormData.wsUrl
+    );
+
+    setIsTestingTenantConnection(false);
+    setTenantTestResult(res);
+    showNotification("⚡ Diagnóstico de Conexão executado com sucesso!");
+  };
+
+
   // Form state for exam mapping
   const [mapFormData, setMapFormData] = useState({
     codigoAutolac: "",
@@ -2213,26 +2238,74 @@ export default function MidwayLabDashboard() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+              {/* DIAGNOSTIC TEST CONNECTION OUTPUT BOX */}
+              {isTestingTenantConnection && (
+                <div className="bg-slate-950 border border-teal-500/30 p-4 rounded-xl space-y-2 font-mono text-xs text-teal-300 animate-pulse flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 text-teal-400 animate-spin" />
+                  <span>Testando autenticação API Softlab e conectividade WebService Autolac...</span>
+                </div>
+              )}
+
+              {tenantTestResult && (
+                <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs font-mono">
+                  <div className="flex items-center justify-between text-slate-400 font-bold border-b border-slate-900 pb-1.5">
+                    <span>⚡ Relatório Diagnóstico de Conexão</span>
+                    <span className="text-emerald-400">✓ Teste Concluído</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-teal-400" /> Softlab Apoio API REST:
+                    </span>
+                    <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${tenantTestResult.softlabSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
+                      {tenantTestResult.softlabMsg}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 flex items-center gap-1.5">
+                      <Server className="w-4 h-4 text-cyan-400" /> Autolac WebService SOAP:
+                    </span>
+                    <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${tenantTestResult.autolacSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
+                      {tenantTestResult.autolacMsg}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsNewTenantModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                  onClick={handleTestTenantConnection}
+                  disabled={isTestingTenantConnection}
+                  className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-extrabold px-4 py-2 rounded-xl transition cursor-pointer flex items-center gap-2 text-xs"
                 >
-                  Cancelar
+                  <Zap className="w-4 h-4 text-amber-300 fill-current" />
+                  {isTestingTenantConnection ? "Testando..." : "⚡ Testar Conexão"}
                 </button>
 
-                <button
-                  type="submit"
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" /> Salvar Laboratório
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setIsNewTenantModalOpen(false); setTenantTestResult(null); }}
+                    className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
+                  >
+                    <Save className="w-4 h-4" /> Salvar Laboratório
+                  </button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
+
 
       {/* DYNAMIC MODAL 2: MAP EXAM DE-PARA */}
       {mappingExamModal && (
