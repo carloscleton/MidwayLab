@@ -53,3 +53,15 @@ export interface IPedidoRecord {
   payload_autolac_xml?: string;
   payload_softlab_json?: string;
 }
+
+export interface IUsuarioRecord {
+  id: string;
+  nome: string;
+  email: string;
+  senha?: string;
+  role: 'admin' | 'tenant';
+  tenant_id?: string | null;
+  status: 'ativo' | 'pendente' | 'bloqueado';
+  created_at?: string;
+}
+

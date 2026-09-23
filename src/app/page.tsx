@@ -36,12 +36,175 @@ import {
   Download,
   Filter,
   Link,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Lock,
+  LogOut,
+  UserCheck,
+  UserPlus,
+  Key,
+  Shield,
+  Mail,
+  User
 } from "lucide-react";
 
 export default function MidwayLabDashboard() {
+  // USER AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC)
+  const [usersList, setUsersList] = useState([
+    {
+      id: "u1",
+      nome: "Carlos Cleton",
+      email: "carloscleton.nat@gmail.com",
+      senha: "admin",
+      role: "admin" as const,
+      tenantId: null,
+      tenantNome: "Super Admin (Ares)",
+      status: "ativo" as const,
+      criadoEm: "2026-09-23"
+    },
+    {
+      id: "u2",
+      nome: "Atendimento San Mathews",
+      email: "atendimento@sanmathews.com.br",
+      senha: "123",
+      role: "tenant" as const,
+      tenantId: "1",
+      tenantNome: "LAB. ARES - SOFTLAB (San Mathews)",
+      status: "ativo" as const,
+      criadoEm: "2026-09-23"
+    },
+    {
+      id: "u3",
+      nome: "Operações Centro Diag.",
+      email: "centro@labdiag.com.br",
+      senha: "123",
+      role: "tenant" as const,
+      tenantId: "7",
+      tenantNome: "LABORATORIO CENTRO DIAGNOSTICOS",
+      status: "ativo" as const,
+      criadoEm: "2026-09-23"
+    }
+  ]);
+
+  // Current logged in user (null = renders Login Screen)
+  const [currentUser, setCurrentUser] = useState<typeof usersList[0] | null>(null);
+
+  // Login & Registration Forms State
+  const [loginTab, setLoginTab] = useState<"login" | "solicitar">("login");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Self-Registration Form State ("Solicitar Acesso")
+  const [requestFormData, setRequestFormData] = useState({
+    nomeLab: "",
+    nomeResponsavel: "",
+    email: "",
+    senha: "",
+    cnpj: ""
+  });
+  const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; nomeLab: string; nomeResponsavel: string; email: string; cnpj: string; data: string }>>([
+    {
+      id: "req-1",
+      nomeLab: "LABORATÓRIO BIO VIDA APÓIO",
+      nomeResponsavel: "Dra. Maria Fernanda",
+      email: "contato@biovidaapoio.com.br",
+      cnpj: "12.345.678/0001-90",
+      data: "23/09/2026 09:30"
+    }
+  ]);
+
   const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security">("depara");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
+
+  // LOGIN HANDLERS
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    const user = usersList.find(u => u.email.toLowerCase() === loginEmail.toLowerCase().trim() && u.senha === loginPassword);
+    if (!user) {
+      setLoginError("E-mail ou senha incorretos! Verifique suas credenciais.");
+      return;
+    }
+    if (user.status !== "ativo") {
+      setLoginError("Esta conta está pendente de aprovação ou bloqueada.");
+      return;
+    }
+    
+    // Set Logged In User
+    setCurrentUser(user);
+    if (user.role === "tenant" && user.tenantNome) {
+      setSelectedTenant(user.tenantNome);
+    }
+    showNotification(`👋 Bem-vindo de volta, ${user.nome}!`);
+  };
+
+  const handleDemoLogin = (email: string) => {
+    const user = usersList.find(u => u.email === email);
+    if (user) {
+      setCurrentUser(user);
+      if (user.role === "tenant" && user.tenantNome) {
+        setSelectedTenant(user.tenantNome);
+      }
+      showNotification(`⚡ Login Demo Realizado: ${user.nome} (${user.role === 'admin' ? 'Super Admin' : 'Cliente'})`);
+    }
+  };
+
+  const handleRequestAccessSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newReq = {
+      id: `req-${Date.now()}`,
+      nomeLab: requestFormData.nomeLab,
+      nomeResponsavel: requestFormData.nomeResponsavel,
+      email: requestFormData.email,
+      cnpj: requestFormData.cnpj,
+      data: new Date().toLocaleString("pt-BR")
+    };
+    setPendingRequests(prev => [...prev, newReq]);
+    setRequestFormData({ nomeLab: "", nomeResponsavel: "", email: "", senha: "", cnpj: "" });
+    setLoginTab("login");
+    showNotification("✅ Solicitação enviada com sucesso! O Admin (carloscleton.nat@gmail.com) analisará seu acesso.");
+  };
+
+  const handleApproveRequest = (req: typeof pendingRequests[0]) => {
+    const newTenant = {
+      id: String(Date.now()),
+      nome: req.nomeLab,
+      identificacaoEntidade: req.email,
+      senhaWs: "Soft@2026",
+      codigoAgente: "1",
+      wsUrl: "http://177.22.36.202:8002/",
+      softlabLogin: req.email,
+      softlabSenha: "•••",
+      ultimoLote: "0",
+      status: "ONLINE"
+    };
+
+    const newUser = {
+      id: `u-${Date.now()}`,
+      nome: req.nomeResponsavel,
+      email: req.email,
+      senha: "123",
+      role: "tenant" as const,
+      tenantId: newTenant.id,
+      tenantNome: newTenant.nome,
+      status: "ativo" as const,
+      criadoEm: new Date().toISOString().slice(0, 10)
+    };
+
+    setTenants(prev => [...prev, newTenant]);
+    setUsersList(prev => [...prev, newUser]);
+    setPendingRequests(prev => prev.filter(r => r.id !== req.id));
+    showNotification(`🎉 Solicitação Aprovada! Novo laboratório '${req.nomeLab}' ativado no MidwayLab.`);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setLoginEmail("");
+    setLoginPassword("");
+    setLoginError(null);
+    showNotification("🔒 Sessão encerrada com sucesso.");
+  };
+
 
   // DUAL SEARCH BARS STATE (SOFTLAB & AUTOLAC)
   const [searchSoftlab, setSearchSoftlab] = useState("");
@@ -391,6 +554,226 @@ export default function MidwayLabDashboard() {
     a.nome.toLowerCase().includes(searchAutolac.toLowerCase())
   );
 
+  // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 relative font-sans select-none overflow-hidden">
+        {/* Toast Notification Banner */}
+        {toastMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-teal-500 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-teal-500/30 border border-teal-300 flex items-center gap-3 animate-bounce">
+            <Sparkles className="w-5 h-5 text-slate-950" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Ambient Glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-teal-500/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-10 left-10 w-72 h-72 bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
+
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-2xl backdrop-blur-xl relative z-10">
+          {/* Logo & Header */}
+          <div className="text-center space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 mx-auto flex items-center justify-center shadow-xl shadow-teal-500/20">
+              <Activity className="w-8 h-8 text-slate-950 font-extrabold" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+                MidwayLab <span className="text-xs bg-teal-500/15 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-full font-bold">Orquestrador SaaS</span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-1">Plataforma de Integração Autolac ↔ Softlab Apoio</p>
+            </div>
+          </div>
+
+          {/* Login / Self-Registration Tabs */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setLoginTab("login")}
+              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
+                loginTab === "login"
+                  ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" /> Entrar na Conta
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginTab("solicitar")}
+              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
+                loginTab === "solicitar"
+                  ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" /> Solicitar Acesso
+            </button>
+          </div>
+
+          {/* FORM 1: LOGIN */}
+          {loginTab === "login" && (
+            <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
+              {loginError && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-xl flex items-center gap-2 font-medium">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-teal-400" /> E-mail de Acesso
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Ex.: carloscleton.nat@gmail.com"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-teal-500/50 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-teal-500/50 text-xs font-mono"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-teal-500/25 flex items-center justify-center gap-2 text-sm cursor-pointer"
+              >
+                <Lock className="w-4 h-4" /> Entrar no MidwayLab
+              </button>
+
+              {/* DEMO PRESETS */}
+              <div className="pt-4 border-t border-slate-800/80 space-y-2">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold block text-center">
+                  ⚡ Acesso Rápido para Testes (Demo Presets)
+                </span>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin("carloscleton.nat@gmail.com")}
+                    className="w-full bg-slate-950 hover:bg-slate-850 border border-teal-500/30 p-2.5 rounded-xl text-left transition flex items-center justify-between text-xs cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-teal-400 group-hover:scale-110 transition" />
+                      <div>
+                        <p className="font-bold text-slate-100">Carlos Cleton (Proprietário)</p>
+                        <p className="text-[10px] text-teal-400 font-mono">carloscleton.nat@gmail.com</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] bg-teal-500/20 text-teal-300 font-bold px-2 py-0.5 rounded-md">SUPER ADMIN</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin("atendimento@sanmathews.com.br")}
+                    className="w-full bg-slate-950 hover:bg-slate-850 border border-slate-800 p-2.5 rounded-xl text-left transition flex items-center justify-between text-xs cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition" />
+                      <div>
+                        <p className="font-bold text-slate-200">Cliente: Lab San Mathews</p>
+                        <p className="text-[10px] text-slate-400 font-mono">atendimento@sanmathews.com.br</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md">CLIENTE</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* FORM 2: SOLICITAR ACESSO */}
+          {loginTab === "solicitar" && (
+            <form onSubmit={handleRequestAccessSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nome do Laboratório</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex.: Laboratório Bio Vida"
+                  value={requestFormData.nomeLab}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, nomeLab: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nome do Responsável Técnico</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex.: Dra. Maria Fernanda"
+                  value={requestFormData.nomeResponsavel}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, nomeResponsavel: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">E-mail de Contato</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="contato@lab.com.br"
+                    value={requestFormData.email}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, email: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">CNPJ do Laboratório</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="00.000.000/0001-00"
+                    value={requestFormData.cnpj}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, cnpj: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Senha Desejada</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={requestFormData.senha}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, senha: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 cursor-pointer mt-2"
+              >
+                <UserPlus className="w-4 h-4" /> Enviar Solicitação de Cadastro
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // IF LOGGED IN: RENDER DASHBOARD WITH USER ROLE ACCESS CONTROL
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative select-none">
       {/* Toast Notification Banner */}
@@ -404,7 +787,7 @@ export default function MidwayLabDashboard() {
       {/* Top Navigation Bar */}
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab("dashboard")}>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab("depara")}>
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-teal-500/20">
               <Activity className="w-6 h-6 text-slate-950 font-bold" />
             </div>
@@ -418,7 +801,7 @@ export default function MidwayLabDashboard() {
         </div>
 
         {/* Live Service Status Indicator */}
-        <div className="hidden md:flex items-center gap-6 bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-xl text-xs">
+        <div className="hidden lg:flex items-center gap-6 bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-xl text-xs">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -445,23 +828,39 @@ export default function MidwayLabDashboard() {
           </div>
         </div>
 
-        {/* User Account Badge */}
+        {/* User Account & Role Badge */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-3 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-xl">
             <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold text-xs">
-              CA
+              {currentUser.nome.split(" ").map(n => n[0]).slice(0, 2).join("")}
             </div>
             <div className="text-left hidden sm:block">
-              <p className="text-xs font-semibold text-slate-200">carloscleton@gmail.com</p>
-              <p className="text-[10px] text-teal-400 font-mono">Super Admin (Supabase Auth)</p>
+              <p className="text-xs font-semibold text-slate-200 flex items-center gap-1">
+                {currentUser.nome}
+                {currentUser.email === "carloscleton.nat@gmail.com" && <Shield className="w-3 h-3 text-amber-400" />}
+              </p>
+              <p className="text-[10px] text-teal-400 font-mono">
+                {currentUser.role === 'admin' ? '👑 SUPER ADMIN (Proprietário)' : `🏥 Cliente: ${currentUser.tenantNome}`}
+              </p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-2 bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+            title="Encerrar Sessão"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
         </div>
       </header>
 
-      {/* Navigation Sub-Header Tabs */}
+      {/* Navigation Sub-Header Tabs (Role-Filtered) */}
       <div className="border-b border-slate-800 bg-slate-900/40 px-6 py-2 flex items-center justify-between overflow-x-auto">
         <nav className="flex items-center gap-2">
+          {/* TAB 1: DE-PARA (Visible to All) */}
           <button
             type="button"
             onClick={() => setActiveTab("depara")}
@@ -471,21 +870,10 @@ export default function MidwayLabDashboard() {
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
-            <GitCompare className="w-4 h-4 text-teal-400" /> Mapeador DE-PARA Dinâmico (Dual-Search)
+            <GitCompare className="w-4 h-4 text-teal-400" /> Mapeador DE-PARA Exames
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-              activeTab === "dashboard"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-            }`}
-          >
-            <Activity className="w-4 h-4" /> Visão Geral & Flutuabilidade
-          </button>
-
+          {/* TAB 2: OPERAÇÕES (Visible to All) */}
           <button
             type="button"
             onClick={() => setActiveTab("operacoes")}
@@ -498,30 +886,7 @@ export default function MidwayLabDashboard() {
             <SlidersHorizontal className="w-4 h-4 text-amber-400" /> Central de Operações Softlab
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("tenants")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-              activeTab === "tenants"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-            }`}
-          >
-            <Building2 className="w-4 h-4" /> Laboratórios Clientes ({tenants.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("endpoints")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-              activeTab === "endpoints"
-                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-            }`}
-          >
-            <Code2 className="w-4 h-4 text-cyan-400" /> Endpoints Softlab API ({softlabEndpointsList.length})
-          </button>
-
+          {/* TAB 3: LOGS (Visible to All) */}
           <button
             type="button"
             onClick={() => setActiveTab("logs")}
@@ -533,22 +898,84 @@ export default function MidwayLabDashboard() {
           >
             <FileText className="w-4 h-4" /> Logs de Ida e Volta
           </button>
+
+          {/* ADMIN ONLY TABS */}
+          {currentUser.role === "admin" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab("dashboard")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+                  activeTab === "dashboard"
+                    ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                }`}
+              >
+                <Activity className="w-4 h-4" /> Visão Geral & Flutuabilidade
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("tenants")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+                  activeTab === "tenants"
+                    ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                }`}
+              >
+                <Building2 className="w-4 h-4 text-cyan-400" /> Laboratórios Clientes ({tenants.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("endpoints")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+                  activeTab === "endpoints"
+                    ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                }`}
+              >
+                <Code2 className="w-4 h-4 text-indigo-400" /> Endpoints Softlab API ({softlabEndpointsList.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("security")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+                  activeTab === "security"
+                    ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Segurança & Usuários ({usersList.length})
+              </button>
+            </>
+          )}
         </nav>
 
-        <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
-          <Building2 className="w-3.5 h-3.5 text-teal-400" />
-          <span>Empresa Ativa:</span>
-          <select 
-            value={selectedTenant}
-            onChange={(e) => setSelectedTenant(e.target.value)}
-            className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
-          >
-            {tenants.map(t => (
-              <option key={t.id} value={t.nome} className="bg-slate-900 text-slate-200">{t.nome}</option>
-            ))}
-          </select>
-        </div>
+        {/* TENANT SELECTOR OR LOCK BADGE */}
+        {currentUser.role === "admin" ? (
+          <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+            <Building2 className="w-3.5 h-3.5 text-teal-400" />
+            <span>Empresa Ativa:</span>
+            <select 
+              value={selectedTenant}
+              onChange={(e) => setSelectedTenant(e.target.value)}
+              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+            >
+              {tenants.map(t => (
+                <option key={t.id} value={t.nome} className="bg-slate-900 text-slate-200">{t.nome}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold">
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Laboratório: {selectedTenant}</span>
+          </div>
+        )}
       </div>
+
 
       {/* Main Content Area */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
@@ -1226,41 +1653,144 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* TAB SECURITY */}
+        {/* TAB SECURITY & USER MANAGEMENT */}
         {activeTab === "security" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-teal-400" /> Supabase RLS & Segurança Multi-Tenant
-              </h2>
-              <p className="text-xs text-slate-400">Painel de proteção e segurança ativada do projeto MidwayLab</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-teal-400" /> Gestão de Usuários & Segurança RBAC
+                </h2>
+                <p className="text-xs text-slate-400">Controle de acessos, aprovação de solicitações de novos clientes e gerenciamento do sistema</p>
+              </div>
+
+              {/* OWNER CARD */}
+              <div className="bg-teal-500/10 border border-teal-500/30 px-4 py-2.5 rounded-2xl flex items-center gap-3">
+                <Shield className="w-6 h-6 text-amber-400" />
+                <div>
+                  <span className="text-[10px] text-teal-400 uppercase tracking-wider font-bold block">Proprietário do Sistema</span>
+                  <span className="text-xs font-bold text-slate-100 font-mono">carloscleton.nat@gmail.com</span>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-6">
-              <div className="flex items-center gap-4 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400 flex-shrink-0" />
+            {/* PENDING APPROVALS SECTION */}
+            {pendingRequests.length > 0 && (
+              <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+                <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-amber-500/5">
+                  <div>
+                    <h3 className="font-bold text-amber-300 flex items-center gap-2 text-sm">
+                      <UserPlus className="w-4 h-4 text-amber-400" /> Solicitações de Acesso Pendentes ({pendingRequests.length})
+                    </h3>
+                    <p className="text-xs text-slate-400">Novos laboratórios que solicitaram cadastro via tela inicial</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-5">Laboratório</th>
+                        <th className="py-3 px-5">Responsável</th>
+                        <th className="py-3 px-5">CNPJ</th>
+                        <th className="py-3 px-5">E-mail de Contato</th>
+                        <th className="py-3 px-5">Data</th>
+                        <th className="py-3 px-5 text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {pendingRequests.map(req => (
+                        <tr key={req.id} className="hover:bg-slate-850 transition">
+                          <td className="py-3.5 px-5 font-bold text-slate-100">{req.nomeLab}</td>
+                          <td className="py-3.5 px-5 text-slate-300">{req.nomeResponsavel}</td>
+                          <td className="py-3.5 px-5 font-mono text-slate-400">{req.cnpj}</td>
+                          <td className="py-3.5 px-5 font-mono text-cyan-300 font-bold">{req.email}</td>
+                          <td className="py-3.5 px-5 text-slate-400">{req.data}</td>
+                          <td className="py-3.5 px-5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleApproveRequest(req)}
+                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-lg transition shadow-md shadow-emerald-500/20 cursor-pointer flex items-center gap-1.5 ml-auto text-xs"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" /> Aprovar & Ativar Laboratório
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* REGISTERED USERS TABLE */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden space-y-0">
+              <div className="p-5 border-b border-slate-800 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-emerald-300 text-sm">Row Level Security (RLS) Ativo</h4>
-                  <p className="text-xs text-slate-300">
-                    Todas as tabelas (<code className="text-teal-300">tenants</code>, <code className="text-teal-300">depara_exames</code>, <code className="text-teal-300">pedidos</code>) estão protegidas. Acesso público revogado e liberado apenas para administradores via Supabase Auth e o backend MidwayLab via service_role secret.
-                  </p>
+                  <h3 className="font-bold text-slate-100 flex items-center gap-2 text-sm">
+                    <UserCheck className="w-4 h-4 text-teal-400" /> Usuários com Acesso Cadastrados ({usersList.length})
+                  </h3>
+                  <p className="text-xs text-slate-400">Contas ativas com credenciais de login no MidwayLab</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-slate-400 font-bold block">URL do Projeto Supabase:</span>
-                  <span className="text-teal-300 block">https://iibwbufbshqiaeorwoja.supabase.co</span>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                    <tr>
+                      <th className="py-3.5 px-5">Nome do Usuário</th>
+                      <th className="py-3.5 px-5">E-mail de Login</th>
+                      <th className="py-3.5 px-5">Perfil (Role)</th>
+                      <th className="py-3.5 px-5">Laboratório Vinculado</th>
+                      <th className="py-3.5 px-5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {usersList.map(u => (
+                      <tr key={u.id} className="hover:bg-slate-850 transition">
+                        <td className="py-3.5 px-5 font-bold text-slate-100 flex items-center gap-2">
+                          <User className="w-3.5 h-3.5 text-teal-400" /> {u.nome}
+                        </td>
+                        <td className="py-3.5 px-5 font-mono text-cyan-300 font-bold">{u.email}</td>
+                        <td className="py-3.5 px-5">
+                          {u.role === "admin" ? (
+                            <span className="bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-md font-bold text-[10px] inline-flex items-center gap-1">
+                              <Shield className="w-3 h-3 text-amber-400" /> SUPER ADMIN
+                            </span>
+                          ) : (
+                            <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-md font-bold text-[10px] inline-flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-cyan-400" /> CLIENTE TENANT
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-5 text-slate-300">{u.tenantNome || "Todos os Laboratórios (Global)"}</td>
+                        <td className="py-3.5 px-5">
+                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                            {u.status.toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-slate-400 font-bold block">Chave de Conexão Backend:</span>
-                  <span className="text-cyan-300 block font-bold">service_role secret (JWT Protegido no .env)</span>
+            {/* TECHNICAL SUPABASE SECURITY INFO */}
+            <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4">
+              <div className="flex items-center gap-4 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 flex-shrink-0" />
+                <div>
+                  <h4 className="font-bold text-emerald-300 text-sm">Row Level Security (RLS) & JWT Token Active</h4>
+                  <p className="text-xs text-slate-300">
+                    Todas as tabelas (<code className="text-teal-300">tenants</code>, <code className="text-teal-300">depara_exames</code>, <code className="text-teal-300">pedidos</code>) possuem isolamento por <code className="text-teal-300">tenant_id</code>. O acionamento público é totalmente bloqueado.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
         )}
+
       </main>
 
       {/* MODAL 1: CREATE / EDIT TENANT */}
