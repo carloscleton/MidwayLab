@@ -76,7 +76,9 @@ export default function MidwayLabDashboard() {
   const [importTarget, setImportTarget] = useState<"depara" | "softlab" | "autolac">("depara");
   const [parsedImportItems, setParsedImportItems] = useState<any[]>([]);
   const [importFileName, setImportFileName] = useState("");
+  const [shouldClearBeforeImport, setShouldClearBeforeImport] = useState(false);
   const [isSyncingSoftlabApi, setIsSyncingSoftlabApi] = useState(false);
+
 
   // USER AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC)
   const [usersList, setUsersList] = useState<IUserItem[]>([
@@ -219,6 +221,10 @@ export default function MidwayLabDashboard() {
 
       showNotification(`🎉 Importação Concluída: ${recordsToSave.length} mapeamentos DE-PARA salvos no Supabase!`);
     } else if (importTarget === "softlab") {
+      if (shouldClearBeforeImport) {
+        await DeparaService.limparCatalogoSoftlab();
+      }
+
       const newItems = parsedImportItems.map(item => ({
         codigo: (item.codigo || item.codigo_softlab || item.code || `SOFT_${Date.now().toString().slice(-4)}`).toUpperCase(),
         descricao: (item.descricao || item.nome || "EXAME IMPORTADO SOFTLAB").toUpperCase(),
@@ -238,9 +244,10 @@ export default function MidwayLabDashboard() {
         console.warn("Catálogo salvo localmente.");
       }
 
-      setSoftlabExames(prev => [...newItems, ...prev]);
-      showNotification(`📥 Catálogo Softlab Atualizado: ${newItems.length} novos exames salvos no Supabase!`);
+      setSoftlabExames(shouldClearBeforeImport ? newItems : prev => [...newItems, ...prev]);
+      showNotification(`📥 Catálogo Softlab Atualizado: ${newItems.length} exames salvos no Supabase!`);
     } else if (importTarget === "autolac") {
+
       const newItems = parsedImportItems.map(item => ({
         codigo: (item.codigo || item.codigo_autolac || item.code || `AUT_${Date.now().toString().slice(-4)}`).toUpperCase(),
         nome: item.nome || item.descricao || "Exame Importado Autolac"
@@ -326,7 +333,20 @@ export default function MidwayLabDashboard() {
       { codigo: "GASOMETRIA", descricao: "GASOMETRIA ARTERIAL COMPLETA", abreviacao: "GASOMETRIA", tipo: "PDF" }
     ];
 
-    // Save catalog to Supabase table catalogo_softlab_exames
+    // 1. Trigger automatic file download for backup/import
+    try {
+      const jsonContent = JSON.stringify(realExamsToSync, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `catalogo_softlab_exames_${Date.now()}.json`;
+      a.click();
+    } catch (e) {
+      console.warn("Download de arquivo ignorado.");
+    }
+
+    // 2. Save catalog to Supabase table catalogo_softlab_exames via chunked inserts
     try {
       const recordsToSave = realExamsToSync.map(e => ({
         codigo: e.codigo,
@@ -339,7 +359,7 @@ export default function MidwayLabDashboard() {
       console.warn("Catálogo salvo localmente.");
     }
 
-    // Refresh catalog from Supabase
+    // 3. Refresh catalog from Supabase
     const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
     const dbMappings = await DeparaService.listarMapeamentos();
 
@@ -368,8 +388,9 @@ export default function MidwayLabDashboard() {
     }
 
     setIsSyncingSoftlabApi(false);
-    showNotification("✨ Sincronização Concluída: Catálogo real de exames gravado e atualizado no Supabase!");
+    showNotification("✨ Sincronização Concluída: Arquivo JSON baixado e catálogo salvo no Supabase!");
   };
+
 
 
 
@@ -2888,6 +2909,20 @@ P1`}
                   <p className="text-[11px] text-slate-500">Aceita arquivos .csv (separados por vírgula ou ;) e .json</p>
                 )}
               </div>
+
+              {/* CLEAR CATALOG OPTION CHECKBOX */}
+              {importTarget === "softlab" && (
+                <label className="flex items-center gap-2 text-slate-300 text-xs cursor-pointer bg-slate-950 p-3 rounded-xl border border-slate-800 hover:border-amber-500/40 transition">
+                  <input
+                    type="checkbox"
+                    checked={shouldClearBeforeImport}
+                    onChange={(e) => setShouldClearBeforeImport(e.target.checked)}
+                    className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-teal-500 focus:ring-teal-500/20 cursor-pointer"
+                  />
+                  <span>⚠️ <strong>Substituir catálogo:</strong> Limpar exames antigos do banco antes de salvar os novos</span>
+                </label>
+              )}
+
 
               {/* PREVIEW OF PARSED ITEMS */}
               {parsedImportItems.length > 0 && (

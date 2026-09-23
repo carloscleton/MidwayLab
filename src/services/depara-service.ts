@@ -112,16 +112,31 @@ export class DeparaService {
   }
 
   /**
-   * Salva ou atualiza a tabela de Catálogo de Exames do Softlab no Supabase
+   * Limpa todos os exames da tabela de Catálogo do Softlab no Supabase
+   */
+  static async limparCatalogoSoftlab(): Promise<void> {
+    try {
+      await supabaseBrowser.from('catalogo_softlab_exames').delete().neq('codigo', '___DUMMY___');
+    } catch (e) {
+      console.error('[DeparaService] Erro ao limpar catálogo Softlab:', e);
+    }
+  }
+
+  /**
+   * Salva ou atualiza a tabela de Catálogo de Exames do Softlab no Supabase em lotes fracionados (Chunked Inserts de 100 em 100)
    */
   static async salvarCatalogoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
     if (!records || records.length === 0) return;
-    const { error } = await supabaseBrowser
-      .from('catalogo_softlab_exames')
-      .upsert(records, { onConflict: 'codigo' });
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabaseBrowser
+        .from('catalogo_softlab_exames')
+        .upsert(chunk, { onConflict: 'codigo' });
 
-    if (error) {
-      console.error('[DeparaService] Erro ao salvar catálogo Softlab:', error);
+      if (error) {
+        console.error(`[DeparaService] Erro ao salvar lote de exames Softlab (${i}..${i + chunk.length}):`, error);
+      }
     }
   }
 
@@ -144,16 +159,21 @@ export class DeparaService {
   }
 
   /**
-   * Salva ou atualiza o Catálogo de Exames do Autolac no Supabase
+   * Salva ou atualiza o Catálogo de Exames do Autolac no Supabase em lotes fracionados
    */
   static async salvarCatalogoAutolac(records: ICatalogoAutolacRecord[]): Promise<void> {
     if (!records || records.length === 0) return;
-    const { error } = await supabaseBrowser
-      .from('catalogo_autolac_exames')
-      .upsert(records, { onConflict: 'codigo' });
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabaseBrowser
+        .from('catalogo_autolac_exames')
+        .upsert(chunk, { onConflict: 'codigo' });
 
-    if (error) {
-      console.error('[DeparaService] Erro ao salvar catálogo Autolac:', error);
+      if (error) {
+        console.error(`[DeparaService] Erro ao salvar lote de exames Autolac (${i}..${i + chunk.length}):`, error);
+      }
     }
   }
+
 }
