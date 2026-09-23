@@ -1872,6 +1872,18 @@ export default function MidwayLabDashboard() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500/50"
                   />
                 </div>
+
+                {/* DEDICATED BUTTON TO FETCH & PERSIST ALL 1311 SOFTLAB API EXAMS INTO SUPABASE */}
+                <button
+                  type="button"
+                  onClick={handleSoftlabApiSync}
+                  disabled={isSyncingSoftlabApi}
+                  className="w-full bg-gradient-to-r from-teal-500/20 via-cyan-500/20 to-teal-500/20 hover:from-teal-500/30 hover:to-cyan-500/30 text-teal-300 border border-teal-500/40 font-black px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-teal-500/10 cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 text-teal-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
+                  📡 Listar & Gravar Catálogo Completo via API Softlab (1.311 Exames)
+                </button>
+
               </div>
 
               {/* AUTOLAC SEARCH COLUMN */}
