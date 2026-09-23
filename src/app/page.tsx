@@ -1092,6 +1092,7 @@ export default function MidwayLabDashboard() {
     senhaWs: "Soft@2026",
     codigoAgente: "1",
     wsUrl: "http://177.22.36.202:8002/",
+    softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
     softlabLogin: "",
     softlabSenha: ""
   });
@@ -1118,12 +1119,13 @@ export default function MidwayLabDashboard() {
     const res = await TenantService.testarConexaoTenant(
       tenantFormData.softlabLogin,
       tenantFormData.softlabSenha,
-      tenantFormData.wsUrl
+      tenantFormData.wsUrl,
+      tenantFormData.softlabBaseUrl || "http://apoio.softlabsolucoes.com.br"
     );
 
     setIsTestingTenantConnection(false);
     setTenantTestResult(res);
-    showNotification("⚡ Diagnóstico de Conexão executado com sucesso!");
+    showNotification("⚡ Diagnóstico Individual de Conexão executado!");
   };
 
 
@@ -1468,6 +1470,7 @@ export default function MidwayLabDashboard() {
       senhaWs: t.senhaWs || "Soft@2026",
       codigoAgente: t.codigoAgente || "1",
       wsUrl: t.wsUrl || "http://177.22.36.202:8002/",
+      softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
       softlabLogin: t.softlabLogin || "",
       softlabSenha: t.softlabSenha || ""
     });
@@ -2559,6 +2562,7 @@ export default function MidwayLabDashboard() {
                     senhaWs: "Soft@2026",
                     codigoAgente: "1",
                     wsUrl: "http://177.22.36.202:8002/",
+                    softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
                     softlabLogin: "",
                     softlabSenha: ""
                   });
@@ -2980,15 +2984,30 @@ export default function MidwayLabDashboard() {
               </div>
 
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">URL de Integração do WebService</label>
-                <input
-                  type="text"
-                  required
-                  value={tenantFormData.wsUrl}
-                  onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">URL Base da API Softlab Apoio</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="http://apoio.softlabsolucoes.com.br"
+                    value={tenantFormData.softlabBaseUrl}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabBaseUrl: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">URL WebService Autolac (Porta 8002)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="http://177.22.36.202:8002/"
+                    value={tenantFormData.wsUrl}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
               </div>
 
               {/* DIAGNOSTIC TEST CONNECTION OUTPUT BOX */}

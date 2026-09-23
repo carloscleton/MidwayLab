@@ -82,88 +82,39 @@ export class TenantService {
   }
 
   /**
-   * Valida em TEMPO REAL as credenciais na API REST do Softlab Apoio e a conectividade do WebService Autolac
+   * Valida em TEMPO REAL e INDIVIDUALMENTE as credenciais da API Softlab Apoio e a conectividade do WebService Autolac via Rota Server-Side
    */
-  static async testarConexaoTenant(softlabLogin: string, softlabSenha: string, wsUrl: string): Promise<{
+  static async testarConexaoTenant(softlabLogin: string, softlabSenha: string, wsUrl: string, softlabBaseUrl?: string): Promise<{
     softlabSuccess: boolean;
     softlabMsg: string;
     autolacSuccess: boolean;
     autolacMsg: string;
   }> {
-    let softlabSuccess = false;
-    let softlabMsg = "";
+    try {
+      const response = await fetch('/api/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          softlabLogin,
+          softlabSenha,
+          softlabBaseUrl: softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
+          wsUrl
+        })
+      });
 
-    // 1. TESTE REAL NA API REST DO SOFTLAB APOIO
-    if (!softlabLogin || !softlabSenha) {
-      softlabMsg = "Informe o login e a senha da API Softlab Apoio.";
-    } else {
-      try {
-        const targetBaseUrl = (wsUrl && wsUrl.includes('softlabsolucoes.com.br'))
-          ? 'http://apoio.softlabsolucoes.com.br'
-          : (wsUrl && wsUrl.startsWith('http') ? wsUrl : 'http://apoio.softlabsolucoes.com.br');
-
-        const client = new SoftlabClient(targetBaseUrl, softlabLogin, softlabSenha);
-        const token = await client.authenticate();
-
-        if (token) {
-          softlabSuccess = true;
-          softlabMsg = "✓ Softlab API 200 OK - Credenciais autenticadas com sucesso!";
-        } else {
-          softlabSuccess = false;
-          softlabMsg = "Token JWT não retornado pela API Softlab.";
-        }
-      } catch (err: any) {
-        softlabSuccess = false;
-        const msg = err.message || "";
-        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("autenticação")) {
-          softlabMsg = "❌ Erro 401: Credenciais (Login/Senha) incorretas no Softlab Apoio.";
-        } else if (msg.includes("404") || msg.includes("ENOTFOUND")) {
-          softlabMsg = `❌ Domínio/Servidor Softlab inacessível. (${msg})`;
-        } else {
-          softlabMsg = `❌ Falha na autenticação Softlab: ${msg}`;
-        }
+      if (response.ok) {
+        return await response.json();
       }
+      throw new Error(`Servidor respondeu com status ${response.status}`);
+    } catch (err: any) {
+      console.error('[TenantService] Erro ao testar conexão via API route:', err);
+      return {
+        softlabSuccess: false,
+        softlabMsg: `Erro ao executar teste individual: ${err.message}`,
+        autolacSuccess: false,
+        autolacMsg: `Erro ao executar teste individual: ${err.message}`
+      };
     }
-
-    // 2. TESTE REAL DE CONECTIVIDADE NO WEBSERVICE AUTOLAC
-    let autolacSuccess = false;
-    let autolacMsg = "";
-
-    if (!wsUrl || !wsUrl.startsWith("http")) {
-      autolacMsg = "Informe uma URL válida iniciada com http:// ou https://.";
-    } else {
-      try {
-        const cleanUrl = wsUrl.replace(/\/$/, '');
-        await axios.get(cleanUrl, { timeout: 6000 });
-        autolacSuccess = true;
-        autolacMsg = `✓ WebService Autolac Respondendo OK em ${wsUrl}`;
-      } catch (err: any) {
-        if (err.response) {
-          // Response received (even HTTP 405/404/500), proving host exists and responds
-          autolacSuccess = true;
-          autolacMsg = `✓ Servidor WebService Online em ${wsUrl} (Status HTTP ${err.response.status}).`;
-        } else {
-          autolacSuccess = false;
-          const code = err.code || "";
-          if (code === "ENOTFOUND" || code === "EAI_AGAIN" || err.message?.includes("ENOTFOUND") || err.message?.includes("Network Error")) {
-            autolacMsg = `❌ Domínio ou IP inacessível: Servidor '${wsUrl}' não foi encontrado.`;
-          } else if (code === "ECONNREFUSED") {
-            autolacMsg = `❌ Conexão recusada pela porta em '${wsUrl}'.`;
-          } else if (code === "ETIMEDOUT" || code === "ECONNABORTED") {
-            autolacMsg = `❌ Timeout: O servidor em '${wsUrl}' não respondeu em 6 segundos.`;
-          } else {
-            autolacMsg = `❌ Erro de Conectividade: ${err.message || 'Servidor indisponível'}`;
-          }
-        }
-      }
-    }
-
-    return {
-      softlabSuccess,
-      softlabMsg,
-      autolacSuccess,
-      autolacMsg
-    };
   }
 }
 
