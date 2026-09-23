@@ -148,8 +148,9 @@ END $$;
 DO $$
 BEGIN
    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = 'a0000000-0000-0000-0000-000000000001') THEN
-      INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+      INSERT INTO auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
       VALUES (
+        'a0000000-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-000000000001',
         '{"sub":"a0000000-0000-0000-0000-000000000001","email":"carloscleton.nat@gmail.com"}',
@@ -183,8 +184,9 @@ END $$;
 DO $$
 BEGIN
    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = 'a0000000-0000-0000-0000-000000000002') THEN
-      INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+      INSERT INTO auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
       VALUES (
+        'a0000000-0000-0000-0000-000000000002',
         'a0000000-0000-0000-0000-000000000002',
         'a0000000-0000-0000-0000-000000000002',
         '{"sub":"a0000000-0000-0000-0000-000000000002","email":"atendimento@sanmathews.com.br"}',
@@ -192,6 +194,7 @@ BEGIN
       );
    END IF;
 END $$;
+
 
 
 
