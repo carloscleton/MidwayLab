@@ -836,6 +836,10 @@ export default function MidwayLabDashboard() {
     eplCode: string;
   } | null>(null);
 
+  // Mapped exams modal state
+  const [isMappedExamsModalOpen, setIsMappedExamsModalOpen] = useState(false);
+  const [searchMappedModal, setSearchMappedModal] = useState("");
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1988,6 +1992,15 @@ export default function MidwayLabDashboard() {
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" /> + Novo Mapeamento
+                </button>
+
+                {/* SEE MAPPED EXAMS VIEWER BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setIsMappedExamsModalOpen(true)}
+                  className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-extrabold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-emerald-500/10 cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-emerald-400" /> 👁️ Ver Exames Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
                 </button>
 
                 {/* BULK DE-PARA FILE IMPORTER BUTTON */}
@@ -3309,6 +3322,145 @@ P1`}
                 className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
               >
                 <Printer className="w-4 h-4" /> Imprimir Etiqueta (50x30mm)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VISUALIZADOR DE EXAMES MAPEADOS (DE-PARA) */}
+      {isMappedExamsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  Central de Exames Mapeados (DE-PARA)
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Exames do Softlab Apoio que possuem código correspondente vinculado ao Autolac para o laboratório <strong className="text-teal-300">{selectedTenant}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMappedExamsModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* SUMMARY STATS & SEARCH */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>{softlabExames.filter(e => Boolean(e.autolacMapped)).length} Exames Mapeados</span>
+                </div>
+                <span className="text-xs text-slate-400">de {softlabExames.length} exames no catálogo total</span>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar entre os mapeados..."
+                  value={searchMappedModal}
+                  onChange={(e) => setSearchMappedModal(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+            </div>
+
+            {/* MAPPED EXAMS LIST / TABLE */}
+            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider sticky top-0 border-b border-slate-800 z-10">
+                  <tr>
+                    <th className="py-3 px-4">Código Softlab</th>
+                    <th className="py-3 px-4">Exame Softlab Apoio</th>
+                    <th className="py-3 px-4">Código Autolac (Mapeado)</th>
+                    <th className="py-3 px-4">Tipo Resultado</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
+                  {softlabExames
+                    .filter(e => Boolean(e.autolacMapped))
+                    .filter(e =>
+                      e.codigo.toLowerCase().includes(searchMappedModal.toLowerCase()) ||
+                      e.descricao.toLowerCase().includes(searchMappedModal.toLowerCase()) ||
+                      e.autolacMapped.toLowerCase().includes(searchMappedModal.toLowerCase())
+                    )
+                    .map((exam) => (
+                      <tr key={exam.codigo} className="hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-slate-100 text-xs block">{exam.descricao}</span>
+                          <span className="text-[11px] text-slate-500">{exam.abreviacao}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg">
+                            {exam.autolacMapped}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
+                            exam.tipo === "ESTRUTURADO"
+                              ? "bg-purple-500/10 text-purple-300 border-purple-500/20"
+                              : "bg-blue-500/10 text-blue-300 border-blue-500/20"
+                          }`}>
+                            {exam.tipo || "PDF"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Mapeado
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMappedExamsModalOpen(false);
+                              handleOpenMapExam(exam);
+                            }}
+                            className="text-xs bg-slate-800 hover:bg-slate-700 text-teal-300 px-3 py-1.5 rounded-lg transition font-semibold cursor-pointer"
+                          >
+                            Editar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  {softlabExames.filter(e => Boolean(e.autolacMapped)).length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                        Nenhum exame mapeado no momento. Vincule os exames no painel DE-PARA!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* FOOTER ACTIONS */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold px-4 py-2 rounded-xl transition cursor-pointer flex items-center gap-2"
+              >
+                <Download className="w-4 h-4 text-teal-400" /> Exportar Planilha CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsMappedExamsModalOpen(false)}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
+              >
+                Fechar Visualizador
               </button>
             </div>
           </div>
