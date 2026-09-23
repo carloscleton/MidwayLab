@@ -80,3 +80,40 @@ CREATE TABLE IF NOT EXISTS public.laudos_historico (
     data_hora_liberacao TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- 7. Tabela de Usuários do Sistema (SuperAdmin e Clientes)
+CREATE TABLE IF NOT EXISTS public.usuarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    senha VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'tenant',         -- 'admin' ou 'tenant'
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'ativo',       -- 'ativo', 'pendente', 'bloqueado'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 8. Tabela de Solicitações de Acesso (Self-Service)
+CREATE TABLE IF NOT EXISTS public.solicitacoes_acesso (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome_lab VARCHAR(255) NOT NULL,
+    nome_responsavel VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    cnpj VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDENTE',    -- 'PENDENTE', 'APROVADO', 'REJEITADO'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- SEED DATA INICIAL
+INSERT INTO public.tenants (id, nome, codigo_entidade, identificacao_entidade, senha_ws, softlab_base_url, softlab_login, softlab_senha)
+VALUES ('11111111-1111-1111-1111-111111111111', 'LAB. ARES - SOFTLAB (San Mathews)', '1', 'yorod23826@gcont.com', 'Soft@2026', 'http://apoio.softlabsolucoes.com.br', 'carloscleton@gmail.com', 'Carlos@2026')
+ON CONFLICT (identificacao_entidade) DO NOTHING;
+
+INSERT INTO public.usuarios (nome, email, senha, role, tenant_id, status)
+VALUES ('Carlos Cleton', 'carloscleton.nat@gmail.com', 'admin', 'admin', NULL, 'ativo')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO public.usuarios (nome, email, senha, role, tenant_id, status)
+VALUES ('Atendimento San Mathews', 'atendimento@sanmathews.com.br', '123', 'tenant', '11111111-1111-1111-1111-111111111111', 'ativo')
+ON CONFLICT (email) DO NOTHING;
+

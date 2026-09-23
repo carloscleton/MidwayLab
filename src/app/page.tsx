@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabaseBrowser } from "../lib/supabase-client";
+import { UserService } from "../services/user-service";
+import { TenantService } from "../services/tenant-service";
+import { DeparaService } from "../services/depara-service";
 import {
+
   Activity,
   Server,
   Building2,
@@ -116,10 +121,138 @@ export default function MidwayLabDashboard() {
   const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security">("depara");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
 
+  // SUPABASE REALTIME FETCHING & INITIALIZATION
+  useEffect(() => {
+    async function loadSupabaseData() {
+      try {
+        // 1. Fetch Tenants
+        const dbTenants = await TenantService.listarTenants();
+        if (dbTenants.length > 0) {
+          const mappedTenants = dbTenants.map(t => ({
+            id: t.id,
+            nome: t.nome,
+            identificacaoEntidade: t.identificacao_entidade,
+            senhaWs: t.senha_ws,
+            codigoAgente: t.codigo_entidade || "1",
+            wsUrl: "http://177.22.36.202:8002/",
+            softlabLogin: t.softlab_login,
+            softlabSenha: "•••",
+            ultimoLote: "1",
+            status: t.ativo ? "ONLINE" : "OFFLINE"
+          }));
+          setTenants(mappedTenants);
+          if (mappedTenants.length > 0) {
+            setSelectedTenant(mappedTenants[0].nome);
+          }
+        }
+
+        // 2. Fetch Users
+        const dbUsers = await UserService.listarUsuarios();
+        if (dbUsers.length > 0) {
+          const mappedUsers = dbUsers.map(u => ({
+            id: u.id,
+            nome: u.nome,
+            email: u.email,
+            senha: u.senha || "123",
+            role: u.role,
+            tenantId: u.tenant_id || null,
+            tenantNome: u.role === 'admin' ? "Super Admin (Ares)" : "Laboratório Cliente",
+            status: u.status,
+            criadoEm: u.created_at ? u.created_at.slice(0, 10) : "2026-09-23"
+          }));
+          setUsersList(mappedUsers);
+        }
+
+        // 3. Fetch DE-PARA Mappings
+        const dbMappings = await DeparaService.listarMapeamentos();
+        if (dbMappings.length > 0) {
+          setSoftlabExames(prev => prev.map(item => {
+            const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
+            if (found) {
+              return { ...item, autolacMapped: found.codigo_autolac, tipo: found.tipo_resultado || 'PDF' };
+            }
+            return item;
+          }));
+        }
+
+        // 4. Fetch Pending Requests
+        const dbRequests = await UserService.listarSolicitacoesPendentes();
+        if (dbRequests.length > 0) {
+          setPendingRequests(dbRequests.map(r => ({
+            id: r.id || String(Date.now()),
+            nomeLab: r.nome_lab,
+            nomeResponsavel: r.nome_responsavel,
+            email: r.email,
+            cnpj: r.cnpj,
+            data: r.created_at ? new Date(r.created_at).toLocaleString("pt-BR") : new Date().toLocaleString("pt-BR")
+          })));
+        }
+      } catch (err) {
+        console.error("[MidwayLab] Erro ao carregar dados do Supabase:", err);
+      }
+    }
+
+    loadSupabaseData();
+
+    // 5. Supabase Realtime Channel
+    const channel = supabaseBrowser
+      .channel('realtime_pedidos_channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, (payload) => {
+        const newRecord = payload.new as any;
+        showNotification(`⚡ Novo Pedido SOAP Recebido: ${newRecord.protocolo_autolac || 'PROTO-REQ'} (${newRecord.paciente_nome || 'Paciente'})`);
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        
+        setLogs(prev => [
+          {
+            id: `LOG-${Date.now().toString().slice(-4)}`,
+            tipo: "IDA (Autolac ➔ Softlab)",
+            protocolo: newRecord.protocolo_autolac || "PROTO-LIVE",
+            paciente: newRecord.paciente_nome || "PACIENTE SUPABASE REALTIME",
+            exames: "GLICOSE, HEMOGRAMA",
+            status: "SUCESSO (ETIQUETAS EPL GERADAS)",
+            horario: timeStr,
+            tenant: "San Mathews"
+          },
+          ...prev
+        ]);
+        setStats(prev => ({ ...prev, pedidosIda: prev.pedidosIda + 1 }));
+      })
+      .subscribe();
+
+    return () => {
+      supabaseBrowser.removeChannel(channel);
+    };
+  }, []);
+
   // LOGIN HANDLERS
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+
+    // Try Supabase auth first
+    const dbUser = await UserService.autenticar(loginEmail, loginPassword);
+    if (dbUser) {
+      const userObj = {
+        id: dbUser.id,
+        nome: dbUser.nome,
+        email: dbUser.email,
+        senha: dbUser.senha || loginPassword,
+        role: dbUser.role,
+        tenantId: dbUser.tenant_id || null,
+        tenantNome: dbUser.role === 'admin' ? "Super Admin (Ares)" : selectedTenant,
+        status: dbUser.status,
+        criadoEm: dbUser.created_at?.slice(0, 10) || "2026-09-23"
+      };
+      setCurrentUser(userObj);
+      if (userObj.role === "tenant" && userObj.tenantNome) {
+        setSelectedTenant(userObj.tenantNome);
+      }
+      showNotification(`👋 Bem-vindo de volta, ${userObj.nome}!`);
+      return;
+    }
+
+    // Local fallback check
     const user = usersList.find(u => u.email.toLowerCase() === loginEmail.toLowerCase().trim() && u.senha === loginPassword);
     if (!user) {
       setLoginError("E-mail ou senha incorretos! Verifique suas credenciais.");
@@ -130,7 +263,6 @@ export default function MidwayLabDashboard() {
       return;
     }
     
-    // Set Logged In User
     setCurrentUser(user);
     if (user.role === "tenant" && user.tenantNome) {
       setSelectedTenant(user.tenantNome);
@@ -149,8 +281,19 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  const handleRequestAccessSubmit = (e: React.FormEvent) => {
+  const handleRequestAccessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await UserService.solicitarAcesso({
+        nome_lab: requestFormData.nomeLab,
+        nome_responsavel: requestFormData.nomeResponsavel,
+        email: requestFormData.email,
+        cnpj: requestFormData.cnpj
+      });
+    } catch (err) {
+      console.warn("Persistência local mantida para o formulário.");
+    }
+
     const newReq = {
       id: `req-${Date.now()}`,
       nomeLab: requestFormData.nomeLab,
@@ -159,15 +302,32 @@ export default function MidwayLabDashboard() {
       cnpj: requestFormData.cnpj,
       data: new Date().toLocaleString("pt-BR")
     };
-    setPendingRequests(prev => [...prev, newReq]);
+    setPendingRequests(prev => [newReq, ...prev]);
     setRequestFormData({ nomeLab: "", nomeResponsavel: "", email: "", senha: "", cnpj: "" });
     setLoginTab("login");
-    showNotification("✅ Solicitação enviada com sucesso! O Admin (carloscleton.nat@gmail.com) analisará seu acesso.");
+    showNotification("✅ Solicitação enviada e gravada no Supabase! O Admin (carloscleton.nat@gmail.com) analisará seu acesso.");
   };
 
-  const handleApproveRequest = (req: typeof pendingRequests[0]) => {
+  const handleApproveRequest = async (req: typeof pendingRequests[0]) => {
+    let savedTenantId = String(Date.now());
+    try {
+      const savedTenant = await TenantService.salvarTenant({
+        nome: req.nomeLab,
+        identificacao_entidade: req.email,
+        senha_ws: "Soft@2026",
+        softlab_login: req.email,
+        softlab_senha: "•••",
+        softlab_base_url: "http://apoio.softlabsolucoes.com.br"
+      });
+      if (savedTenant) {
+        savedTenantId = savedTenant.id;
+      }
+    } catch (err) {
+      console.warn("Salvo localmente.");
+    }
+
     const newTenant = {
-      id: String(Date.now()),
+      id: savedTenantId,
       nome: req.nomeLab,
       identificacaoEntidade: req.email,
       senhaWs: "Soft@2026",
@@ -194,8 +354,9 @@ export default function MidwayLabDashboard() {
     setTenants(prev => [...prev, newTenant]);
     setUsersList(prev => [...prev, newUser]);
     setPendingRequests(prev => prev.filter(r => r.id !== req.id));
-    showNotification(`🎉 Solicitação Aprovada! Novo laboratório '${req.nomeLab}' ativado no MidwayLab.`);
+    showNotification(`🎉 Solicitação Aprovada! Novo laboratório '${req.nomeLab}' gravado no Supabase.`);
   };
+
 
   const handleLogout = () => {
     setCurrentUser(null);

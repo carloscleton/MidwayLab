@@ -1,4 +1,5 @@
 import { supabase, ITenantRecord } from '../db/supabase';
+import { supabaseBrowser } from '../lib/supabase-client';
 import { SoftlabClient } from '../clients/softlab-client';
 
 export class TenantService {
@@ -16,6 +17,53 @@ export class TenantService {
     if (error || !data) {
       console.warn(`[TenantService] Tenant não encontrado para identificação: '${identificacaoEntidade}'`);
       return null;
+    }
+
+    return data as ITenantRecord;
+  }
+
+  /**
+   * Lista todos os tenants ativos no Supabase
+   */
+  static async listarTenants(): Promise<ITenantRecord[]> {
+    try {
+      const { data, error } = await supabaseBrowser
+        .from('tenants')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome', { ascending: true });
+
+      if (error || !data) return [];
+      return data as ITenantRecord[];
+    } catch (e) {
+      console.error('[TenantService] Erro ao listar tenants:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Salva ou atualiza um Tenant no Supabase
+   */
+  static async salvarTenant(tenant: Partial<ITenantRecord>): Promise<ITenantRecord | null> {
+    const { data, error } = await supabaseBrowser
+      .from('tenants')
+      .upsert({
+        id: tenant.id,
+        nome: tenant.nome,
+        codigo_entidade: tenant.codigo_entidade || '1',
+        identificacao_entidade: tenant.identificacao_entidade,
+        senha_ws: tenant.senha_ws || 'Soft@2026',
+        softlab_base_url: tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
+        softlab_login: tenant.softlab_login,
+        softlab_senha: tenant.softlab_senha,
+        ativo: true
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('[TenantService] Erro ao salvar tenant:', error);
+      throw error;
     }
 
     return data as ITenantRecord;

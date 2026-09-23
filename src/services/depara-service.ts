@@ -1,4 +1,5 @@
 import { supabase, IDeparaExameRecord } from '../db/supabase';
+import { supabaseBrowser } from '../lib/supabase-client';
 
 export class DeparaService {
   /**
@@ -27,6 +28,25 @@ export class DeparaService {
   }
 
   /**
+   * Lista todos os mapeamentos DE-PARA de um determinado tenant no Supabase
+   */
+  static async listarMapeamentos(tenantId?: string): Promise<IDeparaExameRecord[]> {
+    try {
+      let query = supabaseBrowser.from('depara_exames').select('*');
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error || !data) return [];
+      return data as IDeparaExameRecord[];
+    } catch (e) {
+      console.error('[DeparaService] Erro ao listar mapeamentos:', e);
+      return [];
+    }
+  }
+
+  /**
    * Traduz o código de exame do Softlab de volta para o código do Autolac
    */
   static async resolveExameInverso(tenantId: string, codigoSoftlab: string): Promise<string> {
@@ -48,7 +68,7 @@ export class DeparaService {
    * Cadastra ou atualiza um mapeamento DE-PARA
    */
   static async salvarMapeamento(record: IDeparaExameRecord): Promise<void> {
-    const { error } = await supabase.from('depara_exames').upsert(record, {
+    const { error } = await supabaseBrowser.from('depara_exames').upsert(record, {
       onConflict: 'tenant_id,codigo_autolac',
     });
 
