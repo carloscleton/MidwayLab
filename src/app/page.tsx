@@ -458,20 +458,7 @@ export default function MidwayLabDashboard() {
       };
     });
 
-    // 1. Trigger automatic JSON file download with ALL 1.311 real medical exams
-    try {
-      const jsonContent = JSON.stringify(full1311Exams, null, 2);
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `catalogo_softlab_1311_exames_${Date.now()}.json`;
-      a.click();
-    } catch (e) {
-      console.warn("Download de arquivo ignorado.");
-    }
-
-    // 2. Save ALL 1.311 real exams to Supabase table catalogo_softlab_exames via chunked inserts
+    // 1. Save ALL exams to Supabase table catalogo_softlab_exames via chunked inserts
     try {
       const recordsToSave = full1311Exams.map(e => ({
         codigo: e.codigo,
@@ -484,6 +471,7 @@ export default function MidwayLabDashboard() {
     } catch (err) {
       console.warn("Catálogos salvos localmente.");
     }
+
 
     // 3. Refresh catalog directly from Supabase
     const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
@@ -521,8 +509,9 @@ export default function MidwayLabDashboard() {
     }
 
     setIsSyncingSoftlabApi(false);
-    showNotification(`✨ Sincronização Concluída: Todos os 1.311 exames gravados no Supabase e baixados em .JSON!`);
+    showNotification("✨ Exames do Softlab listados e salvos no banco Supabase com sucesso!");
   };
+
 
 
 
@@ -1873,7 +1862,7 @@ export default function MidwayLabDashboard() {
                   />
                 </div>
 
-                {/* DEDICATED BUTTON TO FETCH & PERSIST ALL 1311 SOFTLAB API EXAMS INTO SUPABASE */}
+                {/* DEDICATED BUTTON TO FETCH & PERSIST SOFTLAB API EXAMS INTO SUPABASE */}
                 <button
                   type="button"
                   onClick={handleSoftlabApiSync}
@@ -1881,8 +1870,9 @@ export default function MidwayLabDashboard() {
                   className="w-full bg-gradient-to-r from-teal-500/20 via-cyan-500/20 to-teal-500/20 hover:from-teal-500/30 hover:to-cyan-500/30 text-teal-300 border border-teal-500/40 font-black px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-teal-500/10 cursor-pointer"
                 >
                   <RefreshCw className={`w-4 h-4 text-teal-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
-                  📡 Listar & Gravar Catálogo Completo via API Softlab (1.311 Exames)
+                  📡 Listar Exames Softlab
                 </button>
+
 
               </div>
 
