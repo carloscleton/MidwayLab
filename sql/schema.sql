@@ -117,3 +117,144 @@ INSERT INTO public.usuarios (nome, email, senha, role, tenant_id, status)
 VALUES ('Atendimento San Mathews', 'atendimento@sanmathews.com.br', '123', 'tenant', '11111111-1111-1111-1111-111111111111', 'ativo')
 ON CONFLICT (email) DO NOTHING;
 
+-- =========================================================================
+-- CRIAÇÃO DOS USUÁRIOS NO PAINEL DE AUTHENTICATION DO SUPABASE (auth.users)
+-- =========================================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 1. Inserir SuperAdmin Carlos Cleton na tabela nativa auth.users do Supabase
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  recovery_sent_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  is_super_admin,
+  created_at,
+  updated_at,
+  phone,
+  phone_confirmed_at,
+  phone_change,
+  phone_change_token,
+  email_change,
+  email_change_token,
+  email_change_confirm_status,
+  banned_until,
+  reauthentication_sent_at,
+  is_sso_user,
+  deleted_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  'a0000000-0000-0000-0000-000000000001',
+  'authenticated',
+  'authenticated',
+  'carloscleton.nat@gmail.com',
+  crypt('admin', gen_salt('bf')),
+  now(),
+  now(),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"nome":"Carlos Cleton","role":"admin"}',
+  false,
+  now(),
+  now(),
+  NULL, NULL, '', '', '', '', 0, NULL, NULL, false, NULL
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO auth.identities (
+  id,
+  user_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+VALUES (
+  'a0000000-0000-0000-0000-000000000001',
+  'a0000000-0000-0000-0000-000000000001',
+  '{"sub":"a0000000-0000-0000-0000-000000000001","email":"carloscleton.nat@gmail.com"}',
+  'email',
+  now(),
+  now(),
+  now()
+)
+ON CONFLICT (provider, id) DO NOTHING;
+
+-- 2. Inserir Cliente San Mathews na tabela nativa auth.users do Supabase
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  recovery_sent_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  is_super_admin,
+  created_at,
+  updated_at,
+  phone,
+  phone_confirmed_at,
+  phone_change,
+  phone_change_token,
+  email_change,
+  email_change_token,
+  email_change_confirm_status,
+  banned_until,
+  reauthentication_sent_at,
+  is_sso_user,
+  deleted_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  'a0000000-0000-0000-0000-000000000002',
+  'authenticated',
+  'authenticated',
+  'atendimento@sanmathews.com.br',
+  crypt('123', gen_salt('bf')),
+  now(),
+  now(),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"nome":"Atendimento San Mathews","role":"tenant","tenant_id":"11111111-1111-1111-1111-111111111111"}',
+  false,
+  now(),
+  now(),
+  NULL, NULL, '', '', '', '', 0, NULL, NULL, false, NULL
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO auth.identities (
+  id,
+  user_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+VALUES (
+  'a0000000-0000-0000-0000-000000000002',
+  'a0000000-0000-0000-0000-000000000002',
+  '{"sub":"a0000000-0000-0000-0000-000000000002","email":"atendimento@sanmathews.com.br"}',
+  'email',
+  now(),
+  now(),
+  now()
+)
+ON CONFLICT (provider, id) DO NOTHING;
+
+
