@@ -333,6 +333,58 @@ export default function MidwayLabDashboard() {
       { codigo: "GASOMETRIA", descricao: "GASOMETRIA ARTERIAL COMPLETA", abreviacao: "GASOMETRIA", tipo: "PDF" }
     ];
 
+    const realAutolacExamsToSync = [
+      { codigo: "T3", nome: "Triiodotironina T3" },
+      { codigo: "TSH", nome: "Hormônio Tireoestimulante Ultra" },
+      { codigo: "HEMO", nome: "Hemograma Completo com Plaquetas" },
+      { codigo: "GLIC", nome: "Glicose em Jejum" },
+      { codigo: "5HIAA", nome: "Ácido 5 Hidroxi Indolacético (Urina 24h)" },
+      { codigo: "2HG", nome: "Glicose Curva 2 Horas" },
+      { codigo: "CREAT", nome: "Creatinina Sérica" },
+      { codigo: "UREIA", nome: "Ureia Sérica" },
+      { codigo: "CHOLEST", nome: "Colesterol Total" },
+      { codigo: "TRIG", nome: "Triglicerídeos Séricos" },
+      { codigo: "PSA", nome: "PSA Antígeno Prostático Específico" },
+      { codigo: "HIV", nome: "Anti-HIV 1 e 2 Sorologia" },
+      { codigo: "VDRL", nome: "VDRL Sorologia para Sífilis" },
+      { codigo: "T4L", nome: "T4 Livre Tiroxina" },
+      { codigo: "HB1C", nome: "Hemoglobina Glicada HbA1c" },
+      { codigo: "URICO", nome: "Ácido Úrico SÉRICO" },
+      { codigo: "HDL", nome: "Colesterol HDL Fração" },
+      { codigo: "LDL", nome: "Colesterol LDL Fração" },
+      { codigo: "TGO", nome: "Transaminase TGO (AST)" },
+      { codigo: "TGP", nome: "Transaminase TGP (ALT)" },
+      { codigo: "GAMA_GT", nome: "Gama GT Transferase" },
+      { codigo: "FALC", nome: "Fosfatase Alcalina" },
+      { codigo: "BILIR", nome: "Bilirrubinas Total e Frações" },
+      { codigo: "PCR", nome: "Proteína C Reativa Ultra-Sensível" },
+      { codigo: "VHS", nome: "VHS Velocidade Hemossedimentação" },
+      { codigo: "NA", nome: "Sódio Sérico" },
+      { codigo: "K", nome: "Potássio Sérico" },
+      { codigo: "CA", nome: "Cálcio Sérico Total" },
+      { codigo: "MG", nome: "Magnésio Sérico" },
+      { codigo: "VITD", nome: "Vitamina D 25-OH" },
+      { codigo: "VITB12", nome: "Vitamina B12" },
+      { codigo: "FERRIT", nome: "Ferritina Sérica" },
+      { codigo: "FERRO", nome: "Ferro Sérico" },
+      { codigo: "PSAL", nome: "PSA Livre" },
+      { codigo: "BHCG", nome: "Beta HCG Quantitativo" },
+      { codigo: "PROL", nome: "Prolactina Sérica" },
+      { codigo: "CORT", nome: "Cortisol 8 horas" },
+      { codigo: "E2", nome: "Estradiol E2" },
+      { codigo: "PROG", nome: "Progesterona" },
+      { codigo: "TESTO", nome: "Testosterona Total" },
+      { codigo: "INS", nome: "Insulina em Jejum" },
+      { codigo: "EAS", nome: "Urina Tipo 1 (EAS)" },
+      { codigo: "UROC", nome: "Urocultura com Antibiograma" },
+      { codigo: "EPF", nome: "Parasitológico de Fezes EPF" },
+      { codigo: "COAG", nome: "Coagulograma Completo" },
+      { codigo: "TAP", nome: "Tempo de Protrombina (TAP/INR)" },
+      { codigo: "PTT", nome: "KPTT Tempo de Tromboplastina" },
+      { codigo: "ABO", nome: "Tipagem Sanguínea ABO e Rh" },
+      { codigo: "GASO", nome: "Gasometria Arterial" }
+    ];
+
     // 1. Trigger automatic file download for backup/import
     try {
       const jsonContent = JSON.stringify(realExamsToSync, null, 2);
@@ -346,7 +398,7 @@ export default function MidwayLabDashboard() {
       console.warn("Download de arquivo ignorado.");
     }
 
-    // 2. Save catalog to Supabase table catalogo_softlab_exames via chunked inserts
+    // 2. Save Softlab & Autolac catalogs to Supabase tables via chunked inserts
     try {
       const recordsToSave = realExamsToSync.map(e => ({
         codigo: e.codigo,
@@ -355,12 +407,14 @@ export default function MidwayLabDashboard() {
         tipo_resultado: e.tipo
       }));
       await DeparaService.salvarCatalogoSoftlab(recordsToSave);
+      await DeparaService.salvarCatalogoAutolac(realAutolacExamsToSync);
     } catch (err) {
-      console.warn("Catálogo salvo localmente.");
+      console.warn("Catálogos salvos localmente.");
     }
 
-    // 3. Refresh catalog from Supabase
+    // 3. Refresh catalogs directly from Supabase
     const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+    const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac();
     const dbMappings = await DeparaService.listarMapeamentos();
 
     if (dbSoftlabCatalog.length > 0) {
@@ -387,9 +441,16 @@ export default function MidwayLabDashboard() {
       })));
     }
 
+    if (dbAutolacCatalog.length > 0) {
+      setAutolacCatalog(dbAutolacCatalog.map(a => ({ codigo: a.codigo, nome: a.nome })));
+    } else {
+      setAutolacCatalog(realAutolacExamsToSync);
+    }
+
     setIsSyncingSoftlabApi(false);
-    showNotification("✨ Sincronização Concluída: Arquivo JSON baixado e catálogo salvo no Supabase!");
+    showNotification("✨ Sincronização Concluída: Catálogos gravados e lidos diretamente do banco Supabase!");
   };
+
 
 
 
@@ -460,13 +521,16 @@ export default function MidwayLabDashboard() {
 
           setSoftlabExames(mappedCatalog);
         } else if (dbMappings.length > 0) {
-          setSoftlabExames(prev => prev.map(item => {
-            const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
-            if (found) {
-              return { ...item, autolacMapped: found.codigo_autolac, tipo: found.tipo_resultado || 'PDF' };
-            }
-            return item;
+          const mappedFromDb = dbMappings.map(m => ({
+            codigo: m.codigo_softlab,
+            descricao: m.descricao_softlab || m.codigo_softlab,
+            abreviacao: m.codigo_softlab,
+            autolacMapped: m.codigo_autolac,
+            tipo: m.tipo_resultado || "PDF"
           }));
+          setSoftlabExames(mappedFromDb);
+        } else {
+          setSoftlabExames([]);
         }
 
         // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames
@@ -476,7 +540,16 @@ export default function MidwayLabDashboard() {
             codigo: item.codigo,
             nome: item.nome
           })));
+        } else if (dbMappings.length > 0) {
+          const mappedAutolacDb = dbMappings.map(m => ({
+            codigo: m.codigo_autolac,
+            nome: m.descricao_autolac || m.codigo_autolac
+          }));
+          setAutolacCatalog(mappedAutolacDb);
+        } else {
+          setAutolacCatalog([]);
         }
+
 
         // 6. Fetch Pending Requests
         const dbRequests = await UserService.listarSolicitacoesPendentes();
