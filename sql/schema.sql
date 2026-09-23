@@ -104,6 +104,25 @@ CREATE TABLE IF NOT EXISTS public.solicitacoes_acesso (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 9. Tabela de Catálogo de Exames do Softlab (Cache no Supabase)
+CREATE TABLE IF NOT EXISTS public.catalogo_softlab_exames (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    codigo VARCHAR(100) UNIQUE NOT NULL,
+    descricao VARCHAR(255) NOT NULL,
+    abreviacao VARCHAR(100),
+    tipo_resultado VARCHAR(50) DEFAULT 'PDF',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 10. Tabela de Catálogo de Exames do Autolac (Cache no Supabase)
+CREATE TABLE IF NOT EXISTS public.catalogo_autolac_exames (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    codigo VARCHAR(100) UNIQUE NOT NULL,
+    nome VARCHAR(255) NOT NULL,
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+
+
 -- SEED DATA INICIAL
 INSERT INTO public.tenants (id, nome, codigo_entidade, identificacao_entidade, senha_ws, softlab_base_url, softlab_login, softlab_senha)
 VALUES ('11111111-1111-1111-1111-111111111111', 'LAB. ARES - SOFTLAB (San Mathews)', '1', 'yorod23826@gcont.com', 'Soft@2026', 'http://apoio.softlabsolucoes.com.br', 'carloscleton@gmail.com', 'Carlos@2026')

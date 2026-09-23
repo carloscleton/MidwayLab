@@ -38,6 +38,22 @@ export interface IDeparaExameRecord {
   tipo_resultado?: string;
 }
 
+export interface ICatalogoSoftlabRecord {
+  id?: string;
+  codigo: string;
+  descricao: string;
+  abreviacao?: string;
+  tipo_resultado?: string;
+  updated_at?: string;
+}
+
+export interface ICatalogoAutolacRecord {
+  id?: string;
+  codigo: string;
+  nome: string;
+  tenant_id?: string | null;
+}
+
 export interface IPedidoRecord {
   id?: string;
   tenant_id: string;
@@ -64,4 +80,3 @@ export interface IUsuarioRecord {
   status: 'ativo' | 'pendente' | 'bloqueado';
   created_at?: string;
 }
-

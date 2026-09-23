@@ -1,4 +1,4 @@
-import { supabase, IDeparaExameRecord } from '../db/supabase';
+import { supabase, IDeparaExameRecord, ICatalogoSoftlabRecord, ICatalogoAutolacRecord } from '../db/supabase';
 import { supabaseBrowser } from '../lib/supabase-client';
 
 export class DeparaService {
@@ -90,6 +90,70 @@ export class DeparaService {
     if (error) {
       console.error('[DeparaService] Erro ao salvar mapeamentos em lote:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Busca o Catálogo de Exames do Softlab salvo no banco Supabase (Cache de Catálogo)
+   */
+  static async listarCatalogoSoftlab(): Promise<ICatalogoSoftlabRecord[]> {
+    try {
+      const { data, error } = await supabaseBrowser
+        .from('catalogo_softlab_exames')
+        .select('*')
+        .order('descricao', { ascending: true });
+
+      if (error || !data) return [];
+      return data as ICatalogoSoftlabRecord[];
+    } catch (e) {
+      console.error('[DeparaService] Erro ao listar catálogo Softlab:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Salva ou atualiza a tabela de Catálogo de Exames do Softlab no Supabase
+   */
+  static async salvarCatalogoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
+    if (!records || records.length === 0) return;
+    const { error } = await supabaseBrowser
+      .from('catalogo_softlab_exames')
+      .upsert(records, { onConflict: 'codigo' });
+
+    if (error) {
+      console.error('[DeparaService] Erro ao salvar catálogo Softlab:', error);
+    }
+  }
+
+  /**
+   * Busca o Catálogo de Exames do Autolac salvo no banco Supabase
+   */
+  static async listarCatalogoAutolac(): Promise<ICatalogoAutolacRecord[]> {
+    try {
+      const { data, error } = await supabaseBrowser
+        .from('catalogo_autolac_exames')
+        .select('*')
+        .order('nome', { ascending: true });
+
+      if (error || !data) return [];
+      return data as ICatalogoAutolacRecord[];
+    } catch (e) {
+      console.error('[DeparaService] Erro ao listar catálogo Autolac:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Salva ou atualiza o Catálogo de Exames do Autolac no Supabase
+   */
+  static async salvarCatalogoAutolac(records: ICatalogoAutolacRecord[]): Promise<void> {
+    if (!records || records.length === 0) return;
+    const { error } = await supabaseBrowser
+      .from('catalogo_autolac_exames')
+      .upsert(records, { onConflict: 'codigo' });
+
+    if (error) {
+      console.error('[DeparaService] Erro ao salvar catálogo Autolac:', error);
     }
   }
 }
