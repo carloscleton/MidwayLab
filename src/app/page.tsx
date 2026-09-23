@@ -247,7 +247,6 @@ export default function MidwayLabDashboard() {
       showNotification("✨ Sincronização Concluída: Catálogo do Softlab Apoio 100% atualizado via API!");
     }, 1200);
   };
-)");
 
   // SUPABASE REALTIME FETCHING & INITIALIZATION
   useEffect(() => {
@@ -1384,11 +1383,6 @@ export default function MidwayLabDashboard() {
                       {filteredAutolacCatalog.length} Encontrados
                     </span>
                   </div>
-                </div>
-
-                  <span className="text-[11px] font-mono bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/20">
-                    {filteredAutolacCatalog.length} Encontrados
-                  </span>
                 </div>
 
                 <div className="relative">
