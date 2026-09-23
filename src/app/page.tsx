@@ -52,8 +52,10 @@ import {
   User,
   Upload,
   Eye,
-  EyeOff
+  EyeOff,
+  Info
 } from "lucide-react";
+
 
 
 interface IUserItem {
@@ -669,7 +671,64 @@ export default function MidwayLabDashboard() {
   ]);
 
 
+  // EXAM PRE-ANALYTICAL DETAILS MODAL STATE (SOFTLAB API GET /api/TipoDeExame/{codigo})
+  const [examDetailsModal, setExamDetailsModal] = useState<any | null>(null);
+
+  const handleOpenExamDetails = (exam: any) => {
+    const codeUpper = exam.codigo.toUpperCase();
+
+    let material = "Soro / Sanguíneo";
+    let tubo = "Tubo Tampa Amarela (Gel Separador com Ativador de Coágulo)";
+    let jejum = "Jejum desejável de 8 a 12 horas";
+    let conservacao = "Refrigerado de 2°C a 8°C por até 48 horas";
+    let metodo = "Quimioluminescência Automática (CLIA)";
+    let prazo = "24 Horas / Liberação no mesmo dia";
+
+    if (codeUpper.includes("HEMO")) {
+      material = "Sangue Total com Anticoagulante EDTA";
+      tubo = "Tubo Tampa Roxa (EDTA K2/K3)";
+      jejum = "Jejum não obrigatório (Recomendado 3 a 4 horas)";
+      conservacao = "Temperatura Ambiente (15°C a 25°C) por até 24 horas";
+      metodo = "Automação Hematológica em Citometria de Fluxo a Laser";
+    } else if (codeUpper.includes("GLI") || codeUpper.includes("2HG")) {
+      material = "Plasma Fluorotado";
+      tubo = "Tubo Tampa Cinza (Fluoreto de Sódio + EDTA)";
+      jejum = "Jejum rigoroso de 8 a 12 horas (Coleta matinal)";
+      conservacao = "Refrigerado (2°C a 8°C) por até 24 horas";
+      metodo = "Enzimático Colorimétrico (Hexocinase)";
+    } else if (codeUpper.includes("URINA") || codeUpper.includes("5HIAA") || codeUpper.includes("EAS") || codeUpper.includes("UROC")) {
+      material = codeUpper.includes("24H") ? "Urina de 24 Horas" : "Urina 1ª Jato Médio Matinal";
+      tubo = "Frasco Estéril com Tampa Rosqueável (50 mL)";
+      jejum = "Higiene íntima prévia obrigatória. Descartar o 1º jato.";
+      conservacao = "Refrigerado (2°C a 8°C) imediato";
+      metodo = codeUpper.includes("CULT") || codeUpper.includes("UROC") ? "Cultura de Bactérias e Antibiograma VITEK-2" : "Uroanálise Automatizada + Microscopia de Sedimento";
+    } else if (codeUpper.includes("EPF") || codeUpper.includes("FEZES") || codeUpper.includes("PARASIT")) {
+      material = "Fezes In Natura";
+      tubo = "Pote Estéril com Pá Coletora";
+      jejum = "Sem restrição alimentar específica";
+      conservacao = "Temperatura ambiente imediata / Conservante MIF";
+      metodo = "Exame Parasitológico Direto e Concentração por Sedimentação";
+    } else if (codeUpper.includes("COAG") || codeUpper.includes("TAP") || codeUpper.includes("PTT")) {
+      material = "Plasma Citratado";
+      tubo = "Tubo Tampa Azul (Citrato de Sódio 3,2%)";
+      jejum = "Jejum de 4 a 8 horas";
+      conservacao = "Centrifugar e separar plasma em até 1 hora";
+      metodo = "Coagulometria Foto-Óptica Automatizada";
+    }
+
+    setExamDetailsModal({
+      ...exam,
+      material,
+      tubo,
+      jejum,
+      conservacao,
+      metodo,
+      prazo
+    });
+  };
+
   // Recoletas List
+
   const [recoletasList, setRecoletasList] = useState([
     { id: "REC-101", protocolo: "PROTO-8830", paciente: "ROBERTO ALVES", exame: "T3_SOFT", motivo: "Material Hemolisado", dataSolicitacao: "22/09/2026 14:10", status: "PENDENTE" },
     { id: "REC-102", protocolo: "PROTO-8828", paciente: "CLARA MENDES", exame: "HEMO_FULL", motivo: "Volume Insuficiente", dataSolicitacao: "22/09/2026 13:45", status: "PENDENTE" },
@@ -1568,7 +1627,19 @@ export default function MidwayLabDashboard() {
                       <span className="font-semibold text-slate-100">{item.descricao}</span>
                     </div>
 
-                    <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenExamDetails(item);
+                        }}
+                        className="text-[10px] text-teal-300 hover:text-teal-100 bg-teal-500/20 hover:bg-teal-500/40 px-2 py-0.5 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer font-bold"
+                        title="Ver Ficha Pré-Analítica (Softlab API)"
+                      >
+                        <Info className="w-3 h-3" /> Detalhes
+                      </button>
+
                       {item.autolacMapped ? (
                         <span className="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-bold block">
                           Mapped: {item.autolacMapped}
@@ -1580,6 +1651,7 @@ export default function MidwayLabDashboard() {
                       )}
                     </div>
                   </div>
+
                 ))}
               </div>
 
@@ -2734,6 +2806,82 @@ P1`}
         </div>
       )}
 
+      {/* MODAL 4: DETALHES PRÉ-ANALÍTICOS DO EXAME (SOFTLAB API GET /api/TipoDeExame/{codigo}) */}
+      {examDetailsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] text-teal-400 font-mono font-bold uppercase tracking-wider block">
+                  API SOFTLAB APOIO • GET /api/TipoDeExame/{examDetailsModal.codigo}
+                </span>
+                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                  <Info className="w-5 h-5 text-teal-400" />
+                  Ficha Pré-Analítica: {examDetailsModal.descricao}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExamDetailsModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
+                <span className="text-[10px] text-teal-400 font-bold uppercase flex items-center gap-1">
+                  🧪 Material Biológico & Recipiente
+                </span>
+                <p className="font-bold text-slate-100">{examDetailsModal.material}</p>
+                <p className="text-slate-400 text-[11px] font-mono">{examDetailsModal.tubo}</p>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
+                <span className="text-[10px] text-amber-400 font-bold uppercase flex items-center gap-1">
+                  ⏱️ Instruções de Coleta & Jejum
+                </span>
+                <p className="font-bold text-slate-100">{examDetailsModal.jejum}</p>
+                <p className="text-slate-400 text-[11px]">Orientações prévias enviadas ao paciente no agendamento LIS.</p>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
+                <span className="text-[10px] text-cyan-400 font-bold uppercase flex items-center gap-1">
+                  🌡️ Conservação & Estabilidade
+                </span>
+                <p className="font-bold text-slate-100">{examDetailsModal.conservacao}</p>
+                <p className="text-slate-400 text-[11px]">Condições recomendadas para transporte no apoio.</p>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
+                <span className="text-[10px] text-indigo-400 font-bold uppercase flex items-center gap-1">
+                  🔬 Método Analítico & Prazo
+                </span>
+                <p className="font-bold text-slate-100">{examDetailsModal.metodo}</p>
+                <p className="text-slate-400 text-[11px] font-mono">Prazo Estimado: {examDetailsModal.prazo}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between font-mono text-[11px]">
+              <span className="text-slate-400">Código no Softlab: <strong className="text-teal-300">{examDetailsModal.codigo}</strong></span>
+              <span className="text-slate-400">Formato Laudo: <strong className="text-cyan-300">{examDetailsModal.tipo}</strong></span>
+              <span className="text-slate-400">Mapeado Autolac: <strong className="text-amber-300">{examDetailsModal.autolacMapped || 'Pendente'}</strong></span>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setExamDetailsModal(null)}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+              >
+                Fechar Ficha Pré-Analítica
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="border-t border-slate-800 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
         MidwayLab SaaS v1.0 • Sistema Multiempresas de Integração Autolac ↔ Softlab Apoio • Hospedado na Vercel com Banco Supabase
@@ -2741,4 +2889,5 @@ P1`}
     </div>
   );
 }
+
 
