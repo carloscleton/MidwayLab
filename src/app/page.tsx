@@ -52,18 +52,30 @@ import {
   User
 } from "lucide-react";
 
+interface IUserItem {
+  id: string;
+  nome: string;
+  email: string;
+  senha: string;
+  role: 'admin' | 'tenant';
+  tenantId: string | null;
+  tenantNome: string;
+  status: 'ativo' | 'pendente' | 'bloqueado';
+  criadoEm: string;
+}
+
 export default function MidwayLabDashboard() {
   // USER AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC)
-  const [usersList, setUsersList] = useState([
+  const [usersList, setUsersList] = useState<IUserItem[]>([
     {
       id: "u1",
       nome: "Carlos Cleton",
       email: "carloscleton.nat@gmail.com",
       senha: "admin",
-      role: "admin" as const,
+      role: "admin",
       tenantId: null,
       tenantNome: "Super Admin (Ares)",
-      status: "ativo" as const,
+      status: "ativo",
       criadoEm: "2026-09-23"
     },
     {
@@ -71,10 +83,10 @@ export default function MidwayLabDashboard() {
       nome: "Atendimento San Mathews",
       email: "atendimento@sanmathews.com.br",
       senha: "123",
-      role: "tenant" as const,
+      role: "tenant",
       tenantId: "1",
       tenantNome: "LAB. ARES - SOFTLAB (San Mathews)",
-      status: "ativo" as const,
+      status: "ativo",
       criadoEm: "2026-09-23"
     },
     {
@@ -82,16 +94,17 @@ export default function MidwayLabDashboard() {
       nome: "Operações Centro Diag.",
       email: "centro@labdiag.com.br",
       senha: "123",
-      role: "tenant" as const,
+      role: "tenant",
       tenantId: "7",
       tenantNome: "LABORATORIO CENTRO DIAGNOSTICOS",
-      status: "ativo" as const,
+      status: "ativo",
       criadoEm: "2026-09-23"
     }
   ]);
 
   // Current logged in user (null = renders Login Screen)
-  const [currentUser, setCurrentUser] = useState<typeof usersList[0] | null>(null);
+  const [currentUser, setCurrentUser] = useState<IUserItem | null>(null);
+
 
   // Login & Registration Forms State
   const [loginTab, setLoginTab] = useState<"login" | "solicitar">("login");
@@ -149,7 +162,7 @@ export default function MidwayLabDashboard() {
         // 2. Fetch Users
         const dbUsers = await UserService.listarUsuarios();
         if (dbUsers.length > 0) {
-          const mappedUsers = dbUsers.map(u => ({
+          const mappedUsers: IUserItem[] = dbUsers.map(u => ({
             id: u.id,
             nome: u.nome,
             email: u.email,
@@ -162,6 +175,7 @@ export default function MidwayLabDashboard() {
           }));
           setUsersList(mappedUsers);
         }
+
 
         // 3. Fetch DE-PARA Mappings
         const dbMappings = await DeparaService.listarMapeamentos();
