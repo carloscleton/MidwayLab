@@ -95,21 +95,35 @@ export class DeparaService {
 
   /**
    * Busca o Catálogo de Exames do Softlab salvo no banco Supabase (Cache de Catálogo)
+   * Usa paginação para superar o limite padrão de 1000 linhas do Supabase
    */
   static async listarCatalogoSoftlab(): Promise<ICatalogoSoftlabRecord[]> {
     try {
-      const { data, error } = await supabaseBrowser
-        .from('catalogo_softlab_exames')
-        .select('*')
-        .order('descricao', { ascending: true });
+      const PAGE_SIZE = 1000;
+      let allData: ICatalogoSoftlabRecord[] = [];
+      let from = 0;
+      let hasMore = true;
 
-      if (error || !data) return [];
-      return data as ICatalogoSoftlabRecord[];
+      while (hasMore) {
+        const { data, error } = await supabaseBrowser
+          .from('catalogo_softlab_exames')
+          .select('*')
+          .order('descricao', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error || !data) break;
+        allData = [...allData, ...(data as ICatalogoSoftlabRecord[])];
+        hasMore = data.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      }
+
+      return allData;
     } catch (e) {
       console.error('[DeparaService] Erro ao listar catálogo Softlab:', e);
       return [];
     }
   }
+
 
   /**
    * Limpa todos os exames da tabela de Catálogo do Softlab no Supabase
