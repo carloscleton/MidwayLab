@@ -330,7 +330,44 @@ export default function MidwayLabDashboard() {
       { codigo: "AMILASE", descricao: "AMILASE DOSAGEM SERICA", abreviacao: "AMILASE", tipo: "ESTRUTURADO" },
       { codigo: "LIPASE", descricao: "LIPASE DOSAGEM SERICA", abreviacao: "LIPASE", tipo: "ESTRUTURADO" },
       { codigo: "ABO_RH", descricao: "TIPAGEM SANGUINEA ABO E FATOR RH", abreviacao: "TIPO SANGUINEO", tipo: "ESTRUTURADO" },
-      { codigo: "GASOMETRIA", descricao: "GASOMETRIA ARTERIAL COMPLETA", abreviacao: "GASOMETRIA", tipo: "PDF" }
+      { codigo: "GASOMETRIA", descricao: "GASOMETRIA ARTERIAL COMPLETA", abreviacao: "GASOMETRIA", tipo: "PDF" },
+      { codigo: "CEA_SER", descricao: "ANTIGENO CARCINOEMBRIONARIO (CEA)", abreviacao: "CEA", tipo: "ESTRUTURADO" },
+      { codigo: "CA125", descricao: "ANTIGENO CA 125 DOSAGEM SERICA", abreviacao: "CA 125", tipo: "ESTRUTURADO" },
+      { codigo: "CA153", descricao: "ANTIGENO CA 15-3 DOSAGEM SERICA", abreviacao: "CA 15-3", tipo: "ESTRUTURADO" },
+      { codigo: "CA199", descricao: "ANTIGENO CA 19-9 DOSAGEM SERICA", abreviacao: "CA 19-9", tipo: "ESTRUTURADO" },
+      { codigo: "ALFA_FETO", descricao: "ALFAFETOPROTEINA DOSAGEM SERICA", abreviacao: "ALFAFETO", tipo: "ESTRUTURADO" },
+      { codigo: "MICROALB", descricao: "MICROALBUMINURIA EM AMOSTRA ISOLADA", abreviacao: "MICROALB", tipo: "ESTRUTURADO" },
+      { codigo: "CLEARENCE_CREAT", descricao: "DEPURACAO DE CREATININA (CLEARANCE URINA 24H)", abreviacao: "CLEARANCE CREAT", tipo: "PDF" },
+      { codigo: "FSH_SER", descricao: "HORMONIO FOLICULO ESTIMULANTE (FSH)", abreviacao: "FSH", tipo: "ESTRUTURADO" },
+      { codigo: "LH_SER", descricao: "HORMONIO LUTEINIZANTE (LH)", abreviacao: "LH", tipo: "ESTRUTURADO" },
+      { codigo: "IGE_TOT", descricao: "IMUNOGLOBULINA E TOTAL (IGE TOTAL)", abreviacao: "IGE TOTAL", tipo: "ESTRUTURADO" },
+      { codigo: "TOXO_IGG", descricao: "TOXOPLASMOSE IGG ANTICORPOS", abreviacao: "TOXO IGG", tipo: "ESTRUTURADO" },
+      { codigo: "TOXO_IGM", descricao: "TOXOPLASMOSE IGM ANTICORPOS", abreviacao: "TOXO IGM", tipo: "ESTRUTURADO" },
+      { codigo: "RUBEO_IGG", descricao: "RUBROLA IGG ANTICORPOS", abreviacao: "RUBEOLA IGG", tipo: "ESTRUTURADO" },
+      { codigo: "RUBEO_IGM", descricao: "RUBROLA IGM ANTICORPOS", abreviacao: "RUBEOLA IGM", tipo: "ESTRUTURADO" },
+      { codigo: "CMV_IGG", descricao: "CITOMEGALOVIRUS IGG ANTICORPOS", abreviacao: "CMV IGG", tipo: "ESTRUTURADO" },
+      { codigo: "CMV_IGM", descricao: "CITOMEGALOVIRUS IGM ANTICORPOS", abreviacao: "CMV IGM", tipo: "ESTRUTURADO" },
+      { codigo: "BAAR_ESPUTO", descricao: "PESQUISA DE BAAR (BACILO DE KOCH - ESCARRO)", abreviacao: "BAAR ESCARRO", tipo: "PDF" },
+      { codigo: "GRAM_ESPUTO", descricao: "BACTERIOSCOPIA PELO METODO DE GRAM", abreviacao: "BACTERIOSCOPIA", tipo: "PDF" },
+      { codigo: "HEMOCULTURA", descricao: "HEMOCULTURA AUTOMATIZADA COM ANTIBIOGRAMA", abreviacao: "HEMOCULTURA", tipo: "PDF" },
+      { codigo: "SWAB_STREP", descricao: "PESQUISA DE STREPTOCOCCUS DO GRUPO A (SWAB)", abreviacao: "STREP A", tipo: "ESTRUTURADO" },
+      { codigo: "CITO_ONCO", descricao: "CITOPATOLOGICO ONCOCIAPATICO (PAPANICOLAU)", abreviacao: "PAPANICOLAU", tipo: "PDF" },
+      { codigo: "MICO_DIRETO", descricao: "EXAME MICOLOGICO DIRETO PARA FUNGO", abreviacao: "MICOLOGICO", tipo: "PDF" },
+      { codigo: "C3_COMPL", descricao: "COMPLEMENTO C3 DOSAGEM SERICA", abreviacao: "COMPLEMENTO C3", tipo: "ESTRUTURADO" },
+      { codigo: "C4_COMPL", descricao: "COMPLEMENTO C4 DOSAGEM SERICA", abreviacao: "COMPLEMENTO C4", tipo: "ESTRUTURADO" },
+      { codigo: "FAN_HELA", descricao: "FATOR ANTINUCLEO (FAN - CELULAS HEPA-2)", abreviacao: "FAN HEPA2", tipo: "ESTRUTURADO" },
+      { codigo: "FR_RHEUMA", descricao: "FATOR REUMATOIDE (TESTE DO LATEX)", abreviacao: "FATOR REUMATOIDE", tipo: "ESTRUTURADO" },
+      { codigo: "ASLO_SORO", descricao: "ANTIESTREPTOLISINA O (ASLO/ASO)", abreviacao: "ASLO", tipo: "ESTRUTURADO" },
+      { codigo: "CLOR_SER", descricao: "CLORETOS DOSAGEM SERICA", abreviacao: "CLORETOS", tipo: "ESTRUTURADO" },
+      { codigo: "ZINCO_SER", descricao: "ZINCO DOSAGEM SERICA", abreviacao: "ZINCO", tipo: "ESTRUTURADO" },
+      { codigo: "CHUMBO_SER", descricao: "CHUMBO SANGUINEO DOSAGEM", abreviacao: "CHUMBO", tipo: "ESTRUTURADO" },
+      { codigo: "LITIO_SER", descricao: "LITIO DOSAGEM SERICA", abreviacao: "LITIO", tipo: "ESTRUTURADO" },
+      { codigo: "VALPROATO", descricao: "ACIDO VALPROICO DOSAGEM SERICA", abreviacao: "AC VALPROICO", tipo: "ESTRUTURADO" },
+      { codigo: "CARBAMAZEP", descricao: "CARBAMAZEPINA DOSAGEM SERICA", abreviacao: "CARBAMAZEPINA", tipo: "ESTRUTURADO" },
+      { codigo: "DIGOXINA", descricao: "DIGOXINA DOSAGEM SERICA", abreviacao: "DIGOXINA", tipo: "ESTRUTURADO" },
+      { codigo: "TEOFILINA", descricao: "TEOFILINA DOSAGEM SERICA", abreviacao: "TEOFILINA", tipo: "ESTRUTURADO" },
+      { codigo: "FENOBARBITAL", descricao: "FENOBARBITAL DOSAGEM SERICA", abreviacao: "FENOBARBITAL", tipo: "ESTRUTURADO" },
+      { codigo: "FENITOINA", descricao: "FENITOINA DOSAGEM SERICA", abreviacao: "FENITOINA", tipo: "ESTRUTURADO" }
     ];
 
     const realAutolacExamsToSync = [
@@ -385,48 +422,29 @@ export default function MidwayLabDashboard() {
       { codigo: "GASO", nome: "Gasometria Arterial" }
     ];
 
-    const full1311Exams = Array.from({ length: 1311 }, (_, i) => {
-      if (i < realExamsToSync.length) {
-        return realExamsToSync[i];
-      }
-      const numStr = (i + 1).toString().padStart(4, '0');
-      const examCategories = [
-        { desc: "DOSAGEM DE AMINOACIDOS EM URINA AMAMO", abrev: "AMINOACIDOS", tipo: "ESTRUTURADO" },
-        { desc: "ANTICORPOS ANTI CITRULINA IGG CYCLIC", abrev: "ANTI-CCP", tipo: "ESTRUTURADO" },
-        { desc: "SOROLOGIA PARA CHAGAS IGG E IGM", abrev: "CHAGAS IGG/IGM", tipo: "ESTRUTURADO" },
-        { desc: "PESQUISA DE DENGUE NS1 ANTIGENO", abrev: "DENGUE NS1", tipo: "ESTRUTURADO" },
-        { desc: "DOSAGEM DE CULTURA E SENSIBILIDADE LCR", abrev: "CULTURA LCR", tipo: "PDF" },
-        { desc: "EXAME HISTOPATOLOGICO DE BIOPSIA DE PELE", abrev: "HISTOPATOLOGIA", tipo: "PDF" },
-        { desc: "ELETROFORESE DE PROTEINAS SERICAS", abrev: "ELETROFORESE", tipo: "ESTRUTURADO" },
-        { desc: "PAINEL MOLECULAR PCR PARA H1N1 E INFLUENZA", abrev: "PCR INFLUENZA", tipo: "ESTRUTURADO" },
-        { desc: "DOSAGEM DE CARDIOLIPINA IGG E IGM", abrev: "CARDIOLIPINA", tipo: "ESTRUTURADO" },
-        { desc: "PAINEL GENETICO MUTACAO PROTROMBINA FATOR V", abrev: "PAINEL THROMBO", tipo: "PDF" }
-      ];
-      const cat = examCategories[i % examCategories.length];
-      return {
-        codigo: `EX_${numStr}`,
-        descricao: `${cat.desc} - COD ${numStr}`,
-        abreviacao: `${cat.abrev} ${numStr}`,
-        tipo: cat.tipo
-      };
-    });
+    const fullCatalogExams = realExamsToSync.map(e => ({
+      codigo: e.codigo,
+      descricao: e.descricao,
+      abreviacao: e.abreviacao,
+      tipo: e.tipo
+    }));
 
-    // 1. Trigger automatic JSON file download with ALL 1.311 exams
+    // 1. Trigger automatic JSON file download with ALL real exams
     try {
-      const jsonContent = JSON.stringify(full1311Exams, null, 2);
+      const jsonContent = JSON.stringify(fullCatalogExams, null, 2);
       const blob = new Blob([jsonContent], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `catalogo_softlab_1311_exames_${Date.now()}.json`;
+      a.download = `catalogo_softlab_exames_${Date.now()}.json`;
       a.click();
     } catch (e) {
       console.warn("Download de arquivo ignorado.");
     }
 
-    // 2. Save ALL 1.311 exams to Supabase table catalogo_softlab_exames via chunked inserts (lotes de 100)
+    // 2. Save ALL real exams to Supabase table catalogo_softlab_exames via chunked inserts
     try {
-      const recordsToSave = full1311Exams.map(e => ({
+      const recordsToSave = fullCatalogExams.map(e => ({
         codigo: e.codigo,
         descricao: e.descricao,
         abreviacao: e.abreviacao,
@@ -461,7 +479,7 @@ export default function MidwayLabDashboard() {
       });
       setSoftlabExames(mapped);
     } else {
-      setSoftlabExames(full1311Exams.map(e => ({
+      setSoftlabExames(fullCatalogExams.map(e => ({
         ...e,
         autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
       })));
@@ -474,8 +492,9 @@ export default function MidwayLabDashboard() {
     }
 
     setIsSyncingSoftlabApi(false);
-    showNotification("✨ Sincronização Concluída: 1.311 exames salvos no Supabase e arquivo JSON baixado!");
+    showNotification(`✨ Sincronização Concluída: ${fullCatalogExams.length} exames reais gravados no Supabase e arquivo JSON baixado!`);
   };
+
 
 
 
