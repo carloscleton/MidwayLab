@@ -266,7 +266,7 @@ export default function MidwayLabDashboard() {
             codigoAgente: t.codigo_entidade || "1",
             wsUrl: "http://177.22.36.202:8002/",
             softlabLogin: t.softlab_login,
-            softlabSenha: "•••",
+            softlabSenha: t.softlab_senha || "Carlos@2026",
             ultimoLote: "1",
             status: t.ativo ? "ONLINE" : "OFFLINE"
           }));
@@ -447,7 +447,7 @@ export default function MidwayLabDashboard() {
         identificacao_entidade: req.email,
         senha_ws: "Soft@2026",
         softlab_login: req.email,
-        softlab_senha: "•••",
+        softlab_senha: "Carlos@2026",
         softlab_base_url: "http://apoio.softlabsolucoes.com.br"
       });
       if (savedTenant) {
@@ -465,7 +465,7 @@ export default function MidwayLabDashboard() {
       codigoAgente: "1",
       wsUrl: "http://177.22.36.202:8002/",
       softlabLogin: req.email,
-      softlabSenha: "•••",
+      softlabSenha: "Carlos@2026",
       ultimoLote: "0",
       status: "ONLINE"
     };
@@ -601,7 +601,7 @@ export default function MidwayLabDashboard() {
       codigoAgente: "1",
       wsUrl: "http://177.22.36.202:8002/",
       softlabLogin: "carloscleton@gmail.com",
-      softlabSenha: "•••",
+      softlabSenha: "Carlos@2026",
       ultimoLote: "85",
       status: "ONLINE"
     },
@@ -613,7 +613,7 @@ export default function MidwayLabDashboard() {
       codigoAgente: "2",
       wsUrl: "http://177.22.36.202:8002/",
       softlabLogin: "centro@softlabsolucoes.com.br",
-      softlabSenha: "•••",
+      softlabSenha: "Centro@2026",
       ultimoLote: "142",
       status: "ONLINE"
     }
