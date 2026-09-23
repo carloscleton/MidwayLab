@@ -77,4 +77,19 @@ export class DeparaService {
       throw error;
     }
   }
+
+  /**
+   * Cadastra ou atualiza uma lista de mapeamentos DE-PARA em Lote no Supabase
+   */
+  static async salvarMapeamentoEmLote(records: IDeparaExameRecord[]): Promise<void> {
+    if (!records || records.length === 0) return;
+    const { error } = await supabaseBrowser.from('depara_exames').upsert(records, {
+      onConflict: 'tenant_id,codigo_autolac',
+    });
+
+    if (error) {
+      console.error('[DeparaService] Erro ao salvar mapeamentos em lote:', error);
+      throw error;
+    }
+  }
 }
