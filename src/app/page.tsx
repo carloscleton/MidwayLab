@@ -50,8 +50,11 @@ import {
   Shield,
   Mail,
   User,
-  Upload
+  Upload,
+  Eye,
+  EyeOff
 } from "lucide-react";
+
 
 interface IUserItem {
   id: string;
@@ -627,6 +630,12 @@ export default function MidwayLabDashboard() {
     softlabSenha: ""
   });
 
+  // PASSWORD VISIBILITY TOGGLES
+  const [showSenhaWs, setShowSenhaWs] = useState(false);
+  const [showSoftlabSenha, setShowSoftlabSenha] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+
   // TEST CONNECTION STATE (TENANT MODAL)
   const [isTestingTenantConnection, setIsTestingTenantConnection] = useState(false);
   const [tenantTestResult, setTenantTestResult] = useState<{
@@ -952,15 +961,26 @@ export default function MidwayLabDashboard() {
                 <label className="block text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">
                   <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
                 </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-teal-500/50 text-xs font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type={showLoginPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-100 focus:outline-none focus:border-teal-500/50 text-xs font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="absolute right-3 top-3.5 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                    title={showLoginPassword ? "Ocultar Senha" : "Exibir Senha"}
+                  >
+                    {showLoginPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
+
 
               <button
                 type="submit"
@@ -2190,14 +2210,24 @@ export default function MidwayLabDashboard() {
 
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1">Senha de Acesso ao WS (Autolac)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex.: Soft@2026"
-                    value={tenantFormData.senhaWs}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showSenhaWs ? "text" : "password"}
+                      required
+                      placeholder="Ex.: Soft@2026"
+                      value={tenantFormData.senhaWs}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSenhaWs(!showSenhaWs)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                      title={showSenhaWs ? "Ocultar Senha" : "Exibir Senha"}
+                    >
+                      {showSenhaWs ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2216,16 +2246,27 @@ export default function MidwayLabDashboard() {
 
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1">Senha API Softlab Apoio</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Ex.: Carlos@2026"
-                    value={tenantFormData.softlabSenha}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showSoftlabSenha ? "text" : "password"}
+                      required
+                      placeholder="Ex.: Carlos@2026"
+                      value={tenantFormData.softlabSenha}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSoftlabSenha(!showSoftlabSenha)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                      title={showSoftlabSenha ? "Ocultar Senha" : "Exibir Senha"}
+                    >
+                      {showSoftlabSenha ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
+
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">URL de Integração do WebService</label>
