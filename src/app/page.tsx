@@ -834,6 +834,9 @@ export default function MidwayLabDashboard() {
     tubo: string;
     codigoBarras: string;
     eplCode: string;
+    idadeSexo?: string;
+    apoiado?: string;
+    setor?: string;
   } | null>(null);
 
   // Operation cards modal form states
@@ -1409,6 +1412,9 @@ export default function MidwayLabDashboard() {
       exames: "T3 / TSH / GLICOSE",
       tubo: "TUBO GEL - TAMPA AMARELA",
       codigoBarras: "BAR_PROTO-8842_1",
+      idadeSexo: "34A (F)",
+      apoiado: "LAB. SAN MATHEWS",
+      setor: "BIOQUÍMICA",
       eplCode: ""
     };
 
@@ -1424,39 +1430,45 @@ export default function MidwayLabDashboard() {
             }
             body {
               margin: 0;
-              padding: 3mm;
+              padding: 2.5mm;
               font-family: Arial, sans-serif;
-              width: 44mm;
-              height: 24mm;
+              width: 45mm;
+              height: 25mm;
               box-sizing: border-box;
             }
             .label-header {
-              font-size: 8px;
+              font-size: 7.5px;
               font-weight: bold;
               display: flex;
               justify-content: space-between;
               border-bottom: 1px solid #000;
-              padding-bottom: 2px;
+              padding-bottom: 1.5px;
               margin-bottom: 2px;
             }
             .patient-name {
-              font-size: 9px;
+              font-size: 8.5px;
               font-weight: bold;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
               margin-top: 1px;
             }
+            .patient-details {
+              font-size: 7px;
+              color: #333;
+              font-weight: bold;
+              margin-bottom: 2px;
+            }
             .barcode-container {
               text-align: center;
-              margin: 2px 0;
+              margin: 1px 0;
             }
             .barcode-bars {
               font-family: monospace;
-              font-size: 16px;
+              font-size: 15px;
               font-weight: 900;
               letter-spacing: 2px;
-              line-height: 14px;
+              line-height: 12px;
             }
             .barcode-text {
               font-size: 7px;
@@ -1464,12 +1476,14 @@ export default function MidwayLabDashboard() {
               font-weight: bold;
             }
             .info-row {
-              font-size: 7.5px;
+              font-size: 7px;
               margin-top: 1px;
               font-weight: bold;
+              display: flex;
+              justify-content: space-between;
             }
             .exames {
-              font-size: 7px;
+              font-size: 6.5px;
               font-weight: bold;
               margin-top: 1px;
               border-top: 1px solid #000;
@@ -1479,15 +1493,19 @@ export default function MidwayLabDashboard() {
         </head>
         <body>
           <div class="label-header">
-            <span>MIDWAY LAB - SOFTLAB</span>
+            <span>MIDWAY / SOFTLAB</span>
+            <span>${data.apoiado || "SAN MATHEWS"}</span>
             <span>${new Date().toLocaleDateString('pt-BR')}</span>
           </div>
           <div class="patient-name">${data.protocolo} - ${data.paciente}</div>
+          <div class="patient-details">IDADE/SEXO: ${data.idadeSexo || "34A (F)"} | SETOR: ${data.setor || "BIOQUÍMICA"}</div>
           <div class="barcode-container">
             <div class="barcode-bars">||||||||||||||||||||||||||||</div>
             <div class="barcode-text">${data.codigoBarras}</div>
           </div>
-          <div class="info-row">TUBO: ${data.tubo}</div>
+          <div class="info-row">
+            <span>TUBO: ${data.tubo}</span>
+          </div>
           <div class="exames">EX: ${data.exames}</div>
           <script>
             window.onload = function() {
@@ -3298,21 +3316,28 @@ export default function MidwayLabDashboard() {
 
               <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex justify-center items-center">
                 {/* ETIQUETA TÉRMICA BRANCA */}
-                <div className="w-[320px] h-[190px] bg-white text-black p-3.5 rounded-lg shadow-2xl border-2 border-slate-300 font-sans flex flex-col justify-between select-none relative overflow-hidden">
+                <div className="w-[330px] h-[200px] bg-white text-black p-3.5 rounded-lg shadow-2xl border-2 border-slate-300 font-sans flex flex-col justify-between select-none relative overflow-hidden">
                   {/* Header da Etiqueta */}
                   <div className="flex justify-between items-center border-b border-slate-900/40 pb-1">
-                    <span className="text-[10px] font-black tracking-tight uppercase text-slate-900">LAB. MIDWAY / SOFTLAB</span>
+                    <span className="text-[10px] font-black tracking-tight uppercase text-slate-900">MIDWAY / SOFTLAB</span>
+                    <span className="text-[9px] font-bold text-teal-800 bg-teal-100 px-1 rounded uppercase">{selectedLabelData?.apoiado || "LAB. SAN MATHEWS"}</span>
                     <span className="text-[9px] font-mono text-slate-700 font-bold">{new Date().toLocaleDateString('pt-BR')}</span>
                   </div>
 
                   {/* Nome Paciente & Protocolo */}
                   <div>
-                    <div className="text-[12px] font-extrabold text-slate-950 leading-tight uppercase truncate">
+                    <div className="text-[11px] font-extrabold text-slate-950 leading-tight uppercase truncate">
                       {selectedLabelData?.protocolo || "PROTO-8842"} - {selectedLabelData?.paciente || "MARIA OLIVEIRA"}
                     </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[9px] font-black bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded border border-amber-400 uppercase">
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-[8px] font-black bg-blue-100 text-blue-950 px-1.5 py-0.2 rounded border border-blue-300 uppercase">
+                        {selectedLabelData?.idadeSexo || "34A (F)"}
+                      </span>
+                      <span className="text-[8px] font-black bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded border border-amber-400 uppercase">
                         {selectedLabelData?.tubo || "TUBO GEL - TAMPA AMARELA"}
+                      </span>
+                      <span className="text-[8px] font-black bg-purple-100 text-purple-950 px-1.5 py-0.2 rounded border border-purple-300 uppercase">
+                        SETOR: {selectedLabelData?.setor || "BIOQUÍMICA"}
                       </span>
                     </div>
                   </div>
@@ -3345,7 +3370,7 @@ export default function MidwayLabDashboard() {
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(selectedLabelData?.eplCode || `N\nq500\nQ300,24\nB50,20,0,1,2,6,100,B,"BAR_PROTO-8842_1"\nA50,140,0,3,1,1,N,"PROTO-8842 - MARIA OLIVEIRA"\nA50,170,0,2,1,1,N,"EXAME: T3 / TSH - TUBO GEL"\nP1`);
+                    navigator.clipboard.writeText(selectedLabelData?.eplCode || `N\nq500\nQ300,24\nB50,15,0,1,2,6,85,B,"BAR_PROTO-8842_1"\nA50,110,0,3,1,1,N,"PROTO-8842 - MARIA OLIVEIRA (34A F)"\nA50,135,0,2,1,1,N,"APOIADO: LAB SAN MATHEWS | SETOR: BIOQUIMICA"\nA50,160,0,2,1,1,N,"TUBO: TUBO GEL - TAMPA AMARELA"\nA50,180,0,2,1,1,N,"EXAMES: T3 / TSH / GLICOSE"\nP1`);
                     showNotification("📋 Comandos EPL copiados para a área de transferência!");
                   }}
                   className="text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 font-semibold px-2.5 py-1 rounded-lg transition cursor-pointer"
@@ -3353,14 +3378,16 @@ export default function MidwayLabDashboard() {
                   Copiar Comandos EPL
                 </button>
               </div>
-              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono text-xs text-teal-300 max-h-32 overflow-y-auto">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono text-xs text-teal-300 max-h-36 overflow-y-auto">
                 <pre className="text-[11px] whitespace-pre-wrap">
 {selectedLabelData?.eplCode || `N
 q500
 Q300,24
-B50,20,0,1,2,6,100,B,"BAR_PROTO-8842_1"
-A50,140,0,3,1,1,N,"PROTO-8842 - MARIA OLIVEIRA"
-A50,170,0,2,1,1,N,"EXAME: T3 / TSH - TUBO GEL"
+B50,15,0,1,2,6,85,B,"BAR_PROTO-8842_1"
+A50,110,0,3,1,1,N,"PROTO-8842 - MARIA OLIVEIRA (34A F)"
+A50,135,0,2,1,1,N,"APOIADO: LAB SAN MATHEWS | SETOR: BIOQUIMICA"
+A50,160,0,2,1,1,N,"TUBO: TUBO GEL - TAMPA AMARELA"
+A50,180,0,2,1,1,N,"EXAMES: T3 / TSH / GLICOSE"
 P1`}
                 </pre>
               </div>
