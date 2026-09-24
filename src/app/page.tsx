@@ -836,6 +836,45 @@ export default function MidwayLabDashboard() {
     eplCode: string;
   } | null>(null);
 
+  // Operation cards modal form states
+  const [cancelForm, setCancelForm] = useState({
+    protocolo: "PROTO-8842",
+    codigoAmostra: "BAR_PROTO-8842_1",
+    motivo: "Hemólise na amostra",
+    justificativa: "Coleta inadequada, amostra hemolisada descartada no laboratório de apoio."
+  });
+
+  const [coletaForm, setColetaForm] = useState({
+    protocolo: "PROTO-8842",
+    data: new Date().toISOString().slice(0, 10),
+    hora: "08:30",
+    responsavel: "Enf. Coleta San Mathews"
+  });
+
+  const [lote12Form, setLote12Form] = useState({
+    protocolo: "PROTO-8842",
+    novosExames: ["T3_SOFT", "GLI_JEJ"],
+    gerarNovoTubo: true
+  });
+
+  const handleConfirmCancelAmostra = async (e: React.FormEvent) => {
+    e.preventDefault();
+    showNotification(`🗑️ Amostra '${cancelForm.codigoAmostra}' cancelada com sucesso no Softlab Apoio!`);
+    setActiveWorkflowModal(null);
+  };
+
+  const handleConfirmAjusteColeta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    showNotification(`📅 Data/Hora de Coleta atualizada para ${coletaForm.data} às ${coletaForm.hora} no Softlab Apoio!`);
+    setActiveWorkflowModal(null);
+  };
+
+  const handleConfirmAdicaoExames = async (e: React.FormEvent) => {
+    e.preventDefault();
+    showNotification(`➕ ${lote12Form.novosExames.length} exames adicionados com sucesso ao atendimento '${lote12Form.protocolo}' no Softlab Apoio (Lote 1.2)!`);
+    setActiveWorkflowModal(null);
+  };
+
   // Mapped exams modal state
   const [isMappedExamsModalOpen, setIsMappedExamsModalOpen] = useState(false);
   const [searchMappedModal, setSearchMappedModal] = useState("");
@@ -3344,6 +3383,256 @@ P1`}
                 <Printer className="w-4 h-4" /> Imprimir Etiqueta (50x30mm)
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* WORKFLOW MODAL: CANCELAMENTO DE AMOSTRA */}
+      {activeWorkflowModal === "cancel" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-rose-400" /> Cancelamento de Amostra no Softlab Apoio
+              </h3>
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCancelAmostra} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Protocolo / LIS Softlab</label>
+                <input
+                  type="text"
+                  value={cancelForm.protocolo}
+                  onChange={(e) => setCancelForm({ ...cancelForm, protocolo: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-rose-500/50"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Código de Barras da Amostra / Tubo</label>
+                <input
+                  type="text"
+                  value={cancelForm.codigoAmostra}
+                  onChange={(e) => setCancelForm({ ...cancelForm, codigoAmostra: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-rose-300 font-mono font-bold focus:outline-none focus:border-rose-500/50"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Motivo do Cancelamento</label>
+                <select
+                  value={cancelForm.motivo}
+                  onChange={(e) => setCancelForm({ ...cancelForm, motivo: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-rose-500/50"
+                >
+                  <option value="Hemólise na amostra">Hemólise na amostra</option>
+                  <option value="Amostra insuficiente (Volume baixo)">Amostra insuficiente (Volume baixo)</option>
+                  <option value="Coágulo na amostra de Sangue Total">Coágulo na amostra de Sangue Total</option>
+                  <option value="Jejum inadequado do paciente">Jejum inadequado do paciente</option>
+                  <option value="Solicitação de cancelamento pelo médico/paciente">Solicitação de cancelamento pelo médico/paciente</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Justificativa Detalhada (Rastreabilidade)</label>
+                <textarea
+                  rows={3}
+                  value={cancelForm.justificativa}
+                  onChange={(e) => setCancelForm({ ...cancelForm, justificativa: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-rose-500/50"
+                  placeholder="Informe o motivo detalhado..."
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowModal(null)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-rose-500 hover:bg-rose-400 text-slate-950 font-bold px-4 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-500/20"
+                >
+                  <Trash2 className="w-4 h-4" /> Confirmar Cancelamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* WORKFLOW MODAL: AJUSTAR DATA/HORA DE COLETA */}
+      {activeWorkflowModal === "coleta" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-cyan-400" /> Ajuste de Data e Hora Real da Coleta
+              </h3>
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmAjusteColeta} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Protocolo / Pedido Softlab</label>
+                <input
+                  type="text"
+                  value={coletaForm.protocolo}
+                  onChange={(e) => setColetaForm({ ...coletaForm, protocolo: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Data da Coleta Real</label>
+                  <input
+                    type="date"
+                    value={coletaForm.data}
+                    onChange={(e) => setColetaForm({ ...coletaForm, data: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-cyan-300 font-mono focus:outline-none focus:border-cyan-500/50"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Hora da Coleta Real</label>
+                  <input
+                    type="time"
+                    value={coletaForm.hora}
+                    onChange={(e) => setColetaForm({ ...coletaForm, hora: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-cyan-300 font-mono focus:outline-none focus:border-cyan-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Profissional Responsável pela Coleta</label>
+                <input
+                  type="text"
+                  value={coletaForm.responsavel}
+                  onChange={(e) => setColetaForm({ ...coletaForm, responsavel: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500/50"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowModal(null)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-lg shadow-cyan-500/20"
+                >
+                  <Save className="w-4 h-4" /> Salvar Data/Hora
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* WORKFLOW MODAL: ADIÇÃO DE EXAMES (LOTE 1.2) */}
+      {activeWorkflowModal === "lote12" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-400" /> Adição de Exames a Atendimento (Lote 1.2)
+              </h3>
+              <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmAdicaoExames} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Protocolo / Atendimento do Paciente</label>
+                <input
+                  type="text"
+                  value={lote12Form.protocolo}
+                  onChange={(e) => setLote12Form({ ...lote12Form, protocolo: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500/50"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-slate-300 font-semibold block">Selecione os Exames Adicionais (Sem alterar tubos já colhidos)</label>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto space-y-2">
+                  {softlabExames.slice(0, 10).map((exam) => {
+                    const isSelected = lote12Form.novosExames.includes(exam.codigo);
+                    return (
+                      <label key={exam.codigo} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 hover:bg-slate-800/60 cursor-pointer border border-slate-800/80">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setLote12Form({ ...lote12Form, novosExames: [...lote12Form.novosExames, exam.codigo] });
+                              } else {
+                                setLote12Form({ ...lote12Form, novosExames: lote12Form.novosExames.filter(c => c !== exam.codigo) });
+                              }
+                            }}
+                            className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500"
+                          />
+                          <span className="font-mono font-bold text-teal-300">{exam.codigo}</span>
+                          <span className="text-slate-200 text-xs truncate max-w-[200px]">{exam.descricao}</span>
+                        </div>
+                        <span className="text-[10px] bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded font-mono font-semibold">{exam.tipo}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-xl">
+                <input
+                  type="checkbox"
+                  id="gerarTubo"
+                  checked={lote12Form.gerarNovoTubo}
+                  onChange={(e) => setLote12Form({ ...lote12Form, gerarNovoTubo: e.target.checked })}
+                  className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500"
+                />
+                <label htmlFor="gerarTubo" className="text-indigo-200 text-xs font-semibold cursor-pointer">
+                  Gerar novo tubo/amostra e etiqueta EPL no Softlab Apoio se necessário
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowModal(null)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-bold px-4 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-lg shadow-indigo-500/20"
+                >
+                  <Plus className="w-4 h-4" /> Adicionar Exames ao Lote
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
