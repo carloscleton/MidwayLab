@@ -2578,16 +2578,17 @@ export default function MidwayLabDashboard() {
               {tenants.map((t) => (
                 <div key={t.id} className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-teal-500/40 transition">
                   <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-bold">
-                        #{t.id}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 flex-shrink-0 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
+                        <Building2 className="w-5 h-5" />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-100 text-base">{t.nome}</h3>
-                        <p className="text-xs text-slate-400">Identificação Entidade: <span className="font-mono text-teal-300 font-semibold">{t.identificacaoEntidade}</span></p>
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-slate-100 text-base truncate">{t.nome}</h3>
+                        <p className="text-xs text-slate-400 truncate">Identificação Entidade: <span className="font-mono text-teal-300 font-semibold">{t.identificacaoEntidade}</span></p>
+                        <p className="font-mono text-[10px] text-slate-600 truncate">ID: {t.id}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex-shrink-0 ml-2">
                       {t.status}
                     </span>
                   </div>
