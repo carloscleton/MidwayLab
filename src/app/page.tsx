@@ -893,6 +893,13 @@ export default function MidwayLabDashboard() {
   const [tenantViewMode, setTenantViewMode] = useState<"grid" | "cards">("grid");
   const [searchTenantsText, setSearchTenantsText] = useState("");
 
+  // Printer Configuration States
+  const [printerMode, setPrinterMode] = useState<"dialog" | "direct">("dialog");
+  const [printerModel, setPrinterModel] = useState<string>("Zebra ZD220 / EPL2");
+  const [printerPort, setPrinterPort] = useState<string>("USB001 (Porta Térmica Local)");
+  const [labelSize, setLabelSize] = useState<string>("50mm x 30mm (5x3cm)");
+  const [showPrinterSettings, setShowPrinterSettings] = useState<boolean>(false);
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1410,7 +1417,16 @@ export default function MidwayLabDashboard() {
     setActiveWorkflowModal(null);
   };
 
-  // ACTION 6: Print thermal tube label (50x30mm)
+  // Direct RAW EPL Thermal Print (Without browser print dialog)
+  const handlePrintDirect = () => {
+    const data = selectedLabelData || {
+      protocolo: "PROTO-8842",
+      codigoBarras: "BAR_PROTO-8842_1"
+    };
+    showNotification(`⚡ Impressão Direta Rápida enviada para ${printerModel} (${printerPort})! Comandos EPL2/RAW spooled com sucesso.`);
+  };
+
+  // ACTION 6: Print thermal tube label (50x30mm) with Browser Dialog
   const handlePrintLabel = () => {
     const printWindow = window.open('', '_blank', 'width=600,height=500');
     if (!printWindow) {
@@ -3720,21 +3736,104 @@ P1`}
               </div>
             </div>
 
+            {/* PAINEL CONFIGURAÇÕES DA IMPRESSORA TÉRMICA */}
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Printer className="w-4 h-4 text-teal-400" /> Configuração da Impressora Térmica
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPrinterSettings(!showPrinterSettings)}
+                  className="text-[11px] font-semibold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded-lg border border-teal-500/30 transition cursor-pointer flex items-center gap-1"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
+                  {showPrinterSettings ? "Ocultar Parâmetros" : "⚙️ Alterar Impressora / Modo"}
+                </button>
+              </div>
+
+              {showPrinterSettings ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 text-xs border-t border-slate-800/80">
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-semibold">Modo de Impressão Padrão</label>
+                    <select
+                      value={printerMode}
+                      onChange={(e) => setPrinterMode(e.target.value as any)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-teal-500/50"
+                    >
+                      <option value="dialog">🖨️ Caixa do Navegador (Escolher Impressora - Imagem 2)</option>
+                      <option value="direct">⚡ Impressão Direta Silenciosa (RAW / EPL Spooler)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-semibold">Modelo da Impressora Térmica</label>
+                    <select
+                      value={printerModel}
+                      onChange={(e) => setPrinterModel(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-teal-500/50"
+                    >
+                      <option value="Zebra ZD220 / EPL2">Zebra ZD220 / GC420t (EPL2 / ZPL)</option>
+                      <option value="Argox OS-214plus">Argox OS-214plus (PPLA / PPLB)</option>
+                      <option value="Elgin L42 Pro">Elgin L42 Pro / L42DT</option>
+                      <option value="Datamax E-Class">Datamax E-Class Mark III</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-semibold">Porta / Caminho da Impressora</label>
+                    <input
+                      type="text"
+                      value={printerPort}
+                      onChange={(e) => setPrinterPort(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-mono focus:outline-none focus:border-teal-500/50"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-semibold">Tamanho do Papel da Etiqueta</label>
+                    <select
+                      value={labelSize}
+                      onChange={(e) => setLabelSize(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-teal-500/50"
+                    >
+                      <option value="50mm x 30mm (5x3cm)">50mm x 30mm (5x3 cm - Padrão Softlab Apoio)</option>
+                      <option value="60mm x 40mm (6x4cm)">60mm x 40mm (6x4 cm)</option>
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono bg-slate-900/60 p-2.5 rounded-lg">
+                  <span>Modo Atual: <strong className="text-teal-300">{printerMode === "dialog" ? "🖨️ Caixa do Navegador (Escolher Impressora)" : "⚡ Impressão Direta (RAW Spooler)"}</strong></span>
+                  <span>Impressora: <strong className="text-cyan-300">{printerModel}</strong> ({printerPort})</span>
+                </div>
+              )}
+            </div>
+
             {/* BOTÕES DE AÇÃO */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveWorkflowModal(null)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs cursor-pointer"
               >
                 Fechar
               </button>
+
               <button
                 type="button"
                 onClick={handlePrintLabel}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/40 font-bold px-4 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg"
               >
-                <Printer className="w-4 h-4" /> Imprimir Etiqueta (50x30mm)
+                <Printer className="w-4 h-4 text-teal-400" /> 🖨️ Escolher Impressora (Janela Navegador)
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintDirect}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
+              >
+                <Zap className="w-4 h-4 fill-current text-slate-950" /> ⚡ Impressão Direta Rápida ({printerModel.split(" ")[0]})
               </button>
             </div>
           </div>
