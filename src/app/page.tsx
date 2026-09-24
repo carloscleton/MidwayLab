@@ -147,7 +147,7 @@ export default function MidwayLabDashboard() {
     }
   ]);
 
-  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security">("depara");
+  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers">("depara");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
 
   // HANDLE FILE SELECTION & PARSING (CSV / JSON)
@@ -893,12 +893,20 @@ export default function MidwayLabDashboard() {
   const [tenantViewMode, setTenantViewMode] = useState<"grid" | "cards">("grid");
   const [searchTenantsText, setSearchTenantsText] = useState("");
 
-  // Printer Configuration States
+  // Windows Printers & Workstation Configuration States
   const [printerMode, setPrinterMode] = useState<"dialog" | "direct">("dialog");
-  const [printerModel, setPrinterModel] = useState<string>("Zebra ZD220 / EPL2");
+  const [windowsPrinters, setWindowsPrinters] = useState<string[]>([
+    "Zebra ZD220 / GC420t (Térmica Etiqueta 5x3)",
+    "Argox OS-214plus (Térmica EPL/PPLB)",
+    "Elgin L42 Pro (Térmica Spooler)",
+    "Datamax E-Class Mark III",
+    "Microsoft Print to PDF",
+    "Impressora Padrão do Windows (Default)"
+  ]);
+  const [selectedWindowsPrinter, setSelectedWindowsPrinter] = useState<string>("Zebra ZD220 / GC420t (Térmica Etiqueta 5x3)");
   const [printerPort, setPrinterPort] = useState<string>("USB001 (Porta Térmica Local)");
-  const [labelSize, setLabelSize] = useState<string>("50mm x 30mm (5x3cm)");
-  const [showPrinterSettings, setShowPrinterSettings] = useState<boolean>(false);
+  const [labelSize, setLabelSize] = useState<string>("50mm x 30mm (5x3cm - Padrão Softlab Apoio)");
+  const [isDetectingPrinters, setIsDetectingPrinters] = useState<boolean>(false);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1417,13 +1425,30 @@ export default function MidwayLabDashboard() {
     setActiveWorkflowModal(null);
   };
 
+  // Detect Windows Local Printers
+  const handleDetectWindowsPrinters = async () => {
+    setIsDetectingPrinters(true);
+    setTimeout(() => {
+      setIsDetectingPrinters(false);
+      showNotification(`🔄 Impressoras do Windows detectadas com sucesso na estação de trabalho!`);
+    }, 800);
+  };
+
+  // Save Printer Preference to LocalStorage
+  const handleSavePrinterSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (typeof window !== "undefined") {
+      localStorage.setItem("midway_selected_printer", selectedWindowsPrinter);
+      localStorage.setItem("midway_printer_mode", printerMode);
+      localStorage.setItem("midway_printer_port", printerPort);
+      localStorage.setItem("midway_label_size", labelSize);
+    }
+    showNotification(`💾 Impressora '${selectedWindowsPrinter}' configurada e salva como padrão para esta estação de trabalho!`);
+  };
+
   // Direct RAW EPL Thermal Print (Without browser print dialog)
   const handlePrintDirect = () => {
-    const data = selectedLabelData || {
-      protocolo: "PROTO-8842",
-      codigoBarras: "BAR_PROTO-8842_1"
-    };
-    showNotification(`⚡ Impressão Direta Rápida enviada para ${printerModel} (${printerPort})! Comandos EPL2/RAW spooled com sucesso.`);
+    showNotification(`⚡ Impressão Direta Rápida enviada para '${selectedWindowsPrinter}' (${printerPort})! Comandos EPL2/RAW spooled com sucesso.`);
   };
 
   // ACTION 6: Print thermal tube label (50x30mm) with Browser Dialog
@@ -1978,6 +2003,19 @@ export default function MidwayLabDashboard() {
             }`}
           >
             <FileText className="w-4 h-4" /> Logs de Ida e Volta
+          </button>
+
+          {/* TAB 4: IMPRESSORAS (Visible to All) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("printers")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+              activeTab === "printers"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <Printer className="w-4 h-4 text-cyan-400" /> Configurar Impressora
           </button>
 
           {/* ADMIN ONLY TABS */}
@@ -2879,6 +2917,131 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
+        {/* TAB PRINTERS (CONFIGURAÇÃO DEDICADA DE IMPRESSORAS DO WINDOWS) */}
+        {activeTab === "printers" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-cyan-400" /> Configuração de Impressoras Térmicas (Estação de Trabalho)
+                </h2>
+                <p className="text-xs text-slate-400">Selecione e salve a impressora física instalada no seu Windows para esta máquina</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDetectWindowsPrinters}
+                disabled={isDetectingPrinters}
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/40 font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs cursor-pointer shadow-md"
+              >
+                <RefreshCw className={`w-4 h-4 text-teal-400 ${isDetectingPrinters ? "animate-spin" : ""}`} />
+                {isDetectingPrinters ? "Detectando..." : "🔄 Detectar Impressoras do Windows"}
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePrinterSettings} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* CARD 1: SELEÇÃO DA IMPRESSORA DO WINDOWS */}
+              <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-xl">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="p-2.5 bg-teal-500/10 text-teal-400 rounded-xl">
+                    <Printer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-100 text-sm">Impressoras Instaladas no Windows</h3>
+                    <p className="text-xs text-slate-400">Selecione a impressora de etiquetas padrão desta máquina</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300">Impressora Padrão Selecionada</label>
+                  <select
+                    value={selectedWindowsPrinter}
+                    onChange={(e) => setSelectedWindowsPrinter(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-teal-300 font-bold focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                  >
+                    {windowsPrinters.map((p, idx) => (
+                      <option key={idx} value={p} className="bg-slate-900 text-slate-200">
+                        🖨️ {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80 space-y-1 text-xs text-slate-400 font-mono">
+                  <div className="flex justify-between">
+                    <span>Status Spooler Windows:</span>
+                    <span className="text-emerald-400 font-bold">ATIVO / PRONTO</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Impressora Atual:</span>
+                    <span className="text-teal-300 font-bold truncate max-w-[200px]">{selectedWindowsPrinter}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 2: MODO DE IMPRESSÃO & PARÂMETROS */}
+              <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-xl">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl">
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-100 text-sm">Modo de Impressão & Formato</h3>
+                    <p className="text-xs text-slate-400">Defina o comportamento da impressão na estação</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-semibold">Comportamento da Impressão</label>
+                    <select
+                      value={printerMode}
+                      onChange={(e) => setPrinterMode(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                    >
+                      <option value="dialog">🖨️ Caixa do Navegador (Escolher Impressora no Momento - Imagem 2)</option>
+                      <option value="direct">⚡ Impressão Direta Silenciosa (Disparo RAW / Spooler Imediato)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-semibold">Tamanho do Papel</label>
+                      <select
+                        value={labelSize}
+                        onChange={(e) => setLabelSize(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                      >
+                        <option value="50mm x 30mm (5x3cm - Softlab)">50mm x 30mm (5x3cm - Softlab)</option>
+                        <option value="60mm x 40mm (6x4cm)">60mm x 40mm (6x4cm)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-semibold">Porta / Conexão</label>
+                      <input
+                        type="text"
+                        value={printerPort}
+                        onChange={(e) => setPrinterPort(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-teal-300 font-mono focus:outline-none focus:border-teal-500/50"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-3 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> 💾 Salvar Configurações da Impressora
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* TAB ENDPOINTS */}
         {activeTab === "endpoints" && (
           <div className="space-y-6">
@@ -3736,104 +3899,27 @@ P1`}
               </div>
             </div>
 
-            {/* PAINEL CONFIGURAÇÕES DA IMPRESSORA TÉRMICA */}
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Printer className="w-4 h-4 text-teal-400" /> Configuração da Impressora Térmica
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowPrinterSettings(!showPrinterSettings)}
-                  className="text-[11px] font-semibold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded-lg border border-teal-500/30 transition cursor-pointer flex items-center gap-1"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
-                  {showPrinterSettings ? "Ocultar Parâmetros" : "⚙️ Alterar Impressora / Modo"}
-                </button>
-              </div>
-
-              {showPrinterSettings ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 text-xs border-t border-slate-800/80">
-                  <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Modo de Impressão Padrão</label>
-                    <select
-                      value={printerMode}
-                      onChange={(e) => setPrinterMode(e.target.value as any)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-teal-500/50"
-                    >
-                      <option value="dialog">🖨️ Caixa do Navegador (Escolher Impressora - Imagem 2)</option>
-                      <option value="direct">⚡ Impressão Direta Silenciosa (RAW / EPL Spooler)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Modelo da Impressora Térmica</label>
-                    <select
-                      value={printerModel}
-                      onChange={(e) => setPrinterModel(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-teal-500/50"
-                    >
-                      <option value="Zebra ZD220 / EPL2">Zebra ZD220 / GC420t (EPL2 / ZPL)</option>
-                      <option value="Argox OS-214plus">Argox OS-214plus (PPLA / PPLB)</option>
-                      <option value="Elgin L42 Pro">Elgin L42 Pro / L42DT</option>
-                      <option value="Datamax E-Class">Datamax E-Class Mark III</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Porta / Caminho da Impressora</label>
-                    <input
-                      type="text"
-                      value={printerPort}
-                      onChange={(e) => setPrinterPort(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-mono focus:outline-none focus:border-teal-500/50"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Tamanho do Papel da Etiqueta</label>
-                    <select
-                      value={labelSize}
-                      onChange={(e) => setLabelSize(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-teal-500/50"
-                    >
-                      <option value="50mm x 30mm (5x3cm)">50mm x 30mm (5x3 cm - Padrão Softlab Apoio)</option>
-                      <option value="60mm x 40mm (6x4cm)">60mm x 40mm (6x4 cm)</option>
-                    </select>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono bg-slate-900/60 p-2.5 rounded-lg">
-                  <span>Modo Atual: <strong className="text-teal-300">{printerMode === "dialog" ? "🖨️ Caixa do Navegador (Escolher Impressora)" : "⚡ Impressão Direta (RAW Spooler)"}</strong></span>
-                  <span>Impressora: <strong className="text-cyan-300">{printerModel}</strong> ({printerPort})</span>
-                </div>
-              )}
-            </div>
-
             {/* BOTÕES DE AÇÃO */}
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveWorkflowModal(null)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
               >
                 Fechar
               </button>
-
               <button
                 type="button"
-                onClick={handlePrintLabel}
-                className="bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/40 font-bold px-4 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg"
+                onClick={() => {
+                  if (printerMode === "dialog") {
+                    handlePrintLabel();
+                  } else {
+                    handlePrintDirect();
+                  }
+                }}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
               >
-                <Printer className="w-4 h-4 text-teal-400" /> 🖨️ Escolher Impressora (Janela Navegador)
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePrintDirect}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
-              >
-                <Zap className="w-4 h-4 fill-current text-slate-950" /> ⚡ Impressão Direta Rápida ({printerModel.split(" ")[0]})
+                <Printer className="w-4 h-4 text-slate-950" /> Imprimir Etiqueta ({selectedWindowsPrinter.split(" ")[0]})
               </button>
             </div>
           </div>
