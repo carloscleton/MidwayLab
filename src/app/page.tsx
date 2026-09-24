@@ -1207,6 +1207,7 @@ export default function MidwayLabDashboard() {
   ]);
 
   const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
+  const [logFilterDirection, setLogFilterDirection] = useState<"TODOS" | "IDA" | "VOLTA">("TODOS");
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
   // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (SOFTLAB ↔ AUTOLAC)
@@ -2359,31 +2360,37 @@ export default function MidwayLabDashboard() {
         {activeTab === "dashboard" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-teal-500/50 transition">
+              <div 
+                onClick={() => { setLogFilterDirection("IDA"); setActiveTab("logs"); }}
+                className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-teal-500/50 transition cursor-pointer"
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pedidos de Ida (Autolac ➔ Softlab)</p>
                     <h3 className="text-3xl font-extrabold mt-2 text-slate-100">{stats.pedidosIda}</h3>
-                    <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1">
-                      <ArrowUpRight className="w-3.5 h-3.5" /> +12% hoje (Lote #{tenants[0].ultimoLote})
+                    <p className="text-xs text-teal-400 mt-2 flex items-center gap-1 font-semibold group-hover:underline">
+                      <ArrowUpRight className="w-3.5 h-3.5" /> Ver Logs de Ida ➔
                     </p>
                   </div>
-                  <div className="p-3 bg-teal-500/10 text-teal-400 rounded-xl">
+                  <div className="p-3 bg-teal-500/10 text-teal-400 rounded-xl group-hover:scale-110 transition">
                     <ArrowUpRight className="w-6 h-6" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/50 transition">
+              <div 
+                onClick={() => { setLogFilterDirection("VOLTA"); setActiveTab("logs"); }}
+                className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/50 transition cursor-pointer"
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Laudos de Volta (Softlab ➔ Autolac)</p>
                     <h3 className="text-3xl font-extrabold mt-2 text-slate-100">{stats.laudosVolta}</h3>
-                    <p className="text-xs text-cyan-400 mt-2 flex items-center gap-1">
-                      <ArrowDownLeft className="w-3.5 h-3.5" /> PDF Base64 & RTF Prontos
+                    <p className="text-xs text-cyan-400 mt-2 flex items-center gap-1 font-semibold group-hover:underline">
+                      <ArrowDownLeft className="w-3.5 h-3.5" /> Ver Logs de Volta ↙
                     </p>
                   </div>
-                  <div className="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl">
+                  <div className="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl group-hover:scale-110 transition">
                     <ArrowDownLeft className="w-6 h-6" />
                   </div>
                 </div>
@@ -2394,26 +2401,26 @@ export default function MidwayLabDashboard() {
                   <div>
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Central de Recoletas Solicitadas</p>
                     <h3 className="text-3xl font-extrabold mt-2 text-amber-400">{stats.recoletasPendentes}</h3>
-                    <p className="text-xs text-amber-400/80 mt-2 flex items-center gap-1">
-                      <RotateCcw className="w-3.5 h-3.5" /> Ações pendentes do apoio
+                    <p className="text-xs text-amber-400/80 mt-2 flex items-center gap-1 font-semibold group-hover:underline">
+                      <RotateCcw className="w-3.5 h-3.5" /> Abrir Operações ➔
                     </p>
                   </div>
-                  <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                  <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:scale-110 transition">
                     <RotateCcw className="w-6 h-6" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-emerald-500/50 transition">
+              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-emerald-500/50 transition cursor-pointer" onClick={() => setActiveTab("tenants")}>
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Laboratórios no SaaS</p>
                     <h3 className="text-3xl font-extrabold mt-2 text-slate-100">{stats.tenantsAtivos}</h3>
-                    <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5" /> Supabase Multi-Tenant RLS
+                    <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1 font-semibold group-hover:underline">
+                      <Building2 className="w-3.5 h-3.5" /> Gerenciar Clientes ➔
                     </p>
                   </div>
-                  <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl group-hover:scale-110 transition">
                     <Building2 className="w-6 h-6" />
                   </div>
                 </div>
@@ -2421,7 +2428,7 @@ export default function MidwayLabDashboard() {
             </div>
 
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
-              <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="font-bold text-slate-100 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-teal-400" /> Atividades Recentes de Integração
@@ -2429,15 +2436,48 @@ export default function MidwayLabDashboard() {
                   <p className="text-xs text-slate-400">Sincronizações de ida e volta executadas pelos clientes</p>
                 </div>
 
-                <button 
-                  type="button"
-                  onClick={handleRefreshLogs}
-                  disabled={isRefreshingLogs}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingLogs ? "animate-spin text-teal-400" : ""}`} /> 
-                  {isRefreshingLogs ? "Atualizando..." : "Atualizar Logs"}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* LOG DIRECTION FILTER BUTTONS */}
+                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setLogFilterDirection("TODOS")}
+                      className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                        logFilterDirection === "TODOS" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogFilterDirection("IDA")}
+                      className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                        logFilterDirection === "IDA" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      ↗ Ida
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogFilterDirection("VOLTA")}
+                      className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                        logFilterDirection === "VOLTA" ? "bg-cyan-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      ↙ Volta
+                    </button>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={handleRefreshLogs}
+                    disabled={isRefreshingLogs}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer disabled:opacity-50 font-semibold"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingLogs ? "animate-spin text-teal-400" : ""}`} /> 
+                    {isRefreshingLogs ? "Atualizando..." : "Atualizar Logs"}
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -2454,7 +2494,9 @@ export default function MidwayLabDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {logs.map((log) => (
+                    {logs
+                      .filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection))
+                      .map((log) => (
                       <tr key={log.id} className="hover:bg-slate-800/30 transition">
                         <td className="py-4 px-5 font-mono text-xs">
                           <span className="font-bold text-slate-200">{log.id}</span>
@@ -2748,26 +2790,60 @@ export default function MidwayLabDashboard() {
         {/* TAB LOGS */}
         {activeTab === "logs" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-teal-400" /> Logs Transacionais de Ida e Volta
                 </h2>
-                <p className="text-xs text-slate-400">Rastreamento completo de payloads SOAP XML e REST JSON</p>
+                <p className="text-xs text-slate-400">Rastreamento completo de payloads SOAP XML e REST JSON em tempo real</p>
               </div>
 
-              <button 
-                type="button"
-                onClick={handleRefreshLogs}
-                disabled={isRefreshingLogs}
-                className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer font-semibold"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingLogs ? "animate-spin" : ""}`} /> Atualizar
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setLogFilterDirection("TODOS")}
+                    className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                      logFilterDirection === "TODOS" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilterDirection("IDA")}
+                    className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                      logFilterDirection === "IDA" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    ↗ Ida
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilterDirection("VOLTA")}
+                    className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                      logFilterDirection === "VOLTA" ? "bg-cyan-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    ↙ Volta
+                  </button>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleRefreshLogs}
+                  disabled={isRefreshingLogs}
+                  className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer font-semibold"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingLogs ? "animate-spin" : ""}`} /> Atualizar
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {logs.map((log) => (
+              {logs
+                .filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection))
+                .map((log) => (
                 <div key={log.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
