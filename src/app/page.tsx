@@ -883,6 +883,11 @@ export default function MidwayLabDashboard() {
   const [isMappedExamsModalOpen, setIsMappedExamsModalOpen] = useState(false);
   const [searchMappedModal, setSearchMappedModal] = useState("");
 
+  // Log Grid & Payload Inspector Modal states
+  const [logViewMode, setLogViewMode] = useState<"grid" | "cards">("grid");
+  const [searchLogsText, setSearchLogsText] = useState("");
+  const [selectedPayloadLog, setSelectedPayloadLog] = useState<any | null>(null);
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -2790,20 +2795,55 @@ export default function MidwayLabDashboard() {
         {/* TAB LOGS */}
         {activeTab === "logs" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-teal-400" /> Logs Transacionais de Ida e Volta
                 </h2>
-                <p className="text-xs text-slate-400">Rastreamento completo de payloads SOAP XML e REST JSON em tempo real</p>
+                <p className="text-xs text-slate-400">Rastreamento de solicitações SOAP XML e laudos REST JSON em tempo real</p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* SEARCH INPUT */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="🔍 Pesquisar ID, protocolo..."
+                    value={searchLogsText}
+                    onChange={(e) => setSearchLogsText(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+
+                {/* VIEW MODE TOGGLE (GRID vs CARDS) */}
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setLogViewMode("grid")}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                      logViewMode === "grid" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" /> Grid Tabela
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogViewMode("cards")}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                      logViewMode === "cards" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Cards Expandidos
+                  </button>
+                </div>
+
+                {/* LOG DIRECTION FILTER BUTTONS */}
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => setLogFilterDirection("TODOS")}
-                    className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                       logFilterDirection === "TODOS" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -2812,7 +2852,7 @@ export default function MidwayLabDashboard() {
                   <button
                     type="button"
                     onClick={() => setLogFilterDirection("IDA")}
-                    className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                       logFilterDirection === "IDA" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -2821,7 +2861,7 @@ export default function MidwayLabDashboard() {
                   <button
                     type="button"
                     onClick={() => setLogFilterDirection("VOLTA")}
-                    className={`px-3 py-1 rounded-lg transition font-semibold cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                       logFilterDirection === "VOLTA" ? "bg-cyan-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -2833,47 +2873,127 @@ export default function MidwayLabDashboard() {
                   type="button"
                   onClick={handleRefreshLogs}
                   disabled={isRefreshingLogs}
-                  className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3.5 py-2 rounded-lg flex items-center gap-2 transition cursor-pointer font-semibold"
+                  className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3.5 py-2 rounded-xl flex items-center gap-2 transition cursor-pointer font-semibold"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingLogs ? "animate-spin" : ""}`} /> Atualizar
                 </button>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {logs
-                .filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection))
-                .map((log) => (
-                <div key={log.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-bold text-teal-400">{log.id}</span>
-                      <span className="text-xs text-slate-400">{log.horario}</span>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full font-mono">{log.tenant}</span>
-                    </div>
-                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-                      {log.status}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                      <span className="text-teal-400 font-bold block mb-2">SOAP XML Autolac ({log.tipo.split(" ")[0]}):</span>
-                      <pre className="text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap">
-                        {`<root>\n  <codigoLab>${log.tenant}</codigoLab>\n  <solicitacao>\n    <protocolo>${log.protocolo}</protocolo>\n    <paciente>${log.paciente}</paciente>\n    <exame>${log.exames}</exame>\n  </solicitacao>\n</root>`}
-                      </pre>
-                    </div>
-
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                      <span className="text-cyan-400 font-bold block mb-2">REST JSON Softlab Apoio:</span>
-                      <pre className="text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap">
-                        {`{\n  "codigoLis": "${log.protocolo}",\n  "paciente": "${log.paciente}",\n  "status": "PROCESSADO_SUCESSO",\n  "exames": ["${log.exames}"]\n}`}
-                      </pre>
-                    </div>
-                  </div>
+            {/* DATA GRID VIEW (DEFAULT HIGH-DENSITY TABLE) */}
+            {logViewMode === "grid" ? (
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3.5 px-5">ID / Horário</th>
+                        <th className="py-3.5 px-5">Direção</th>
+                        <th className="py-3.5 px-5">Laboratório Tenant</th>
+                        <th className="py-3.5 px-5">Protocolo / Paciente</th>
+                        <th className="py-3.5 px-5">Exames Mapeados</th>
+                        <th className="py-3.5 px-5">Status da Operação</th>
+                        <th className="py-3.5 px-5 text-right">Ação / Payload</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {logs
+                        .filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection))
+                        .filter(log =>
+                          !searchLogsText ||
+                          log.id.toLowerCase().includes(searchLogsText.toLowerCase()) ||
+                          log.protocolo.toLowerCase().includes(searchLogsText.toLowerCase()) ||
+                          log.paciente.toLowerCase().includes(searchLogsText.toLowerCase()) ||
+                          log.exames.toLowerCase().includes(searchLogsText.toLowerCase())
+                        )
+                        .map((log) => (
+                          <tr key={log.id} className="hover:bg-slate-800/40 transition">
+                            <td className="py-3.5 px-5 font-mono text-xs">
+                              <span className="font-bold text-teal-400 block">{log.id}</span>
+                              <span className="text-[11px] text-slate-500">{log.horario}</span>
+                            </td>
+                            <td className="py-3.5 px-5">
+                              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                                log.tipo.includes("IDA")
+                                  ? "bg-teal-500/10 text-teal-400 border border-teal-500/20"
+                                  : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                              }`}>
+                                {log.tipo.includes("IDA") ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownLeft className="w-3 h-3" />}
+                                {log.tipo.split(" ")[0]}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-5 font-medium text-slate-200 text-xs">
+                              <span className="bg-slate-800 px-2 py-0.5 rounded font-mono text-[11px]">{log.tenant}</span>
+                            </td>
+                            <td className="py-3.5 px-5">
+                              <span className="font-mono text-xs font-bold text-teal-300 block">{log.protocolo}</span>
+                              <span className="text-xs text-slate-300">{log.paciente}</span>
+                            </td>
+                            <td className="py-3.5 px-5 font-mono text-xs text-cyan-300 font-bold">{log.exames}</td>
+                            <td className="py-3.5 px-5">
+                              <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> {log.status}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPayloadLog(log)}
+                                className="text-xs bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ml-auto cursor-pointer"
+                              >
+                                <Code2 className="w-3.5 h-3.5 text-cyan-400" /> Ver Payloads (XML/JSON)
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : (
+              /* EXPANDED CARDS VIEW (OPTIONAL ALTERNATIVE) */
+              <div className="space-y-4">
+                {logs
+                  .filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection))
+                  .filter(log =>
+                    !searchLogsText ||
+                    log.id.toLowerCase().includes(searchLogsText.toLowerCase()) ||
+                    log.protocolo.toLowerCase().includes(searchLogsText.toLowerCase()) ||
+                    log.paciente.toLowerCase().includes(searchLogsText.toLowerCase()) ||
+                    log.exames.toLowerCase().includes(searchLogsText.toLowerCase())
+                  )
+                  .map((log) => (
+                    <div key={log.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-sm font-bold text-teal-400">{log.id}</span>
+                          <span className="text-xs text-slate-400">{log.horario}</span>
+                          <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full font-mono">{log.tenant}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+                          {log.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                          <span className="text-teal-400 font-bold block mb-2">SOAP XML Autolac ({log.tipo.split(" ")[0]}):</span>
+                          <pre className="text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap">
+                            {`<root>\n  <codigoLab>${log.tenant}</codigoLab>\n  <solicitacao>\n    <protocolo>${log.protocolo}</protocolo>\n    <paciente>${log.paciente}</paciente>\n    <exame>${log.exames}</exame>\n  </solicitacao>\n</root>`}
+                          </pre>
+                        </div>
+
+                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                          <span className="text-cyan-400 font-bold block mb-2">REST JSON Softlab Apoio:</span>
+                          <pre className="text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap">
+                            {`{\n  "codigoLis": "${log.protocolo}",\n  "paciente": "${log.paciente}",\n  "status": "PROCESSADO_SUCESSO",\n  "exames": ["${log.exames}"]\n}`}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -3880,6 +4000,110 @@ P1`}
                 className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
               >
                 Fechar Visualizador
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INSPETOR DE PAYLOAD (SOAP XML & REST JSON) */}
+      {selectedPayloadLog && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <Code2 className="w-5 h-5 text-teal-400" />
+                  Inspetor Transacional: {selectedPayloadLog.id} ({selectedPayloadLog.protocolo})
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Paciente: <strong className="text-slate-200">{selectedPayloadLog.paciente}</strong> | Tenant: <strong className="text-teal-300">{selectedPayloadLog.tenant}</strong> | Horário: <span className="font-mono text-slate-300">{selectedPayloadLog.horario}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPayloadLog(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* STATUS BADGE */}
+            <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
+              <span className="text-slate-400">Status da Transação:</span>
+              <span className="font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> {selectedPayloadLog.status}
+              </span>
+            </div>
+
+            {/* PAYLOAD CODE PANELS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 flex flex-col">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4 text-teal-400" /> SOAP XML Autolac ({selectedPayloadLog.tipo.split(" ")[0]})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const xmlText = `<root>\n  <codigoLab>${selectedPayloadLog.tenant}</codigoLab>\n  <solicitacao>\n    <protocolo>${selectedPayloadLog.protocolo}</protocolo>\n    <paciente>${selectedPayloadLog.paciente}</paciente>\n    <exame>${selectedPayloadLog.exames}</exame>\n  </solicitacao>\n</root>`;
+                      navigator.clipboard.writeText(xmlText);
+                      showNotification("📋 Payload SOAP XML copiado para a área de transferência!");
+                    }}
+                    className="text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 px-2.5 py-1 rounded transition font-semibold cursor-pointer"
+                  >
+                    Copiar XML
+                  </button>
+                </div>
+                <pre className="text-xs font-mono text-teal-300 bg-slate-900/90 p-3 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap border border-slate-800">
+{`<root>
+  <codigoLab>${selectedPayloadLog.tenant}</codigoLab>
+  <solicitacao>
+    <protocolo>${selectedPayloadLog.protocolo}</protocolo>
+    <paciente>${selectedPayloadLog.paciente}</paciente>
+    <exame>${selectedPayloadLog.exames}</exame>
+  </solicitacao>
+</root>`}
+                </pre>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 flex flex-col">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4 text-cyan-400" /> REST JSON Softlab Apoio
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const jsonText = `{\n  "codigoLis": "${selectedPayloadLog.protocolo}",\n  "paciente": "${selectedPayloadLog.paciente}",\n  "status": "PROCESSADO_SUCESSO",\n  "exames": ["${selectedPayloadLog.exames}"]\n}`;
+                      navigator.clipboard.writeText(jsonText);
+                      showNotification("📋 Payload REST JSON copiado para a área de transferência!");
+                    }}
+                    className="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded transition font-semibold cursor-pointer"
+                  >
+                    Copiar JSON
+                  </button>
+                </div>
+                <pre className="text-xs font-mono text-cyan-300 bg-slate-900/90 p-3 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap border border-slate-800">
+{`{
+  "codigoLis": "${selectedPayloadLog.protocolo}",
+  "paciente": "${selectedPayloadLog.paciente}",
+  "status": "PROCESSADO_SUCESSO",
+  "exames": ["${selectedPayloadLog.exames}"]
+}`}
+                </pre>
+              </div>
+            </div>
+
+            {/* FOOTER */}
+            <div className="flex items-center justify-end pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSelectedPayloadLog(null)}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
+              >
+                Fechar Inspetor
               </button>
             </div>
           </div>
