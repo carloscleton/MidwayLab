@@ -888,6 +888,10 @@ export default function MidwayLabDashboard() {
   const [searchLogsText, setSearchLogsText] = useState("");
   const [selectedPayloadLog, setSelectedPayloadLog] = useState<any | null>(null);
 
+  // Tenant Grid View & Search states
+  const [tenantViewMode, setTenantViewMode] = useState<"grid" | "cards">("grid");
+  const [searchTenantsText, setSearchTenantsText] = useState("");
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -2651,7 +2655,7 @@ export default function MidwayLabDashboard() {
         {/* TAB TENANTS */}
         {activeTab === "tenants" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-teal-400" /> Cadastro de Laboratórios Clientes (Tenants)
@@ -2659,83 +2663,192 @@ export default function MidwayLabDashboard() {
                 <p className="text-xs text-slate-400">Configure os parâmetros do Fácil 2024 / Autolac e credenciais do Softlab para cada cliente</p>
               </div>
 
-              <button 
-                type="button"
-                onClick={() => {
-                  setEditingTenant(null);
-                  setTenantFormData({
-                    nome: "",
-                    identificacaoEntidade: "",
-                    senhaWs: "Soft@2026",
-                    codigoAgente: "1",
-                    wsUrl: "http://177.22.36.202:8002/",
-                    softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-                    softlabLogin: "",
-                    softlabSenha: ""
-                  });
-                  setIsNewTenantModalOpen(true);
-                }}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-teal-500/20 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Cadastrar Novo Laboratório
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {tenants.map((t) => (
-                <div key={t.id} className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-teal-500/40 transition">
-                  <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 flex-shrink-0 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
-                        <Building2 className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-slate-100 text-base truncate">{t.nome}</h3>
-                        <p className="text-xs text-slate-400 truncate">Identificação Entidade: <span className="font-mono text-teal-300 font-semibold">{t.identificacaoEntidade}</span></p>
-                        <p className="font-mono text-[10px] text-slate-600 truncate">ID: {t.id}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex-shrink-0 ml-2">
-                      {t.status}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">URL do WebService Autolac</span>
-                      <span className="font-mono text-slate-200 font-medium break-all">{t.wsUrl}</span>
-                    </div>
-
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Login API Softlab Apoio</span>
-                      <span className="font-mono text-slate-200 font-medium break-all">{t.softlabLogin}</span>
-                    </div>
-
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Código do Agente Autolac</span>
-                      <span className="font-mono text-teal-400 font-bold">{t.codigoAgente}</span>
-                    </div>
-
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Último Lote Enviado</span>
-                      <span className="font-mono text-cyan-400 font-bold">#{t.ultimoLote}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-xs text-slate-400">Tabela de Mapeamento: <strong className="text-teal-300">5 Exames Vinculados</strong></span>
-                    
-                    <button 
-                      type="button"
-                      onClick={() => handleOpenEditTenant(t)}
-                      className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Edit className="w-3.5 h-3.5" /> Editar Configurações
-                    </button>
-                  </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* SEARCH INPUT */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="🔍 Pesquisar laboratório..."
+                    value={searchTenantsText}
+                    onChange={(e) => setSearchTenantsText(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500/50"
+                  />
                 </div>
-              ))}
+
+                {/* VIEW MODE TOGGLE (GRID vs CARDS) */}
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setTenantViewMode("grid")}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                      tenantViewMode === "grid" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" /> Grid Tabela
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTenantViewMode("cards")}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                      tenantViewMode === "cards" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" /> Cards Expandidos
+                  </button>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setEditingTenant(null);
+                    setTenantFormData({
+                      nome: "",
+                      identificacaoEntidade: "",
+                      senhaWs: "Soft@2026",
+                      codigoAgente: "1",
+                      wsUrl: "http://177.22.36.202:8002/",
+                      softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
+                      softlabLogin: "",
+                      softlabSenha: ""
+                    });
+                    setIsNewTenantModalOpen(true);
+                  }}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Cadastrar Novo Laboratório
+                </button>
+              </div>
             </div>
+
+            {/* DATA GRID TABLE VIEW */}
+            {tenantViewMode === "grid" ? (
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="py-3.5 px-5">Laboratório Tenant</th>
+                        <th className="py-3.5 px-5">Identificação / E-mail</th>
+                        <th className="py-3.5 px-5">URL Autolac WS</th>
+                        <th className="py-3.5 px-5">Login Softlab Apoio</th>
+                        <th className="py-3.5 px-5">Agente / Lote</th>
+                        <th className="py-3.5 px-5 text-center">Status</th>
+                        <th className="py-3.5 px-5 text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {tenants
+                        .filter(t =>
+                          !searchTenantsText ||
+                          t.nome.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
+                          t.identificacaoEntidade.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
+                          t.id.toLowerCase().includes(searchTenantsText.toLowerCase())
+                        )
+                        .map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-800/40 transition">
+                            <td className="py-3.5 px-5">
+                              <span className="font-bold text-slate-100 text-sm block">{t.nome}</span>
+                              <span className="font-mono text-[10px] text-slate-500">ID: {t.id}</span>
+                            </td>
+                            <td className="py-3.5 px-5 font-mono text-xs text-teal-300 font-semibold">
+                              {t.identificacaoEntidade}
+                            </td>
+                            <td className="py-3.5 px-5 font-mono text-xs text-slate-300 break-all max-w-[200px]">
+                              {t.wsUrl}
+                            </td>
+                            <td className="py-3.5 px-5 font-mono text-xs text-slate-300">
+                              {t.softlabLogin}
+                            </td>
+                            <td className="py-3.5 px-5 font-mono text-xs">
+                              <span className="text-teal-400 font-bold">Agente: {t.codigoAgente}</span>
+                              <span className="block text-cyan-400 text-[11px]">Lote: #{t.ultimoLote}</span>
+                            </td>
+                            <td className="py-3.5 px-5 text-center">
+                              <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> {t.status}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditTenant(t)}
+                                className="text-xs bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ml-auto cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5" /> Editar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* CARDS VIEW */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {tenants
+                  .filter(t =>
+                    !searchTenantsText ||
+                    t.nome.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
+                    t.identificacaoEntidade.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
+                    t.id.toLowerCase().includes(searchTenantsText.toLowerCase())
+                  )
+                  .map((t) => (
+                    <div key={t.id} className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-teal-500/40 transition">
+                      <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 flex-shrink-0 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
+                            <Building2 className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-slate-100 text-base truncate">{t.nome}</h3>
+                            <p className="text-xs text-slate-400 truncate">Identificação Entidade: <span className="font-mono text-teal-300 font-semibold">{t.identificacaoEntidade}</span></p>
+                            <p className="font-mono text-[10px] text-slate-600 truncate">ID: {t.id}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex-shrink-0 ml-2">
+                          {t.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">URL do WebService Autolac</span>
+                          <span className="font-mono text-slate-200 font-medium break-all">{t.wsUrl}</span>
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Login API Softlab Apoio</span>
+                          <span className="font-mono text-slate-200 font-medium break-all">{t.softlabLogin}</span>
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Código do Agente Autolac</span>
+                          <span className="font-mono text-teal-400 font-bold">{t.codigoAgente}</span>
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Último Lote Enviado</span>
+                          <span className="font-mono text-cyan-400 font-bold">#{t.ultimoLote}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2">
+                        <span className="text-xs text-slate-400">Tabela de Mapeamento: <strong className="text-teal-300">5 Exames Vinculados</strong></span>
+                        
+                        <button 
+                          type="button"
+                          onClick={() => handleOpenEditTenant(t)}
+                          className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Edit className="w-3.5 h-3.5" /> Editar Configurações
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         )}
 
