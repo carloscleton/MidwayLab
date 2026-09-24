@@ -5,6 +5,7 @@ import { supabaseBrowser } from "../lib/supabase-client";
 import { UserService } from "../services/user-service";
 import { TenantService } from "../services/tenant-service";
 import { DeparaService } from "../services/depara-service";
+import { generateCode128SvgString } from "../lib/barcode";
 import {
 
   Activity,
@@ -1418,6 +1419,8 @@ export default function MidwayLabDashboard() {
       eplCode: ""
     };
 
+    const barcodeSvg = generateCode128SvgString(data.codigoBarras, 35);
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -1463,17 +1466,17 @@ export default function MidwayLabDashboard() {
               text-align: center;
               margin: 1px 0;
             }
-            .barcode-bars {
-              font-family: monospace;
-              font-size: 15px;
-              font-weight: 900;
-              letter-spacing: 2px;
-              line-height: 12px;
+            .barcode-container svg {
+              width: 90%;
+              max-height: 28px;
+              display: block;
+              margin: 0 auto;
             }
             .barcode-text {
               font-size: 7px;
               font-family: monospace;
               font-weight: bold;
+              margin-top: 1px;
             }
             .info-row {
               font-size: 7px;
@@ -1500,7 +1503,7 @@ export default function MidwayLabDashboard() {
           <div class="patient-name">${data.protocolo} - ${data.paciente}</div>
           <div class="patient-details">IDADE/SEXO: ${data.idadeSexo || "34A (F)"} | SETOR: ${data.setor || "BIOQUÍMICA"}</div>
           <div class="barcode-container">
-            <div class="barcode-bars">||||||||||||||||||||||||||||</div>
+            ${barcodeSvg}
             <div class="barcode-text">${data.codigoBarras}</div>
           </div>
           <div class="info-row">
@@ -3342,11 +3345,12 @@ export default function MidwayLabDashboard() {
                     </div>
                   </div>
 
-                  {/* Código de Barras Simulado */}
-                  <div className="text-center my-0.5 bg-slate-50 py-1 rounded border border-slate-200">
-                    <div className="font-mono text-xl tracking-[4px] font-black text-slate-900 leading-none select-none">
-                      ||||||||||||||||||||||||||||||||
-                    </div>
+                  {/* Código de Barras Real Scaneável (Code 128) */}
+                  <div className="text-center my-0.5 bg-slate-50 py-1.5 px-2 rounded border border-slate-200">
+                    <div 
+                      className="w-full flex justify-center items-center h-10 overflow-hidden"
+                      dangerouslySetInnerHTML={{ __html: generateCode128SvgString(selectedLabelData?.codigoBarras || "BAR_PROTO-8842_1", 38, 1.8) }}
+                    />
                     <div className="font-mono text-[10px] font-bold text-slate-800 mt-0.5 tracking-wider">
                       {selectedLabelData?.codigoBarras || "BAR_PROTO-8842_1"}
                     </div>
