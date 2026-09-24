@@ -883,10 +883,11 @@ export default function MidwayLabDashboard() {
   const [isMappedExamsModalOpen, setIsMappedExamsModalOpen] = useState(false);
   const [searchMappedModal, setSearchMappedModal] = useState("");
 
-  // Log Grid & Payload Inspector Modal states
+  // Log Grid & Payload Inspector & PDF Laudo Modal states
   const [logViewMode, setLogViewMode] = useState<"grid" | "cards">("grid");
   const [searchLogsText, setSearchLogsText] = useState("");
   const [selectedPayloadLog, setSelectedPayloadLog] = useState<any | null>(null);
+  const [selectedPdfLog, setSelectedPdfLog] = useState<any | null>(null);
 
   // Tenant Grid View & Search states
   const [tenantViewMode, setTenantViewMode] = useState<"grid" | "cards">("grid");
@@ -2533,23 +2534,33 @@ export default function MidwayLabDashboard() {
                           </span>
                         </td>
                         <td className="py-4 px-5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedLabelData({
-                                protocolo: log.protocolo,
-                                paciente: log.paciente,
-                                exames: log.exames,
-                                tubo: "TUBO GEL - TAMPA AMARELA",
-                                codigoBarras: `BAR_${log.protocolo}_1`,
-                                eplCode: `N\nq500\nQ300,24\nB50,20,0,1,2,6,100,B,"BAR_${log.protocolo}_1"\nA50,140,0,3,1,1,N,"${log.protocolo} - ${log.paciente}"\nA50,170,0,2,1,1,N,"EXAME: ${log.exames} - TUBO GEL"\nP1`
-                              });
-                              setActiveWorkflowModal("epl");
-                            }}
-                            className="bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <Tag className="w-3.5 h-3.5" /> Ver / Imprimir
-                          </button>
+                          {log.tipo.includes("IDA") ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedLabelData({
+                                  protocolo: log.protocolo,
+                                  paciente: log.paciente,
+                                  exames: log.exames,
+                                  tubo: "TUBO GEL - TAMPA AMARELA",
+                                  codigoBarras: `BAR_${log.protocolo}_1`,
+                                  eplCode: `N\nq500\nQ300,24\nB50,20,0,1,2,6,100,B,"BAR_${log.protocolo}_1"\nA50,140,0,3,1,1,N,"${log.protocolo} - ${log.paciente}"\nA50,170,0,2,1,1,N,"EXAME: ${log.exames} - TUBO GEL"\nP1`
+                                });
+                                setActiveWorkflowModal("epl");
+                              }}
+                              className="bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <Tag className="w-3.5 h-3.5 text-teal-400" /> Etiqueta EPL
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPdfLog(log)}
+                              className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-cyan-400" /> Ver Laudo PDF
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -4217,6 +4228,137 @@ P1`}
                 className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
               >
                 Fechar Inspetor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VISUALIZADOR DE LAUDO PDF */}
+      {selectedPdfLog && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-cyan-400" />
+                  Laudo de Diagnóstico Médico - {selectedPdfLog.protocolo}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Paciente: <strong className="text-slate-200">{selectedPdfLog.paciente}</strong> | Apoio: <strong className="text-teal-300">Softlab Apoio</strong> | Status: <span className="text-emerald-400 font-bold">ENTREGUE AO AUTOLAC</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPdfLog(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* LAUDO DOCUMENT PREVIEW (SIMULAÇÃO FIEL DO DOCUMENTO PDF) */}
+            <div className="flex-1 overflow-y-auto bg-slate-950 p-6 rounded-xl border border-slate-800 flex justify-center">
+              <div className="w-full max-w-2xl bg-white text-slate-900 p-8 rounded-lg shadow-2xl space-y-6 font-sans select-none border border-slate-300 text-xs">
+                {/* LAUDO HEADER */}
+                <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
+                  <div>
+                    <h2 className="text-base font-black text-slate-900 tracking-tight">SOFTLAB SOLUÇÕES EM SAÚDE & APOIO</h2>
+                    <p className="text-[10px] text-slate-600 font-semibold">Laboratório Central de Diagnósticos e Apoio Laboratorial</p>
+                  </div>
+                  <div className="text-right text-[10px] font-mono text-slate-700">
+                    <span className="font-bold text-slate-900 block text-xs">LAUDO Nº {selectedPdfLog.protocolo}</span>
+                    <span>Liberação: {selectedPdfLog.horario || new Date().toLocaleTimeString('pt-BR')}</span>
+                  </div>
+                </div>
+
+                {/* PACIENTE INFO BOX */}
+                <div className="bg-slate-100 p-3 rounded-lg border border-slate-300 grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Paciente:</span>
+                    <strong className="text-slate-950 font-black uppercase">{selectedPdfLog.paciente}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Laboratório Apoiado:</span>
+                    <strong className="text-teal-900 font-black">{selectedPdfLog.tenant || "San Mathews"}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Protocolo LIS:</span>
+                    <strong className="font-mono text-slate-900 font-bold">{selectedPdfLog.protocolo}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Médico Solicitante:</span>
+                    <strong className="text-slate-900 font-bold">Dr. Responsável Clínico</strong>
+                  </div>
+                </div>
+
+                {/* EXAMES E RESULTADOS */}
+                <div className="space-y-3">
+                  <h4 className="font-black text-xs text-slate-900 border-b border-slate-400 pb-1 uppercase tracking-wider">
+                    RESULTADO DOS EXAMES PROCESSADOS
+                  </h4>
+
+                  <div className="border border-slate-300 rounded overflow-hidden">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-200 text-slate-800 font-bold border-b border-slate-300">
+                        <tr>
+                          <th className="py-2 px-3">Exame / Parâmetro</th>
+                          <th className="py-2 px-3">Resultado</th>
+                          <th className="py-2 px-3">Unidade</th>
+                          <th className="py-2 px-3">Valores de Referência</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-mono">
+                        <tr>
+                          <td className="py-2 px-3 font-bold text-slate-900 font-sans">{selectedPdfLog.exames}</td>
+                          <td className="py-2 px-3 font-black text-teal-900">14.2</td>
+                          <td className="py-2 px-3">g/dL</td>
+                          <td className="py-2 px-3 text-slate-600">12.0 a 16.0 g/dL</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-bold text-slate-900 font-sans">GLICOSE DOSAGEM EM JEJUM</td>
+                          <td className="py-2 px-3 font-black text-teal-900">88</td>
+                          <td className="py-2 px-3">mg/dL</td>
+                          <td className="py-2 px-3 text-slate-600">70 a 99 mg/dL</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* ASSINATURA DIGITAL */}
+                <div className="pt-6 flex justify-between items-end border-t border-slate-300 text-[10px]">
+                  <div>
+                    <span className="text-slate-500 block">Autenticação Digital Hash:</span>
+                    <span className="font-mono text-slate-700 text-[9px]">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</span>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-32 border-b border-slate-900 mb-1"></div>
+                    <strong className="block text-slate-900 font-bold">Dra. Fernanda Santos</strong>
+                    <span className="text-slate-600 text-[9px]">Biomédica Responsável - CRBM 14.892</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* FOOTER ACTIONS */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  showNotification("📥 Baixando arquivo Laudo_PDF_Base64.pdf...");
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-2"
+              >
+                <Download className="w-4 h-4 text-teal-400" /> Baixar Laudo PDF
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPdfLog(null)}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
+              >
+                Fechar Laudo
               </button>
             </div>
           </div>
