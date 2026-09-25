@@ -5222,8 +5222,8 @@ P1`}
         </div>
       )}
 
-      {/* FLOATING BATCH PRINTING ACTION BAR */}
-      {selectedLogIds.length > 0 && (
+      {/* FLOATING BATCH PRINTING ACTION BAR (Hides automatically when any modal is open) */}
+      {selectedLogIds.length > 0 && !activeWorkflowModal && !isPrinterModalOpen && !isChangePasswordModalOpen && !isImportModalOpen && !selectedPayloadLog && !selectedPdfLog && !examDetailsModal && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md border border-teal-500/50 px-5 py-3.5 rounded-2xl shadow-2xl shadow-teal-500/30 flex items-center gap-4 text-xs">
           <span className="font-bold text-slate-100 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-teal-400" />
