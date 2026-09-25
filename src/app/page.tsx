@@ -130,6 +130,7 @@ export default function MidwayLabDashboard() {
 
   // Password Reset Form States
   const [resetEmail, setResetEmail] = useState("");
+  const [resetCurrentPassword, setResetCurrentPassword] = useState("");
   const [resetNewPassword, setResetNewPassword] = useState("");
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -728,6 +729,17 @@ export default function MidwayLabDashboard() {
       showNotification("⚠️ Por favor, informe o e-mail cadastrado.");
       return;
     }
+    if (currentUser && isChangePasswordModalOpen) {
+      if (!resetCurrentPassword) {
+        showNotification("⚠️ Por favor, digite a sua senha atual.");
+        return;
+      }
+      if (currentUser.senha && currentUser.senha !== resetCurrentPassword) {
+        showNotification("⚠️ A Senha Atual informada está incorreta! Digite a senha atual válida.");
+        return;
+      }
+    }
+
     if (!resetNewPassword || resetNewPassword.length < 3) {
       showNotification("⚠️ A nova senha precisa ter pelo menos 3 caracteres.");
       return;
@@ -4790,6 +4802,28 @@ P1`}
                   value={resetEmail || currentUser?.email || ""}
                   className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-400 font-mono text-xs cursor-not-allowed"
                 />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Senha Atual da Conta</label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    value={resetCurrentPassword}
+                    onChange={(e) => setResetCurrentPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div>
