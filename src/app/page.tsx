@@ -2312,32 +2312,32 @@ export default function MidwayLabDashboard() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 w-full">
+              <div className="flex flex-wrap items-center gap-3 pt-2 lg:pt-0">
                 {/* BUTTON 1: NOVO MAPEAMENTO */}
                 <button
                   type="button"
                   onClick={() => handleOpenMapExam(softlabExames[0])}
-                  className="h-10 px-3 rounded-xl text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 transition flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap"
+                  className="h-10 px-4 rounded-xl text-xs font-extrabold bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 cursor-pointer shrink-0"
                 >
-                  <Plus className="w-3.5 h-3.5" /> + Novo Mapeamento
+                  <Plus className="w-4 h-4 text-slate-950" /> + Novo Mapeamento
                 </button>
 
                 {/* BUTTON 2: VER EXAMES MAPEADOS */}
                 <button
                   type="button"
                   onClick={() => setIsMappedExamsModalOpen(true)}
-                  className="h-10 px-3 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap"
+                  className="h-10 px-4 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-emerald-500/10 cursor-pointer shrink-0"
                 >
-                  <Eye className="w-3.5 h-3.5 text-emerald-400" /> Ver Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
+                  <Eye className="w-4 h-4 text-emerald-400" /> Ver Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
                 </button>
 
                 {/* BUTTON 3: IMPORTAR PLANILHA DE-PARA */}
                 <button
                   type="button"
                   onClick={() => { setImportTarget("depara"); setIsImportModalOpen(true); }}
-                  className="h-10 px-3 rounded-xl text-xs font-bold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 transition flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap"
+                  className="h-10 px-4 rounded-xl text-xs font-bold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-teal-500/10 cursor-pointer shrink-0"
                 >
-                  <Upload className="w-3.5 h-3.5 text-teal-400" /> Importar Planilha
+                  <Upload className="w-4 h-4 text-teal-400" /> Importar Planilha
                 </button>
 
                 {/* BUTTON 4: SINCRONIZAR API SOFTLAB */}
@@ -2345,27 +2345,27 @@ export default function MidwayLabDashboard() {
                   type="button"
                   onClick={handleSoftlabApiSync}
                   disabled={isSyncingSoftlabApi}
-                  className="h-10 px-3 rounded-xl text-xs font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap"
+                  className="h-10 px-4 rounded-xl text-xs font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-cyan-500/10 cursor-pointer shrink-0"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} /> Sincronizar API
+                  <RefreshCw className={`w-4 h-4 text-cyan-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} /> Sincronizar API
                 </button>
 
                 {/* BUTTON 5: AUTO-MAPEAR */}
                 <button
                   type="button"
                   onClick={handleAutoMapAll}
-                  className="h-10 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white border border-cyan-400/30 transition flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap"
+                  className="h-10 px-4 rounded-xl text-xs font-bold bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white border border-cyan-400/30 transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer shrink-0"
                 >
-                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" /> Auto-Mapear
+                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300" /> Auto-Mapear
                 </button>
 
                 {/* BUTTON 6: EXPORTAR CSV */}
                 <button
                   type="button"
                   onClick={handleExportCsv}
-                  className="h-10 px-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap"
+                  className="h-10 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-2 shadow cursor-pointer shrink-0"
                 >
-                  <Download className="w-3.5 h-3.5 text-cyan-400" /> Exportar CSV
+                  <Download className="w-4 h-4 text-cyan-400" /> Exportar CSV
                 </button>
               </div>
             </div>
