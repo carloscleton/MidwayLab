@@ -126,23 +126,46 @@ export class DeparaService {
 
 
   /**
-   * Limpa integralmente a tabela de Catálogo do Softlab no Supabase em lotes por ID
+   * Limpa integralmente a tabela de Catálogo do Softlab no Supabase em loop até 0 registros
    */
   static async limparCatalogoSoftlab(): Promise<void> {
     try {
-      const { data } = await supabaseBrowser
-        .from('catalogo_softlab_exames')
-        .select('id');
+      let hasMore = true;
+      let loopCounter = 0;
+      while (hasMore && loopCounter < 25) {
+        loopCounter++;
+        const { data } = await supabaseBrowser
+          .from('catalogo_softlab_exames')
+          .select('id, codigo')
+          .limit(1000);
 
-      if (data && data.length > 0) {
+        if (!data || data.length === 0) {
+          hasMore = false;
+          break;
+        }
+
         const ids = data.map((item: any) => item.id).filter(Boolean);
-        const CHUNK_SIZE = 100;
-        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-          const chunk = ids.slice(i, i + CHUNK_SIZE);
-          await supabaseBrowser
-            .from('catalogo_softlab_exames')
-            .delete()
-            .in('id', chunk);
+        if (ids.length > 0) {
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+            const chunk = ids.slice(i, i + CHUNK_SIZE);
+            await supabaseBrowser
+              .from('catalogo_softlab_exames')
+              .delete()
+              .in('id', chunk);
+          }
+        }
+
+        const codigos = data.map((item: any) => item.codigo).filter(Boolean);
+        if (codigos.length > 0) {
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < codigos.length; i += CHUNK_SIZE) {
+            const chunk = codigos.slice(i, i + CHUNK_SIZE);
+            await supabaseBrowser
+              .from('catalogo_softlab_exames')
+              .delete()
+              .in('codigo', chunk);
+          }
         }
       }
     } catch (e) {

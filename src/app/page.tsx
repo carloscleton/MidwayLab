@@ -424,59 +424,54 @@ export default function MidwayLabDashboard() {
       { codigo: "GASO", nome: "Gasometria Arterial" }
     ];
 
-    // 1. Clean old duplicate fake records and save ONLY authentic unique exams to Supabase
+    // Official Clean Catalog List (94 authentic unique exams)
+    const cleanList = realExamsToSync.map(e => ({
+      ...e,
+      autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
+    }));
+    setSoftlabExames(cleanList);
+    setHasUnsavedApiChanges(true);
+    setIsSyncingSoftlabApi(false);
+    showNotification("✨ 94 Exames oficiais listados na tela. Clique em 'Salvar no Banco (Supabase)' para gravar.");
+  };
+
+  // 2. EXPLICIT SAVE CATALOG TO SUPABASE DATABASE
+  const handleSaveSoftlabCatalogToDb = async () => {
+    setIsSavingCatalogToDb(true);
+    showNotification("💾 Limpando registros antigos e gravando catálogo único no banco Supabase...");
+
     try {
-      const recordsToSave = realExamsToSync.map(e => ({
+      const recordsToSave = softlabExames.map(e => ({
         codigo: e.codigo,
         descricao: e.descricao,
         abreviacao: e.abreviacao,
         tipo_resultado: e.tipo
       }));
+
       await DeparaService.limparECadastrarLimpoSoftlab(recordsToSave);
-      await DeparaService.salvarCatalogoAutolac(realAutolacExamsToSync);
-    } catch (err) {
-      console.warn("Catálogos salvos localmente.");
+      await DeparaService.salvarCatalogoAutolac(autolacCatalog);
+      setHasUnsavedApiChanges(false);
+      showNotification(`✅ Catálogo do Softlab (${softlabExames.length} exames únicos) salvo no Supabase com sucesso!`);
+    } catch {
+      showNotification("⚠️ Erro ao gravar catálogo no Supabase.");
+    } finally {
+      setIsSavingCatalogToDb(false);
     }
+  };
 
+  // 3. FORCE PURGE OLD FAKE DUPLICATES FROM SUPABASE
+  const handlePurgeDatabaseCatalog = async () => {
+    setIsSavingCatalogToDb(true);
+    showNotification("🧹 Limpando todos os exames repetidos/fakes da tabela catalogo_softlab_exames no Supabase...");
 
-    // 3. Refresh catalog directly from Supabase
-    let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
-    dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
-    const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac();
-    const dbMappings = await DeparaService.listarMapeamentos();
-
-    if (dbSoftlabCatalog.length > 0) {
-      const mapped = dbSoftlabCatalog.map(item => ({
-        codigo: item.codigo,
-        descricao: item.descricao,
-        abreviacao: item.abreviacao || item.codigo,
-        autolacMapped: "",
-        tipo: item.tipo_resultado || "PDF"
-      }));
-
-      mapped.forEach(item => {
-        const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
-        if (found) {
-          item.autolacMapped = found.codigo_autolac;
-          item.tipo = found.tipo_resultado || 'PDF';
-        }
-      });
-      setSoftlabExames(mapped);
-    } else {
-      setSoftlabExames(realExamsToSync.map(e => ({
-        ...e,
-        autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
-      })));
+    try {
+      await DeparaService.limparCatalogoSoftlab();
+      showNotification("🧹 Tabela catalogo_softlab_exames zerada no Supabase! Clique em 'Salvar no Banco' para regravar.");
+    } catch {
+      showNotification("⚠️ Erro ao limpar tabela no Supabase.");
+    } finally {
+      setIsSavingCatalogToDb(false);
     }
-
-    if (dbAutolacCatalog.length > 0) {
-      setAutolacCatalog(dbAutolacCatalog.map(a => ({ codigo: a.codigo, nome: a.nome })));
-    } else {
-      setAutolacCatalog(realAutolacExamsToSync);
-    }
-
-    setIsSyncingSoftlabApi(false);
-    showNotification("✨ Exames do Softlab listados e salvos no banco Supabase com sucesso!");
   };
 
 
@@ -878,6 +873,10 @@ export default function MidwayLabDashboard() {
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Catalog Saving & API Sync States
+  const [isSavingCatalogToDb, setIsSavingCatalogToDb] = useState(false);
+  const [hasUnsavedApiChanges, setHasUnsavedApiChanges] = useState(false);
 
   const showNotification = (msg: string) => {
     setToastMessage(msg);
@@ -2187,16 +2186,32 @@ export default function MidwayLabDashboard() {
                   />
                 </div>
 
-                {/* DEDICATED BUTTON TO FETCH & PERSIST SOFTLAB API EXAMS INTO SUPABASE */}
-                <button
-                  type="button"
-                  onClick={handleSoftlabApiSync}
-                  disabled={isSyncingSoftlabApi}
-                  className="w-full bg-gradient-to-r from-teal-500/20 via-cyan-500/20 to-teal-500/20 hover:from-teal-500/30 hover:to-cyan-500/30 text-teal-300 border border-teal-500/40 font-black px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-teal-500/10 cursor-pointer"
-                >
-                  <RefreshCw className={`w-4 h-4 text-teal-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
-                  📡 Listar Exames Softlab
-                </button>
+                {/* ACTION BUTTONS: FETCH API & SAVE TO SUPABASE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSoftlabApiSync}
+                    disabled={isSyncingSoftlabApi}
+                    className="w-full bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 font-bold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-teal-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
+                    📡 Listar Exames Softlab
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveSoftlabCatalogToDb}
+                    disabled={isSavingCatalogToDb}
+                    className={`w-full font-extrabold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow ${
+                      hasUnsavedApiChanges
+                        ? "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 animate-pulse"
+                        : "bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40"
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    💾 Salvar no Banco (Supabase)
+                  </button>
+                </div>
 
 
               </div>
