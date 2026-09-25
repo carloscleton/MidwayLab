@@ -815,8 +815,8 @@ export default function MidwayLabDashboard() {
   const [searchSoftlab, setSearchSoftlab] = useState("");
   const [searchAutolac, setSearchAutolac] = useState("");
 
-  // DE-PARA Status Filter
-  const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("todos");
+  // DE-PARA Status Filter (Default to "mapeados" so mapped exams display first)
+  const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("mapeados");
 
   // Selection state for Dual Matcher
   const [selectedSoftlabExam, setSelectedSoftlabExam] = useState<any | null>(null);
@@ -2363,10 +2363,45 @@ export default function MidwayLabDashboard() {
             )}
 
             {/* FULL RELATIONAL TABLE */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
-              <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                <span>Tabela Completa de Relacionamentos DE-PARA do Laboratório: <strong className="text-teal-300 font-semibold">{selectedTenant}</strong></span>
-                <span className="font-mono text-teal-400 font-bold">1.311 Exames Ativos</span>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+                <div>
+                  <span className="font-bold text-slate-200">Tabela de Relacionamentos DE-PARA: </span>
+                  <strong className="text-teal-300 font-semibold">{selectedTenant}</strong>
+                </div>
+
+                {/* DE-PARA STATUS FILTER BUTTONS */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setDeparaFilter("mapeados")}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                        deparaFilter === "mapeados" ? "bg-emerald-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Somente Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeparaFilter("pendentes")}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                        deparaFilter === "pendentes" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" /> Pendentes ({softlabExames.filter(e => !e.autolacMapped).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeparaFilter("todos")}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                        deparaFilter === "todos" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Todos ({softlabExames.length})
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -2382,54 +2417,67 @@ export default function MidwayLabDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {filteredSoftlabExames.map((exam) => (
-                      <tr key={exam.codigo} className="hover:bg-slate-800/30 transition">
-                        <td className="py-4 px-5 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
-                        <td className="py-4 px-5 font-medium text-slate-200">
-                          {exam.descricao}
-                          <span className="block text-xs text-slate-500">{exam.abreviacao}</span>
-                        </td>
-                        <td className="py-4 px-5">
-                          {exam.autolacMapped ? (
-                            <span className="font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5">
-                              <Link className="w-3 h-3 text-cyan-400" /> {exam.autolacMapped}
+                    {filteredSoftlabExames
+                      .filter((exam) => {
+                        if (deparaFilter === "mapeados") return Boolean(exam.autolacMapped);
+                        if (deparaFilter === "pendentes") return !exam.autolacMapped;
+                        return true;
+                      })
+                      .map((exam) => (
+                        <tr key={exam.codigo} className="hover:bg-slate-800/30 transition">
+                          <td className="py-4 px-5 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
+                          <td className="py-4 px-5 font-medium text-slate-200">
+                            {exam.descricao}
+                            <span className="block text-xs text-slate-500">{exam.abreviacao}</span>
+                          </td>
+                          <td className="py-4 px-5">
+                            {exam.autolacMapped ? (
+                              <span className="font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5">
+                                <Link className="w-3 h-3 text-cyan-400" /> {exam.autolacMapped}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500 italic">Não mapeado</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                              exam.tipo === "PDF"
+                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                            }`}>
+                              {exam.tipo}
                             </span>
-                          ) : (
-                            <span className="text-xs text-slate-500 italic">Não mapeado</span>
-                          )}
-                        </td>
-                        <td className="py-4 px-5">
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                            exam.tipo === "PDF"
-                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                              : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                          }`}>
-                            {exam.tipo}
-                          </span>
-                        </td>
-                        <td className="py-4 px-5">
-                          {exam.autolacMapped ? (
-                            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
-                            </span>
-                          ) : (
-                            <span className="text-xs text-amber-400 font-semibold flex items-center gap-1">
-                              <AlertCircle className="w-3.5 h-3.5" /> Pendente
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-4 px-5 text-right">
-                          <button 
-                            type="button"
-                            onClick={() => handleOpenMapExam(exam)}
-                            className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1.5 rounded-lg transition font-semibold cursor-pointer flex items-center gap-1.5 ml-auto"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                            {exam.autolacMapped ? "Editar Vínculo" : "Relacionar Agora"}
-                          </button>
+                          </td>
+                          <td className="py-4 px-5">
+                            {exam.autolacMapped ? (
+                              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
+                              </span>
+                            ) : (
+                              <span className="text-xs text-amber-400 font-semibold flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5" /> Pendente
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 text-right">
+                            <button 
+                              type="button"
+                              onClick={() => handleOpenMapExam(exam)}
+                              className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1.5 rounded-lg transition font-semibold cursor-pointer flex items-center gap-1.5 ml-auto"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              {exam.autolacMapped ? "Editar Vínculo" : "Relacionar Agora"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {filteredSoftlabExames.filter((exam) => deparaFilter === "mapeados" ? Boolean(exam.autolacMapped) : deparaFilter === "pendentes" ? !exam.autolacMapped : true).length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                          Nenhum exame encontrado para este filtro no momento.
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
