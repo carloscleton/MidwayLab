@@ -462,7 +462,7 @@ export default function MidwayLabDashboard() {
       });
       setSoftlabExames(mapped);
     } else {
-      setSoftlabExames(full1311Exams.map(e => ({
+      setSoftlabExames(realExamsToSync.map(e => ({
         ...e,
         autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
       })));
