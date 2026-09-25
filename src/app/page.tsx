@@ -1202,6 +1202,29 @@ export default function MidwayLabDashboard() {
   const [logFilterDirection, setLogFilterDirection] = useState<"TODOS" | "IDA" | "VOLTA">("TODOS");
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
+  // CHANGE ACTIVE TENANT & RE-FETCH DE-PARA MAPPINGS SPECIFIC TO THAT LABORATORY
+  const handleSelectTenantChange = async (tenantNome: string) => {
+    setSelectedTenant(tenantNome);
+    const activeTenant = tenants.find(t => t.nome === tenantNome);
+    const tenantId = activeTenant?.id;
+
+    showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando catálogo e mapeamentos...`);
+
+    try {
+      const dbMappings = await DeparaService.listarMapeamentos(tenantId);
+      setSoftlabExames(prev => prev.map(item => {
+        const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
+        return {
+          ...item,
+          autolacMapped: found ? found.codigo_autolac : "",
+          tipo: found?.tipo_resultado || item.tipo
+        };
+      }));
+    } catch {
+      // Retém estado local se erro
+    }
+  };
+
   // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (SOFTLAB ↔ AUTOLAC)
   const handleLinkSelectedPair = async () => {
     if (!selectedSoftlabExam || !selectedAutolacExam) {
@@ -2062,7 +2085,7 @@ export default function MidwayLabDashboard() {
             <span>Empresa Ativa:</span>
             <select 
               value={selectedTenant}
-              onChange={(e) => setSelectedTenant(e.target.value)}
+              onChange={(e) => handleSelectTenantChange(e.target.value)}
               className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
             >
               {tenants.map(t => (
