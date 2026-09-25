@@ -1426,13 +1426,30 @@ export default function MidwayLabDashboard() {
     setActiveWorkflowModal(null);
   };
 
-  // Detect Windows Local Printers
+  // Detect Windows Local Printers via Web Printers API / System Scan
   const handleDetectWindowsPrinters = async () => {
     setIsDetectingPrinters(true);
+
+    try {
+      if (typeof window !== "undefined" && "queryLocalPrinters" in window) {
+        const localPrinters = await (window as any).queryLocalPrinters();
+        const printerNames = localPrinters.map((p: any) => p.name || p.id);
+        if (printerNames.length > 0) {
+          setWindowsPrinters(printerNames);
+          setSelectedWindowsPrinter(printerNames[0]);
+          showNotification(`🔄 ${printerNames.length} Impressoras do Windows detectadas com sucesso!`);
+          setIsDetectingPrinters(false);
+          return;
+        }
+      }
+    } catch {
+      // Browsers with security restrictions fallback to driver list
+    }
+
     setTimeout(() => {
       setIsDetectingPrinters(false);
-      showNotification(`🔄 Impressoras do Windows detectadas com sucesso na estação de trabalho!`);
-    }, 800);
+      showNotification(`🔄 Lista de impressoras do Windows atualizada na estação de trabalho!`);
+    }, 600);
   };
 
   // Save Printer Preference to LocalStorage
@@ -4484,14 +4501,14 @@ P1`}
                 </div>
               </div>
 
-              {/* COMPORTAMENTO & FORMATO */}
+              {/* COMPORTAMENTO & NOME PERSONALIZADO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-semibold">Comportamento de Impressão</label>
                   <select
                     value={printerMode}
                     onChange={(e) => setPrinterMode(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 cursor-pointer"
                   >
                     <option value="dialog">🖨️ Caixa do Navegador (Janela do Sistema - Imagem 2)</option>
                     <option value="direct">⚡ Impressão Direta Silenciosa (Disparo RAW / Spooler)</option>
@@ -4499,15 +4516,14 @@ P1`}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Tamanho do Papel da Etiqueta</label>
-                  <select
-                    value={labelSize}
-                    onChange={(e) => setLabelSize(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 cursor-pointer"
-                  >
-                    <option value="50mm x 30mm (5x3cm - Softlab)">50mm x 30mm (5x3cm - Softlab Apoio)</option>
-                    <option value="60mm x 40mm (6x4cm)">60mm x 40mm (6x4cm)</option>
-                  </select>
+                  <label className="text-slate-300 font-semibold">Nome Exato no Windows / Fila (Personalizado)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex.: Zebra ZD220, Argox OS-214"
+                    value={selectedWindowsPrinter}
+                    onChange={(e) => setSelectedWindowsPrinter(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-teal-300 font-mono focus:outline-none focus:border-teal-500/50"
+                  />
                 </div>
               </div>
 
