@@ -949,13 +949,15 @@ export default function MidwayLabDashboard() {
   };
 
   const handleToggleSelectAllLogs = (visibleLogsList: any[]) => {
-    const visibleIds = visibleLogsList.map(l => l.id);
-    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedLogIds.includes(id));
+    // Checkbox selection is ONLY for IDA logs (Etiquetas EPL de Amostras)
+    const idaLogs = visibleLogsList.filter(l => l.tipo.includes("IDA"));
+    const idaIds = idaLogs.map(l => l.id);
+    const allSelected = idaIds.length > 0 && idaIds.every(id => selectedLogIds.includes(id));
 
     if (allSelected) {
-      setSelectedLogIds(prev => prev.filter(id => !visibleIds.includes(id)));
+      setSelectedLogIds(prev => prev.filter(id => !idaIds.includes(id)));
     } else {
-      setSelectedLogIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+      setSelectedLogIds(prev => Array.from(new Set([...prev, ...idaIds])));
     }
   };
 
@@ -2886,12 +2888,12 @@ export default function MidwayLabDashboard() {
                         <input
                           type="checkbox"
                           checked={
-                            logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).length > 0 &&
-                            logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).every(l => selectedLogIds.includes(l.id))
+                            logs.filter(l => (logFilterDirection === "TODOS" || l.tipo.includes(logFilterDirection)) && l.tipo.includes("IDA")).length > 0 &&
+                            logs.filter(l => (logFilterDirection === "TODOS" || l.tipo.includes(logFilterDirection)) && l.tipo.includes("IDA")).every(l => selectedLogIds.includes(l.id))
                           }
                           onChange={() => handleToggleSelectAllLogs(logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)))}
                           className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
-                          title="Marcar / Desmarcar Todos para Impressão"
+                          title="Marcar / Desmarcar Todas as Etiquetas de IDA para Impressão"
                         />
                       </th>
                       <th className="py-3.5 px-5">ID / Horário</th>
@@ -2909,12 +2911,17 @@ export default function MidwayLabDashboard() {
                       .map((log) => (
                       <tr key={log.id} className={`hover:bg-slate-800/30 transition ${selectedLogIds.includes(log.id) ? "bg-teal-500/10" : ""}`}>
                         <td className="py-4 px-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedLogIds.includes(log.id)}
-                            onChange={() => handleToggleSelectLog(log.id)}
-                            className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
-                          />
+                          {log.tipo.includes("IDA") ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedLogIds.includes(log.id)}
+                              onChange={() => handleToggleSelectLog(log.id)}
+                              className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+                              title="Marcar para Impressão de Etiqueta EPL"
+                            />
+                          ) : (
+                            <span className="text-slate-600 font-mono text-[10px]">—</span>
+                          )}
                         </td>
                         <td className="py-4 px-5 font-mono text-xs">
                           <span className="font-bold text-slate-200">{log.id}</span>
@@ -3425,12 +3432,12 @@ export default function MidwayLabDashboard() {
                           <input
                             type="checkbox"
                             checked={
-                              logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).length > 0 &&
-                              logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).every(l => selectedLogIds.includes(l.id))
+                              logs.filter(l => (logFilterDirection === "TODOS" || l.tipo.includes(logFilterDirection)) && l.tipo.includes("IDA")).length > 0 &&
+                              logs.filter(l => (logFilterDirection === "TODOS" || l.tipo.includes(logFilterDirection)) && l.tipo.includes("IDA")).every(l => selectedLogIds.includes(l.id))
                             }
                             onChange={() => handleToggleSelectAllLogs(logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)))}
                             className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
-                            title="Marcar / Desmarcar Todos para Impressão"
+                            title="Marcar / Desmarcar Todas as Etiquetas de IDA para Impressão"
                           />
                         </th>
                         <th className="py-3.5 px-5">ID / Horário</th>
@@ -3455,12 +3462,17 @@ export default function MidwayLabDashboard() {
                         .map((log) => (
                           <tr key={log.id} className={`hover:bg-slate-800/40 transition ${selectedLogIds.includes(log.id) ? "bg-teal-500/10" : ""}`}>
                             <td className="py-3.5 px-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={selectedLogIds.includes(log.id)}
-                                onChange={() => handleToggleSelectLog(log.id)}
-                                className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
-                              />
+                              {log.tipo.includes("IDA") ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLogIds.includes(log.id)}
+                                  onChange={() => handleToggleSelectLog(log.id)}
+                                  className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+                                  title="Marcar para Impressão de Etiqueta EPL"
+                                />
+                              ) : (
+                                <span className="text-slate-600 font-mono text-[10px]">—</span>
+                              )}
                             </td>
                             <td className="py-3.5 px-5 font-mono text-xs">
                               <span className="font-bold text-teal-400 block">{log.id}</span>
