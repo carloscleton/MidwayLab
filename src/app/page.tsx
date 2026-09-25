@@ -2205,8 +2205,8 @@ export default function MidwayLabDashboard() {
         </div>
       </header>
 
-      {/* Navigation Sub-Header Tabs (Role-Filtered) */}
-      <div className="border-b border-slate-800 bg-slate-900/40 px-6 py-2 flex items-center justify-between overflow-x-auto">
+      {/* Navigation Sub-Header Tabs (Role-Filtered & Sticky Fixed on Scroll) */}
+      <div className="sticky top-[61px] z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md px-6 py-2 flex items-center justify-between overflow-x-auto shadow-lg">
         <nav className="flex items-center gap-2">
           {/* TAB 1: DE-PARA (Visible to All) */}
           <button
