@@ -126,26 +126,36 @@ export class DeparaService {
 
 
   /**
-   * Limpa exames antigos/fakes duplicados e cadastra a lista limpa e oficial do Softlab no Supabase
-   */
-  static async limparECadastrarLimpoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
-    try {
-      await supabaseBrowser.from('catalogo_softlab_exames').delete().neq('codigo', '___DUMMY___');
-    } catch (e) {
-      console.warn('[DeparaService] Erro ao limpar catálogo anterior:', e);
-    }
-    await this.salvarCatalogoSoftlab(records);
-  }
-
-  /**
-   * Limpa todos os exames da tabela de Catálogo do Softlab no Supabase
+   * Limpa integralmente a tabela de Catálogo do Softlab no Supabase em lotes por ID
    */
   static async limparCatalogoSoftlab(): Promise<void> {
     try {
-      await supabaseBrowser.from('catalogo_softlab_exames').delete().neq('codigo', '___DUMMY___');
+      const { data } = await supabaseBrowser
+        .from('catalogo_softlab_exames')
+        .select('id');
+
+      if (data && data.length > 0) {
+        const ids = data.map((item: any) => item.id).filter(Boolean);
+        const CHUNK_SIZE = 100;
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+          const chunk = ids.slice(i, i + CHUNK_SIZE);
+          await supabaseBrowser
+            .from('catalogo_softlab_exames')
+            .delete()
+            .in('id', chunk);
+        }
+      }
     } catch (e) {
       console.error('[DeparaService] Erro ao limpar catálogo Softlab:', e);
     }
+  }
+
+  /**
+   * Limpa exames antigos/fakes duplicados e cadastra a lista limpa e oficial do Softlab no Supabase
+   */
+  static async limparECadastrarLimpoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
+    await this.limparCatalogoSoftlab();
+    await this.salvarCatalogoSoftlab(records);
   }
 
   /**

@@ -440,7 +440,8 @@ export default function MidwayLabDashboard() {
 
 
     // 3. Refresh catalog directly from Supabase
-    const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+    let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+    dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
     const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac();
     const dbMappings = await DeparaService.listarMapeamentos();
 
@@ -532,7 +533,9 @@ export default function MidwayLabDashboard() {
         const dbMappings = await DeparaService.listarMapeamentos();
 
         // 4. Fetch Softlab Catalog from Supabase Table catalogo_softlab_exames
-        const dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+        let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
+        // Filter out any legacy fake suffix records (_0108, _0128, etc)
+        dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
         if (dbSoftlabCatalog.length > 0) {
           const mappedCatalog = dbSoftlabCatalog.map(item => ({
             codigo: item.codigo,
