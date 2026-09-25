@@ -938,6 +938,47 @@ export default function MidwayLabDashboard() {
   const [selectedPayloadLog, setSelectedPayloadLog] = useState<any | null>(null);
   const [selectedPdfLog, setSelectedPdfLog] = useState<any | null>(null);
 
+  // Log Selection & Batch Printing States
+  const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
+
+  // BATCH PRINTING SELECTION HANDLERS
+  const handleToggleSelectLog = (id: string) => {
+    setSelectedLogIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAllLogs = (visibleLogsList: any[]) => {
+    const visibleIds = visibleLogsList.map(l => l.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedLogIds.includes(id));
+
+    if (allSelected) {
+      setSelectedLogIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      setSelectedLogIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleBatchPrintLabels = () => {
+    if (selectedLogIds.length === 0) return;
+    const selectedLogsList = logs.filter(l => selectedLogIds.includes(l.id));
+    const firstEplLog = selectedLogsList.find(l => l.tipo.includes("IDA")) || selectedLogsList[0];
+
+    setSelectedLabelData({
+      protocolo: `${selectedLogIds.length} ETIQUETAS EM LOTE`,
+      paciente: `LOTE DE IMPRESSÃO (${selectedLogIds.length} PACIENTES)`,
+      exames: selectedLogsList.map(l => l.exames).join(", "),
+      tubo: "TUBOS DE AMOSTRAS SELECIONADOS",
+      codigoBarras: `BAR_LOTE_${Date.now().toString().slice(-6)}`,
+      eplCode: selectedLogsList.map((l, idx) => 
+        `N\nq500\nQ300,24\nB50,20,0,1,2,6,100,B,"BAR_${l.protocolo}_${idx+1}"\nA50,140,0,3,1,1,N,"${l.protocolo} - ${l.paciente}"\nA50,170,0,2,1,1,N,"EXAMES: ${l.exames}"\nP1`
+      ).join("\n\n")
+    });
+
+    showNotification(`🖨️ ${selectedLogIds.length} etiquetas selecionadas! Preparando lote de impressão EPL para '${selectedWindowsPrinter}'...`);
+    setActiveWorkflowModal("epl");
+  };
+
   // Tenant Grid View & Search states
   const [tenantViewMode, setTenantViewMode] = useState<"grid" | "cards">("grid");
   const [searchTenantsText, setSearchTenantsText] = useState("");
@@ -2841,6 +2882,18 @@ export default function MidwayLabDashboard() {
                 <table className="w-full text-left text-sm text-slate-300">
                   <thead className="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
                     <tr>
+                      <th className="py-3.5 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).length > 0 &&
+                            logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).every(l => selectedLogIds.includes(l.id))
+                          }
+                          onChange={() => handleToggleSelectAllLogs(logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)))}
+                          className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+                          title="Marcar / Desmarcar Todos para Impressão"
+                        />
+                      </th>
                       <th className="py-3.5 px-5">ID / Horário</th>
                       <th className="py-3.5 px-5">Direção</th>
                       <th className="py-3.5 px-5">Laboratório Tenant</th>
@@ -2854,7 +2907,15 @@ export default function MidwayLabDashboard() {
                     {logs
                       .filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection))
                       .map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-800/30 transition">
+                      <tr key={log.id} className={`hover:bg-slate-800/30 transition ${selectedLogIds.includes(log.id) ? "bg-teal-500/10" : ""}`}>
+                        <td className="py-4 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedLogIds.includes(log.id)}
+                            onChange={() => handleToggleSelectLog(log.id)}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+                          />
+                        </td>
                         <td className="py-4 px-5 font-mono text-xs">
                           <span className="font-bold text-slate-200">{log.id}</span>
                           <span className="block text-slate-500">{log.horario}</span>
@@ -3360,6 +3421,18 @@ export default function MidwayLabDashboard() {
                   <table className="w-full text-left text-sm text-slate-300">
                     <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
                       <tr>
+                        <th className="py-3.5 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).length > 0 &&
+                              logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)).every(l => selectedLogIds.includes(l.id))
+                            }
+                            onChange={() => handleToggleSelectAllLogs(logs.filter(log => logFilterDirection === "TODOS" || log.tipo.includes(logFilterDirection)))}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+                            title="Marcar / Desmarcar Todos para Impressão"
+                          />
+                        </th>
                         <th className="py-3.5 px-5">ID / Horário</th>
                         <th className="py-3.5 px-5">Direção</th>
                         <th className="py-3.5 px-5">Laboratório Tenant</th>
@@ -3380,7 +3453,15 @@ export default function MidwayLabDashboard() {
                           log.exames.toLowerCase().includes(searchLogsText.toLowerCase())
                         )
                         .map((log) => (
-                          <tr key={log.id} className="hover:bg-slate-800/40 transition">
+                          <tr key={log.id} className={`hover:bg-slate-800/40 transition ${selectedLogIds.includes(log.id) ? "bg-teal-500/10" : ""}`}>
+                            <td className="py-3.5 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedLogIds.includes(log.id)}
+                                onChange={() => handleToggleSelectLog(log.id)}
+                                className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+                              />
+                            </td>
                             <td className="py-3.5 px-5 font-mono text-xs">
                               <span className="font-bold text-teal-400 block">{log.id}</span>
                               <span className="text-[11px] text-slate-500">{log.horario}</span>
@@ -5126,6 +5207,33 @@ P1`}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* FLOATING BATCH PRINTING ACTION BAR */}
+      {selectedLogIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md border border-teal-500/50 px-5 py-3.5 rounded-2xl shadow-2xl shadow-teal-500/30 flex items-center gap-4 text-xs">
+          <span className="font-bold text-slate-100 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-teal-400" />
+            <span className="text-teal-300 font-mono font-bold text-sm">{selectedLogIds.length}</span>
+            {selectedLogIds.length === 1 ? 'etiqueta selecionada' : 'etiquetas selecionadas'}
+          </span>
+
+          <button
+            type="button"
+            onClick={handleBatchPrintLabels}
+            className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-lg shadow-teal-500/20 cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-slate-950" /> 🖨️ Imprimir Selecionadas em Lote
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedLogIds([])}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-xl transition cursor-pointer"
+          >
+            Desmarcar Tudo
+          </button>
         </div>
       )}
 
