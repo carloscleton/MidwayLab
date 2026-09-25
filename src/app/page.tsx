@@ -1995,14 +1995,24 @@ export default function MidwayLabDashboard() {
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Confirmar Nova Senha</label>
-                <input
-                  type={showResetPassword ? "text" : "password"}
-                  required
-                  placeholder="••••••••"
-                  value={resetConfirmPassword}
-                  onChange={(e) => setResetConfirmPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                />
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -4805,14 +4815,24 @@ P1`}
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Confirmar Nova Senha</label>
-                <input
-                  type={showResetPassword ? "text" : "password"}
-                  required
-                  placeholder="••••••••"
-                  value={resetConfirmPassword}
-                  onChange={(e) => setResetConfirmPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                />
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
