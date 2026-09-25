@@ -126,6 +126,18 @@ export class DeparaService {
 
 
   /**
+   * Limpa exames antigos/fakes duplicados e cadastra a lista limpa e oficial do Softlab no Supabase
+   */
+  static async limparECadastrarLimpoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
+    try {
+      await supabaseBrowser.from('catalogo_softlab_exames').delete().neq('codigo', '___DUMMY___');
+    } catch (e) {
+      console.warn('[DeparaService] Erro ao limpar catálogo anterior:', e);
+    }
+    await this.salvarCatalogoSoftlab(records);
+  }
+
+  /**
    * Limpa todos os exames da tabela de Catálogo do Softlab no Supabase
    */
   static async limparCatalogoSoftlab(): Promise<void> {
