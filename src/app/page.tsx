@@ -123,10 +123,17 @@ export default function MidwayLabDashboard() {
   const [currentUser, setCurrentUser] = useState<IUserItem | null>(null);
 
   // Login & Registration Forms State
-  const [loginTab, setLoginTab] = useState<"login" | "solicitar">("login");
+  const [loginTab, setLoginTab] = useState<"login" | "solicitar" | "trocarSenha">("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Password Reset Form States
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Self-Registration Form State ("Solicitar Acesso")
   const [requestFormData, setRequestFormData] = useState({
@@ -714,6 +721,44 @@ export default function MidwayLabDashboard() {
     showNotification(`📩 E-mail de notificação enviado para carloscleton.nat@gmail.com! Nova solicitação de cadastro do '${newReq.nomeLab}' aguardando aprovação.`);
   };
 
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = resetEmail.trim().toLowerCase();
+    if (!cleanEmail) {
+      showNotification("⚠️ Por favor, informe o e-mail cadastrado.");
+      return;
+    }
+    if (!resetNewPassword || resetNewPassword.length < 3) {
+      showNotification("⚠️ A nova senha precisa ter pelo menos 3 caracteres.");
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      showNotification("⚠️ As senhas não conferem. Verifique a digitação.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const ok = await UserService.atualizarSenha(cleanEmail, resetNewPassword);
+      if (ok) {
+        setUsersList(prev => prev.map(u => u.email.toLowerCase() === cleanEmail ? { ...u, senha: resetNewPassword } : u));
+        showNotification(`🔑 Senha de '${cleanEmail}' redefinida com sucesso no Supabase! Você já pode entrar.`);
+        setLoginEmail(cleanEmail);
+        setLoginPassword(resetNewPassword);
+        setLoginTab("login");
+        setResetNewPassword("");
+        setResetConfirmPassword("");
+        setIsChangePasswordModalOpen(false);
+      } else {
+        showNotification("⚠️ Não foi possível alterar a senha. Verifique se o e-mail está correto.");
+      }
+    } catch {
+      showNotification("❌ Erro ao redefinir a senha.");
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   const handleApproveRequest = async (req: typeof pendingRequests[0]) => {
     let savedTenantId = String(Date.now());
     try {
@@ -874,9 +919,10 @@ export default function MidwayLabDashboard() {
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Catalog Saving & API Sync States
+  // Catalog Saving & API Sync & Modal States
   const [isSavingCatalogToDb, setIsSavingCatalogToDb] = useState(false);
   const [hasUnsavedApiChanges, setHasUnsavedApiChanges] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
   const showNotification = (msg: string) => {
     setToastMessage(msg);
@@ -1687,29 +1733,40 @@ export default function MidwayLabDashboard() {
             </div>
           </div>
 
-          {/* Login / Self-Registration Tabs */}
-          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800/80 text-xs">
+          {/* Login / Self-Registration / Password Reset Tabs */}
+          <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800/80 text-xs">
             <button
               type="button"
               onClick={() => setLoginTab("login")}
-              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
+              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                 loginTab === "login"
                   ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              <Lock className="w-3.5 h-3.5" /> Entrar na Conta
+              <Lock className="w-3.5 h-3.5" /> Entrar
             </button>
             <button
               type="button"
               onClick={() => setLoginTab("solicitar")}
-              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
+              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                 loginTab === "solicitar"
                   ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              <UserPlus className="w-3.5 h-3.5" /> Solicitar Acesso
+              <UserPlus className="w-3.5 h-3.5" /> Solicitar
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginTab("trocarSenha")}
+              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                loginTab === "trocarSenha"
+                  ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Key className="w-3.5 h-3.5" /> Mudar Senha
             </button>
           </div>
 
@@ -1738,9 +1795,21 @@ export default function MidwayLabDashboard() {
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-slate-400 font-semibold flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(loginEmail);
+                      setLoginTab("trocarSenha");
+                    }}
+                    className="text-[11px] text-teal-400 hover:text-teal-300 font-bold transition cursor-pointer"
+                  >
+                    Esqueceu a senha?
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     type={showLoginPassword ? "text" : "password"}
@@ -1882,6 +1951,70 @@ export default function MidwayLabDashboard() {
               </button>
             </form>
           )}
+
+          {/* FORM 3: REDEFINIR / ALTERAR SENHA */}
+          {loginTab === "trocarSenha" && (
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5 text-xs">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span>Informe o e-mail da sua conta e defina a sua nova senha de acesso.</span>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">E-mail Cadastrado</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Ex.: carloscleton.nat@gmail.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nova Senha</label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Confirmar Nova Senha</label>
+                <input
+                  type={showResetPassword ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isResettingPassword}
+                className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 cursor-pointer mt-2"
+              >
+                <Key className="w-4 h-4" />
+                {isResettingPassword ? "Alterando..." : "🔐 Redefinir Minha Senha"}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -1959,7 +2092,7 @@ export default function MidwayLabDashboard() {
             </div>
           </div>
 
-          {/* BOTÃO DA IMPRESSORA DO WINDOWS (AO LADO DO BOTÃO DE SAIR) */}
+          {/* BOTÃO DA IMPRESSORA DO WINDOWS */}
           <button
             type="button"
             onClick={() => setIsPrinterModalOpen(true)}
@@ -1968,6 +2101,22 @@ export default function MidwayLabDashboard() {
           >
             <Printer className="w-4 h-4 text-cyan-400" />
             <span className="hidden sm:inline">Impressora</span>
+          </button>
+
+          {/* BOTÃO MUDAR MINHA SENHA */}
+          <button
+            type="button"
+            onClick={() => {
+              if (currentUser) {
+                setResetEmail(currentUser.email);
+              }
+              setIsChangePasswordModalOpen(true);
+            }}
+            className="p-2 bg-slate-900 hover:bg-teal-500/20 text-slate-300 hover:text-teal-300 border border-slate-800 hover:border-teal-500/40 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold shadow"
+            title="Mudar Minha Senha"
+          >
+            <Key className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Senha</span>
           </button>
 
           <button
@@ -4594,6 +4743,93 @@ P1`}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
                 >
                   <CheckCircle2 className="w-4 h-4 text-slate-950" /> 💾 Salvar Impressora Padrão
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REDEFINIR SENHA DO USUÁRIO LOGADO */}
+      {isChangePasswordModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <Key className="w-5 h-5 text-amber-400" />
+                  Mudar Minha Senha
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Atualize a senha de acesso da sua conta</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsChangePasswordModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">E-mail da Conta</label>
+                <input
+                  type="email"
+                  disabled
+                  value={resetEmail || currentUser?.email || ""}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-400 font-mono text-xs cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nova Senha</label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Confirmar Nova Senha</label>
+                <input
+                  type={showResetPassword ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsChangePasswordModalOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
+                >
+                  <Key className="w-4 h-4 text-slate-950" />
+                  {isResettingPassword ? "Salvando..." : "🔐 Salvar Nova Senha"}
                 </button>
               </div>
             </form>

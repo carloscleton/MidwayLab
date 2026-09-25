@@ -151,4 +151,35 @@ export class UserService {
       return [];
     }
   }
+
+  /**
+   * Atualiza a senha de um usuário no Supabase Auth NATIVO (auth.users) e no public.usuarios
+   */
+  static async atualizarSenha(email: string, novaSenha: string): Promise<boolean> {
+    const cleanEmail = email.trim().toLowerCase();
+    try {
+      // 1. Tenta atualizar no Supabase Auth Nativo
+      try {
+        await supabaseBrowser.auth.updateUser({ password: novaSenha });
+      } catch (authErr) {
+        console.warn('[UserService] Update auth.users warning:', authErr);
+      }
+
+      // 2. Atualiza na tabela public.usuarios
+      const { error } = await supabaseBrowser
+        .from('usuarios')
+        .update({ senha: novaSenha })
+        .eq('email', cleanEmail);
+
+      if (error) {
+        console.error('[UserService] Erro ao atualizar senha em public.usuarios:', error);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('[UserService] Erro geral ao atualizar senha:', err);
+      return false;
+    }
+  }
 }
