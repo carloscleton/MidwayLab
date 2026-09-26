@@ -44,6 +44,7 @@ import {
   Link,
   ArrowLeftRight,
   Lock,
+  Unlock,
   LogOut,
   UserCheck,
   UserPlus,
@@ -57,6 +58,15 @@ import {
   Info,
   Printer
 } from "lucide-react";
+
+export interface ISoftlabExamItem {
+  codigo: string;
+  descricao: string;
+  abreviacao: string;
+  autolacMapped: string;
+  tipo: string;
+  blocked?: boolean;
+}
 
 
 
@@ -1031,23 +1041,23 @@ export default function MidwayLabDashboard() {
   ]);
 
   // Softlab Exam Catalog (Left Side - Full Catalog)
-  const [softlabExames, setSoftlabExames] = useState([
-    { codigo: "T3_SOFT", descricao: "TRIODOTIRONINA T3 DOSAGEM", abreviacao: "T3 DOSAGEM", autolacMapped: "T3", tipo: "PDF" },
-    { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH ULTRA SENSIVEL", abreviacao: "TSH ULTRA", autolacMapped: "TSH", tipo: "ESTRUTURADO" },
-    { codigo: "T4LIVRE", descricao: "TIROXINA LIVRE T4 LIVRE", abreviacao: "T4 LIVRE", autolacMapped: "T4L", tipo: "ESTRUTURADO" },
-    { codigo: "T4TOT", descricao: "TIROXINA TOTAL T4", abreviacao: "T4 TOTAL", autolacMapped: "", tipo: "PDF" },
-    { codigo: "HEMO_FULL", descricao: "HEMOGRAMA COMPLETO COM CONTAGEM DE PLAQUETAS", abreviacao: "HEMOGRAMA", autolacMapped: "HEMO", tipo: "ESTRUTURADO" },
-    { codigo: "5HIAA", descricao: "ACIDO 5 HIDROXI INDOLACETICO (URINA 24H)", abreviacao: "AC 5 OH-INDOLACETICO", autolacMapped: "5HIAA", tipo: "PDF" },
-    { codigo: "GLI_JEJ", descricao: "GLICOSE DOSAGEM EM JEJUM", abreviacao: "GLICOSE", autolacMapped: "GLIC", tipo: "ESTRUTURADO" },
-    { codigo: "2HG", descricao: "GLICOSE (APOS 50G BASAL E 120 MINUTOS), CURVA DE", abreviacao: "2 H APOS GLICOSE", autolacMapped: "2HG", tipo: "PDF" },
-    { codigo: "HB_GLIC", descricao: "HEMOGLOBINA GLICADA HPLC (HB A1C)", abreviacao: "HB GLICADA", autolacMapped: "HB1C", tipo: "ESTRUTURADO" },
-    { codigo: "CREAT_SER", descricao: "CREATININA DOSAGEM SERICA", abreviacao: "CREATININA", autolacMapped: "CREAT", tipo: "ESTRUTURADO" },
-    { codigo: "UREIA_DOS", descricao: "UREIA DOSAGEM SERICA", abreviacao: "UREIA", autolacMapped: "UREIA", tipo: "ESTRUTURADO" },
-    { codigo: "AC_URICO", descricao: "ACIDO URICO DOSAGEM SERICA", abreviacao: "ACIDO URICO", autolacMapped: "URICO", tipo: "ESTRUTURADO" },
-    { codigo: "CHOL_TOT", descricao: "CHOLESTEROL TOTAL", abreviacao: "COLESTEROL", autolacMapped: "CHOLEST", tipo: "PDF" },
-    { codigo: "HDL_CHOL", descricao: "CHOLESTEROL HDL FRACAO", abreviacao: "HDL COLESTEROL", autolacMapped: "HDL", tipo: "ESTRUTURADO" },
-    { codigo: "LDL_CHOL", descricao: "CHOLESTEROL LDL FRACAO", abreviacao: "LDL COLESTEROL", autolacMapped: "LDL", tipo: "ESTRUTURADO" },
-    { codigo: "VLDL_CHOL", descricao: "CHOLESTEROL VLDL FRACAO", abreviacao: "VLDL COLESTEROL", autolacMapped: "", tipo: "PDF" },
+  const [softlabExames, setSoftlabExames] = useState<ISoftlabExamItem[]>([
+    { codigo: "T3_SOFT", descricao: "TRIODOTIRONINA T3 DOSAGEM", abreviacao: "T3 DOSAGEM", autolacMapped: "T3", tipo: "PDF", blocked: false },
+    { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH ULTRA SENSIVEL", abreviacao: "TSH ULTRA", autolacMapped: "TSH", tipo: "PDF", blocked: false },
+    { codigo: "T4LIVRE", descricao: "TIROXINA LIVRE T4 LIVRE", abreviacao: "T4 LIVRE", autolacMapped: "T4L", tipo: "PDF", blocked: false },
+    { codigo: "T4TOT", descricao: "TIROXINA TOTAL T4", abreviacao: "T4 TOTAL", autolacMapped: "", tipo: "PDF", blocked: false },
+    { codigo: "HEMO_FULL", descricao: "HEMOGRAMA COMPLETO COM CONTAGEM DE PLAQUETAS", abreviacao: "HEMOGRAMA", autolacMapped: "HEMO", tipo: "PDF", blocked: false },
+    { codigo: "5HIAA", descricao: "ACIDO 5 HIDROXI INDOLACETICO (URINA 24H)", abreviacao: "AC 5 OH-INDOLACETICO", autolacMapped: "5HIAA", tipo: "PDF", blocked: false },
+    { codigo: "GLI_JEJ", descricao: "GLICOSE DOSAGEM EM JEJUM", abreviacao: "GLICOSE", autolacMapped: "GLIC", tipo: "PDF", blocked: false },
+    { codigo: "2HG", descricao: "GLICOSE (APOS 50G BASAL E 120 MINUTOS), CURVA DE", abreviacao: "2 H APOS GLICOSE", autolacMapped: "2HG", tipo: "PDF", blocked: false },
+    { codigo: "HB_GLIC", descricao: "HEMOGLOBINA GLICADA HPLC (HB A1C)", abreviacao: "HB GLICADA", autolacMapped: "HB1C", tipo: "PDF", blocked: false },
+    { codigo: "CREAT_SER", descricao: "CREATININA DOSAGEM SERICA", abreviacao: "CREATININA", autolacMapped: "CREAT", tipo: "PDF", blocked: false },
+    { codigo: "UREIA_DOS", descricao: "UREIA DOSAGEM SERICA", abreviacao: "UREIA", autolacMapped: "UREIA", tipo: "PDF", blocked: false },
+    { codigo: "AC_URICO", descricao: "ACIDO URICO DOSAGEM SERICA", abreviacao: "ACIDO URICO", autolacMapped: "URICO", tipo: "PDF", blocked: false },
+    { codigo: "CHOL_TOT", descricao: "CHOLESTEROL TOTAL", abreviacao: "COLESTEROL", autolacMapped: "CHOLEST", tipo: "PDF", blocked: false },
+    { codigo: "HDL_CHOL", descricao: "CHOLESTEROL HDL FRACAO", abreviacao: "HDL COLESTEROL", autolacMapped: "HDL", tipo: "PDF", blocked: false },
+    { codigo: "LDL_CHOL", descricao: "CHOLESTEROL LDL FRACAO", abreviacao: "LDL COLESTEROL", autolacMapped: "LDL", tipo: "PDF", blocked: false },
+    { codigo: "VLDL_CHOL", descricao: "CHOLESTEROL VLDL FRACAO", abreviacao: "VLDL COLESTEROL", autolacMapped: "", tipo: "PDF", blocked: false },
     { codigo: "TRIG_SER", descricao: "TRIGLICERIDEOS DOSAGEM SERICA", abreviacao: "TRIGLICERIDES", autolacMapped: "TRIG", tipo: "ESTRUTURADO" },
     { codigo: "TGO_AST", descricao: "TRANSAMINASE GLUTAMICO OXALACETICA (TGO/AST)", abreviacao: "TGO AST", autolacMapped: "TGO", tipo: "ESTRUTURADO" },
     { codigo: "TGP_ALT", descricao: "TRANSAMINASE GLUTAMICO PIRUVICA (TGP/ALT)", abreviacao: "TGP ALT", autolacMapped: "TGP", tipo: "ESTRUTURADO" },
