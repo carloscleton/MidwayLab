@@ -827,8 +827,8 @@ export default function MidwayLabDashboard() {
   const [searchSoftlab, setSearchSoftlab] = useState("");
   const [searchAutolac, setSearchAutolac] = useState("");
 
-  // DE-PARA Status Filter (Default to "mapeados" so mapped exams display first)
-  const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("mapeados");
+  // DE-PARA Status Filter (Default to "pendentes" so unmapped exams display first)
+  const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("pendentes");
 
   // Selection state for Dual Matcher
   const [selectedSoftlabExam, setSelectedSoftlabExam] = useState<any | null>(null);
@@ -1319,15 +1319,25 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  // HELPER: CALCULATE STRING SIMILARITY (0 TO 100)
+  // HELPER: ACCENT-INSENSITIVE TEXT NORMALIZATION (cálcio = calcio)
+  const normalizeText = (text: string): string => {
+    if (!text) return "";
+    return String(text)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  };
+
+  // HELPER: CALCULATE ACCENT-INSENSITIVE STRING SIMILARITY (0 TO 100)
   const calculateExamSimilarity = (softlabExam: any, autolacExam: any): number => {
     if (!softlabExam || !autolacExam) return 0;
-    const softCode = (softlabExam.codigo || "").toUpperCase().trim();
-    const softDesc = (softlabExam.descricao || "").toUpperCase().trim();
-    const autCode = (autolacExam.codigo || "").toUpperCase().trim();
-    const autNome = (autolacExam.nome || "").toUpperCase().trim();
+    const softCode = normalizeText(softlabExam.codigo);
+    const softDesc = normalizeText(softlabExam.descricao);
+    const autCode = normalizeText(autolacExam.codigo);
+    const autNome = normalizeText(autolacExam.nome);
 
-    if (softCode === autCode || softlabExam.autolacMapped === autCode) return 100;
+    if (softCode === autCode || normalizeText(softlabExam.autolacMapped) === autCode) return 100;
     if (softDesc === autNome) return 98;
     if (softCode.includes(autCode) || autCode.includes(softCode)) return 90;
     if (softDesc.includes(autNome) || autNome.includes(softDesc)) return 85;
@@ -1799,12 +1809,15 @@ export default function MidwayLabDashboard() {
     setMappingExamModal(null);
   };
 
-  // Filtered Softlab List with Bidirectional Smart Similarity Ranking
+  // Filtered Softlab List with Accent-Insensitive Search & Bidirectional Smart Similarity Ranking
   const filteredSoftlabExames = softlabExames
     .filter(e => {
-      const matchesSearch = e.codigo.toLowerCase().includes(searchSoftlab.toLowerCase()) || 
-        e.descricao.toLowerCase().includes(searchSoftlab.toLowerCase()) ||
-        e.autolacMapped.toLowerCase().includes(searchSoftlab.toLowerCase());
+      const searchClean = normalizeText(searchSoftlab);
+      const matchesSearch =
+        normalizeText(e.codigo).includes(searchClean) || 
+        normalizeText(e.descricao).includes(searchClean) ||
+        normalizeText(e.abreviacao).includes(searchClean) ||
+        normalizeText(e.autolacMapped).includes(searchClean);
       
       if (deparaFilter === "mapeados") return matchesSearch && Boolean(e.autolacMapped);
       if (deparaFilter === "pendentes") return matchesSearch && !Boolean(e.autolacMapped);
@@ -1821,12 +1834,15 @@ export default function MidwayLabDashboard() {
       return a.codigo.localeCompare(b.codigo);
     });
 
-  // Filtered Autolac List with Smart Similarity Ranking
+  // Filtered Autolac List with Accent-Insensitive Search & Smart Similarity Ranking
   const filteredAutolacCatalog = autolacCatalog
-    .filter(a =>
-      a.codigo.toLowerCase().includes(searchAutolac.toLowerCase()) ||
-      a.nome.toLowerCase().includes(searchAutolac.toLowerCase())
-    )
+    .filter(a => {
+      const searchClean = normalizeText(searchAutolac);
+      return (
+        normalizeText(a.codigo).includes(searchClean) ||
+        normalizeText(a.nome).includes(searchClean)
+      );
+    })
     .map(a => ({
       ...a,
       similarity: selectedSoftlabExam ? calculateExamSimilarity(selectedSoftlabExam, a) : 0
@@ -4643,11 +4659,14 @@ P1`}
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
                   {softlabExames
                     .filter(e => Boolean(e.autolacMapped))
-                    .filter(e =>
-                      e.codigo.toLowerCase().includes(searchMappedModal.toLowerCase()) ||
-                      e.descricao.toLowerCase().includes(searchMappedModal.toLowerCase()) ||
-                      e.autolacMapped.toLowerCase().includes(searchMappedModal.toLowerCase())
-                    )
+                    .filter(e => {
+                      const searchClean = normalizeText(searchMappedModal);
+                      return (
+                        normalizeText(e.codigo).includes(searchClean) ||
+                        normalizeText(e.descricao).includes(searchClean) ||
+                        normalizeText(e.autolacMapped).includes(searchClean)
+                      );
+                    })
                     .map((exam) => (
                       <tr key={exam.codigo} className="hover:bg-slate-800/40 transition">
                         <td className="py-3 px-4 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
