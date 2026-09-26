@@ -6,62 +6,121 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { softlabLogin, softlabSenha, softlabBaseUrl } = body;
 
-    const login = softlabLogin || "carloscleton.nat@gmail.com";
-    const senha = softlabSenha || "Carlos@2026";
+    const login = softlabLogin || "yorod23826@gicont.com";
+    const senha = softlabSenha || "Smt@2026";
     const targetUrl = (softlabBaseUrl && softlabBaseUrl.startsWith('http'))
       ? softlabBaseUrl.replace(/\/$/, '')
       : 'http://apoio.softlabsolucoes.com.br';
 
-    console.log(`[Softlab Catalog API] Buscando catálogo oficial do Softlab em ${targetUrl}/api/TipoDeExame...`);
+    console.log(`[Softlab Catalog API] Conectando com login '${login}' em ${targetUrl}/api/Autenticacao/autenticar...`);
 
     let token = "";
     try {
       const authRes = await axios.post(
         `${targetUrl}/api/Autenticacao/autenticar`,
         { login, senha },
-        { timeout: 8000 }
+        { timeout: 10000 }
       );
       if (authRes.data && authRes.data.token) {
         token = authRes.data.token;
       }
     } catch (authErr: any) {
-      console.warn(`[Softlab Catalog API] Falha na autenticação JWT em ${targetUrl}:`, authErr.message);
+      console.warn(`[Softlab Catalog API] Falha na autenticação JWT (${login}):`, authErr.response?.data || authErr.message);
     }
 
     if (token) {
+      let allExamsRaw: any[] = [];
+
+      // 1. Tativa 1: Fetch completo com limites altos
       try {
-        const catalogRes = await axios.get(`${targetUrl}/api/TipoDeExame`, {
+        const resFull = await axios.get(`${targetUrl}/api/TipoDeExame`, {
           headers: { Authorization: `Bearer ${token}` },
-          timeout: 10000
+          params: { limite: 10000, pageSize: 10000, tamanhoPagina: 10000, take: 10000, limit: 10000 },
+          timeout: 15000
         });
 
-        if (Array.isArray(catalogRes.data) && catalogRes.data.length > 0) {
-          const mappedFromApi = catalogRes.data.map((item: any) => ({
-            codigo: String(item.codigo || item.codigoExame || item.id || 'EXAME').trim(),
-            descricao: String(item.descricao || item.nome || item.descricaoExame || item.codigo).trim(),
-            abreviacao: String(item.abreviacao || item.sigla || item.codigo).trim(),
-            tipo: String(item.tipoResultado || item.tipo || item.formato || 'ESTRUTURADO').trim()
-          }));
-
-          // Deduplicate by uppercase code
-          const uniqueMap = new Map<string, any>();
-          mappedFromApi.forEach(ex => {
-            const cleanCode = ex.codigo.toUpperCase();
-            if (!uniqueMap.has(cleanCode)) {
-              uniqueMap.set(cleanCode, ex);
-            }
-          });
-
-          const cleanList = Array.from(uniqueMap.values());
-          console.log(`[Softlab Catalog API] Retornando ${cleanList.length} exames únicos do servidor REST Softlab.`);
-          return NextResponse.json({ success: true, exams: cleanList, source: 'API_SOFTLAB_REST' });
+        if (Array.isArray(resFull.data) && resFull.data.length > 0) {
+          allExamsRaw = resFull.data;
+        } else if (resFull.data && Array.isArray(resFull.data.items)) {
+          allExamsRaw = resFull.data.items;
+        } else if (resFull.data && Array.isArray(resFull.data.dados)) {
+          allExamsRaw = resFull.data.dados;
+        } else if (resFull.data && Array.isArray(resFull.data.tiposDeExames)) {
+          allExamsRaw = resFull.data.tiposDeExames;
         }
-      } catch (catErr: any) {
-        console.warn(`[Softlab Catalog API] Falha ao consultar GET /api/TipoDeExame:`, catErr.message);
+      } catch (err: any) {
+        console.warn("[Softlab Catalog API] Consulta direta /api/TipoDeExame respondeu com limite padrão:", err.message);
+      }
+
+      // 2. Tentativa 2: Loop de Paginação (páginas 1 a 50) para garantir extração de todos os 1000+ exames
+      if (allExamsRaw.length < 500) {
+        let page = 1;
+        let hasMore = true;
+        const pageExams: any[] = [];
+
+        while (hasMore && page <= 50) {
+          try {
+            const resPage = await axios.get(`${targetUrl}/api/TipoDeExame`, {
+              headers: { Authorization: `Bearer ${token}` },
+              params: { pagina: page, page: page, tamanhoPagina: 100, pageSize: 100, limit: 100 },
+              timeout: 6000
+            });
+
+            const list = Array.isArray(resPage.data)
+              ? resPage.data
+              : (resPage.data?.items || resPage.data?.dados || resPage.data?.conteudo || resPage.data?.exames || []);
+
+            if (Array.isArray(list) && list.length > 0) {
+              pageExams.push(...list);
+              if (list.length < 100) {
+                hasMore = false;
+              } else {
+                page++;
+              }
+            } else {
+              hasMore = false;
+            }
+          } catch {
+            hasMore = false;
+          }
+        }
+
+        if (pageExams.length > allExamsRaw.length) {
+          allExamsRaw = pageExams;
+        }
+      }
+
+      // 3. Processamento e Mapeamento dos Exames Retornados
+      if (allExamsRaw.length > 0) {
+        const mappedFromApi = allExamsRaw.map((item: any) => ({
+          codigo: String(item.codigo || item.codigoExame || item.id || item.codigoSoftlab || 'EXAME').trim(),
+          descricao: String(item.descricao || item.nome || item.descricaoExame || item.codigo || 'EXAME SOFTLAB').trim(),
+          abreviacao: String(item.abreviacao || item.sigla || item.codigo || '').trim(),
+          tipo: String(item.tipoResultado || item.tipo || item.formato || 'ESTRUTURADO').trim()
+        }));
+
+        // Deduplicação por código em maiúsculas
+        const uniqueMap = new Map<string, any>();
+        mappedFromApi.forEach(ex => {
+          const cleanCode = ex.codigo.toUpperCase();
+          if (!uniqueMap.has(cleanCode) && ex.codigo !== 'EXAME') {
+            uniqueMap.set(cleanCode, ex);
+          }
+        });
+
+        const cleanList = Array.from(uniqueMap.values());
+        console.log(`[Softlab Catalog API] Sucesso! ${cleanList.length} exames únicos extraídos da API REST do Softlab (${login}).`);
+        return NextResponse.json({
+          success: true,
+          exams: cleanList,
+          total: cleanList.length,
+          source: 'API_REST_SOFTLAB_OFFICIAL',
+          loginUsed: login
+        });
       }
     }
 
-    // Comprehensive Fallback with authentic Softlab exam catalog
+    // Fallback completo com catálogo oficial
     const fallbackExams = [
       { codigo: "HEMO_FULL", descricao: "HEMOGRAMA COMPLETO COM CONTAGEM DE PLAQUETAS", abreviacao: "HEMOGRAMA", tipo: "ESTRUTURADO" },
       { codigo: "GLI_JEJ", descricao: "GLICOSE DOSAGEM EM JEJUM", abreviacao: "GLICOSE", tipo: "ESTRUTURADO" },

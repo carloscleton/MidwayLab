@@ -290,9 +290,9 @@ export default function MidwayLabDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          softlabLogin: activeTenantObj?.softlabLogin || "carloscleton.nat@gmail.com",
-          softlabSenha: activeTenantObj?.softlabSenha || "Carlos@2026",
-          softlabBaseUrl: "http://apoio.softlabsolucoes.com.br"
+          softlabLogin: activeTenantObj?.softlabLogin || "yorod23826@gicont.com",
+          softlabSenha: activeTenantObj?.softlabSenha || "Smt@2026",
+          softlabBaseUrl: activeTenantObj?.wsUrl || "http://apoio.softlabsolucoes.com.br"
         })
       });
 
