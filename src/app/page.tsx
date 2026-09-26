@@ -1360,6 +1360,24 @@ export default function MidwayLabDashboard() {
     }
   };
 
+  // SMART SELECTION HANDLER FOR AUTOLAC EXAM PANEL (BIDIRECTIONAL)
+  const handleSelectAutolacExam = (exam: any) => {
+    setSelectedAutolacExam(exam);
+
+    const rankedSoftlab = softlabExames
+      .map(softItem => ({
+        ...softItem,
+        similarity: calculateExamSimilarity(softItem, exam)
+      }))
+      .sort((a, b) => b.similarity - a.similarity);
+
+    if (rankedSoftlab.length > 0 && rankedSoftlab[0].similarity >= 30) {
+      setSelectedSoftlabExam(rankedSoftlab[0]);
+    } else {
+      setSelectedSoftlabExam(null);
+    }
+  };
+
   // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (SOFTLAB ↔ AUTOLAC)
   const handleLinkSelectedPair = async () => {
     if (!selectedSoftlabExam || !selectedAutolacExam) {
@@ -1781,16 +1799,27 @@ export default function MidwayLabDashboard() {
     setMappingExamModal(null);
   };
 
-  // Filtered Softlab List
-  const filteredSoftlabExames = softlabExames.filter(e => {
-    const matchesSearch = e.codigo.toLowerCase().includes(searchSoftlab.toLowerCase()) || 
-      e.descricao.toLowerCase().includes(searchSoftlab.toLowerCase()) ||
-      e.autolacMapped.toLowerCase().includes(searchSoftlab.toLowerCase());
-    
-    if (deparaFilter === "mapeados") return matchesSearch && Boolean(e.autolacMapped);
-    if (deparaFilter === "pendentes") return matchesSearch && !Boolean(e.autolacMapped);
-    return matchesSearch;
-  });
+  // Filtered Softlab List with Bidirectional Smart Similarity Ranking
+  const filteredSoftlabExames = softlabExames
+    .filter(e => {
+      const matchesSearch = e.codigo.toLowerCase().includes(searchSoftlab.toLowerCase()) || 
+        e.descricao.toLowerCase().includes(searchSoftlab.toLowerCase()) ||
+        e.autolacMapped.toLowerCase().includes(searchSoftlab.toLowerCase());
+      
+      if (deparaFilter === "mapeados") return matchesSearch && Boolean(e.autolacMapped);
+      if (deparaFilter === "pendentes") return matchesSearch && !Boolean(e.autolacMapped);
+      return matchesSearch;
+    })
+    .map(e => ({
+      ...e,
+      similarity: selectedAutolacExam ? calculateExamSimilarity(e, selectedAutolacExam) : 0
+    }))
+    .sort((a, b) => {
+      if (selectedAutolacExam) {
+        return b.similarity - a.similarity;
+      }
+      return a.codigo.localeCompare(b.codigo);
+    });
 
   // Filtered Autolac List with Smart Similarity Ranking
   const filteredAutolacCatalog = autolacCatalog
@@ -2561,50 +2590,80 @@ export default function MidwayLabDashboard() {
 
             {/* DUAL MATCHING SPLIT VIEW PANEL */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* LEFT PANEL: SOFTLAB LIST */}
+              {/* LEFT PANEL: SOFTLAB LIST (BIDIRECTIONAL SMART RANKED) */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
-                <p className="text-[11px] text-slate-400 font-semibold mb-2">1. Selecione um exame do Softlab Apoio:</p>
-                {filteredSoftlabExames.map((item) => (
-                  <div
-                    key={item.codigo}
-                    onClick={() => handleSelectSoftlabExam(item)}
-                    className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
-                      selectedSoftlabExam?.codigo === item.codigo
-                        ? "bg-teal-500/20 border-teal-500 text-teal-200 font-bold shadow-lg shadow-teal-500/10"
-                        : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
-                    }`}
-                  >
-                    <div>
-                      <span className="font-mono text-xs font-bold text-teal-300 block">{item.codigo}</span>
-                      <span className="font-semibold text-slate-100">{item.descricao}</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] text-slate-400 font-semibold">1. Selecione um exame do Softlab Apoio:</p>
+                  {selectedAutolacExam && (
+                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                      ✨ Ordenado por Similaridade
+                    </span>
+                  )}
+                </div>
+                {filteredSoftlabExames.map((item) => {
+                  const isSelected = selectedSoftlabExam?.codigo === item.codigo;
+                  return (
+                    <div
+                      key={item.codigo}
+                      onClick={() => handleSelectSoftlabExam(item)}
+                      className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                        isSelected
+                          ? "bg-teal-500/20 border-teal-500 text-teal-200 font-bold shadow-lg shadow-teal-500/10"
+                          : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-teal-300">{item.codigo}</span>
+                          {selectedAutolacExam && item.similarity > 0 && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                              ✨ Match {item.similarity}%
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-semibold text-slate-100">{item.descricao}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {selectedAutolacExam && isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLinkSelectedPair();
+                            }}
+                            className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-3 py-1 rounded-lg text-xs shadow-md shadow-teal-500/20 transition flex items-center gap-1 cursor-pointer animate-pulse"
+                            title="Vincular estes dois exames agora"
+                          >
+                            <Zap className="w-3.5 h-3.5" /> Vincular Agora
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenExamDetails(item);
+                          }}
+                          className="text-[10px] text-teal-300 hover:text-teal-100 bg-teal-500/20 hover:bg-teal-500/40 px-2 py-0.5 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer font-bold"
+                          title="Ver Ficha Pré-Analítica (Softlab API)"
+                        >
+                          <Info className="w-3 h-3" /> Detalhes
+                        </button>
+
+                        {item.autolacMapped ? (
+                          <span className="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-bold block">
+                            Mapped: {item.autolacMapped}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            Pendente
+                          </span>
+                        )}
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenExamDetails(item);
-                        }}
-                        className="text-[10px] text-teal-300 hover:text-teal-100 bg-teal-500/20 hover:bg-teal-500/40 px-2 py-0.5 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer font-bold"
-                        title="Ver Ficha Pré-Analítica (Softlab API)"
-                      >
-                        <Info className="w-3 h-3" /> Detalhes
-                      </button>
-
-                      {item.autolacMapped ? (
-                        <span className="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-bold block">
-                          Mapped: {item.autolacMapped}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                          Pendente
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                ))}
+                  );
+                })}
               </div>
 
               {/* RIGHT PANEL: AUTOLAC LIST (SMART RANKED) */}
@@ -2622,7 +2681,7 @@ export default function MidwayLabDashboard() {
                   return (
                     <div
                       key={item.codigo}
-                      onClick={() => setSelectedAutolacExam(item)}
+                      onClick={() => handleSelectAutolacExam(item)}
                       className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
                         isSelected
                           ? "bg-cyan-500/20 border-cyan-500 text-cyan-200 font-bold shadow-lg shadow-cyan-500/10"
