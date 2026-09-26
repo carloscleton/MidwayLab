@@ -1420,6 +1420,10 @@ export default function MidwayLabDashboard() {
       showNotification(`⚡ Vínculo associado com sucesso: ${softlabCode} ↔ ${autolacCode}!`);
     }
 
+    // Clear search inputs upon linking
+    setSearchSoftlab("");
+    setSearchAutolac("");
+
     // Auto-advance to next unmapped Softlab exam!
     const unmappedList = softlabExames.filter(e => !e.autolacMapped && e.codigo !== softlabCode);
     if (unmappedList.length > 0) {
