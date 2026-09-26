@@ -66,7 +66,7 @@ export async function POST(request: Request) {
           codigo: String(item.codigo || item.codigoExame || item.id || item.codigoSoftlab || 'EXAME').trim(),
           descricao: String(item.descricao || item.nome || item.descricaoExame || item.codigo || 'EXAME SOFTLAB').trim(),
           abreviacao: String(item.abreviacao || item.sigla || item.codigo || '').trim(),
-          tipo: String(item.tipoResultado || item.tipo || item.formato || 'ESTRUTURADO').trim()
+          tipo: 'PDF'
         }));
 
         // Deduplicar mantendo cada código de exame único

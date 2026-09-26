@@ -307,8 +307,9 @@ export default function MidwayLabDashboard() {
                 codigo: e.codigo,
                 descricao: e.descricao,
                 abreviacao: e.abreviacao || e.codigo,
-                tipo: e.tipo || "ESTRUTURADO",
-                autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
+                tipo: "PDF",
+                autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : "",
+                blocked: false
               });
             }
           });
@@ -344,7 +345,7 @@ export default function MidwayLabDashboard() {
             codigo: e.codigo,
             descricao: e.descricao,
             abreviacao: e.abreviacao,
-            tipo_resultado: e.tipo
+            tipo_resultado: "PDF"
           });
         }
       });
@@ -373,6 +374,48 @@ export default function MidwayLabDashboard() {
       showNotification("⚠️ Erro ao limpar tabela no Supabase.");
     } finally {
       setIsSavingCatalogToDb(false);
+    }
+  };
+
+  // 4. BLOCK / UNBLOCK EXAM HANDLER
+  const handleToggleBlockExam = (codigoSoftlab: string) => {
+    setSoftlabExames(prev =>
+      prev.map(e => {
+        if (e.codigo === codigoSoftlab) {
+          const isNowBlocked = !e.blocked;
+          showNotification(
+            isNowBlocked
+              ? `🔒 Exame '${e.codigo}' (${e.descricao}) foi BLOQUEADO com sucesso!`
+              : `🔓 Exame '${e.codigo}' (${e.descricao}) foi DESBLOQUEADO!`
+          );
+          return { ...e, blocked: isNowBlocked };
+        }
+        return e;
+      })
+    );
+  };
+
+  // 5. DELETE EXAM / REMOVE MAPPING HANDLER
+  const handleRemoveExamMapping = async (codigoSoftlab: string) => {
+    const examObj = softlabExames.find(e => e.codigo === codigoSoftlab);
+    if (!examObj) return;
+
+    if (confirm(`Tem certeza que deseja apagar o vínculo DE-PARA do exame '${examObj.codigo}' (${examObj.descricao})?`)) {
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      if (activeTenantObj) {
+        await DeparaService.removerMapeamento(activeTenantObj.id, codigoSoftlab);
+      }
+
+      setSoftlabExames(prev =>
+        prev.map(e => {
+          if (e.codigo === codigoSoftlab) {
+            return { ...e, autolacMapped: "" };
+          }
+          return e;
+        })
+      );
+
+      showNotification(`🗑️ Vínculo DE-PARA do exame '${codigoSoftlab}' foi apagado do banco Supabase com sucesso!`);
     }
   };
 
@@ -2630,7 +2673,11 @@ export default function MidwayLabDashboard() {
                             </span>
                           </td>
                           <td className="py-4 px-5">
-                            {exam.autolacMapped ? (
+                            {exam.blocked ? (
+                              <span className="text-xs text-rose-400 font-bold bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-full flex items-center gap-1 w-fit">
+                                <Lock className="w-3.5 h-3.5 text-rose-400" /> Bloqueado
+                              </span>
+                            ) : exam.autolacMapped ? (
                               <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
                               </span>
@@ -2641,14 +2688,41 @@ export default function MidwayLabDashboard() {
                             )}
                           </td>
                           <td className="py-4 px-5 text-right">
-                            <button 
-                              type="button"
-                              onClick={() => handleOpenMapExam(exam)}
-                              className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1.5 rounded-lg transition font-semibold cursor-pointer flex items-center gap-1.5 ml-auto"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                              {exam.autolacMapped ? "Editar Vínculo" : "Relacionar Agora"}
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* 1. EDITAR / MAPEAR */}
+                              <button 
+                                type="button"
+                                onClick={() => handleOpenMapExam(exam)}
+                                className="p-1.5 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-lg transition cursor-pointer"
+                                title={exam.autolacMapped ? "Editar Vínculo DE-PARA" : "Relacionar Exame Agora"}
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* 2. BLOQUEAR / DESBLOQUEAR EXAME */}
+                              <button 
+                                type="button"
+                                onClick={() => handleToggleBlockExam(exam.codigo)}
+                                className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                                  exam.blocked
+                                    ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                                    : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                }`}
+                                title={exam.blocked ? "Desbloquear Exame" : "Bloquear Exame para Integração"}
+                              >
+                                {exam.blocked ? <Lock className="w-3.5 h-3.5 text-rose-400" /> : <Unlock className="w-3.5 h-3.5 text-amber-400" />}
+                              </button>
+
+                              {/* 3. APAGAR / REMOVER VÍNCULO DE-PARA */}
+                              <button 
+                                type="button"
+                                onClick={() => handleRemoveExamMapping(exam.codigo)}
+                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg transition cursor-pointer"
+                                title="Apagar Vínculo DE-PARA do Banco Supabase"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -4428,30 +4502,60 @@ P1`}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
-                            exam.tipo === "ESTRUTURADO"
-                              ? "bg-purple-500/10 text-purple-300 border-purple-500/20"
-                              : "bg-blue-500/10 text-blue-300 border-blue-500/20"
-                          }`}>
-                            {exam.tipo || "PDF"}
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                            PDF
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Mapeado
-                          </span>
+                          {exam.blocked ? (
+                            <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-rose-400" /> Bloqueado
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Mapeado
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsMappedExamsModalOpen(false);
-                              handleOpenMapExam(exam);
-                            }}
-                            className="text-xs bg-slate-800 hover:bg-slate-700 text-teal-300 px-3 py-1.5 rounded-lg transition font-semibold cursor-pointer"
-                          >
-                            Editar
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* 1. EDITAR */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsMappedExamsModalOpen(false);
+                                handleOpenMapExam(exam);
+                              }}
+                              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 rounded-lg transition font-semibold cursor-pointer"
+                              title="Editar Vínculo DE-PARA"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* 2. BLOQUEAR / DESBLOQUEAR */}
+                            <button 
+                              type="button"
+                              onClick={() => handleToggleBlockExam(exam.codigo)}
+                              className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                                exam.blocked
+                                  ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                                  : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
+                              }`}
+                              title={exam.blocked ? "Desbloquear Exame" : "Bloquear Exame para Integração"}
+                            >
+                              {exam.blocked ? <Lock className="w-3.5 h-3.5 text-rose-400" /> : <Unlock className="w-3.5 h-3.5 text-amber-400" />}
+                            </button>
+
+                            {/* 3. APAGAR VÍNCULO */}
+                            <button 
+                              type="button"
+                              onClick={() => handleRemoveExamMapping(exam.codigo)}
+                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg transition cursor-pointer"
+                              title="Apagar Vínculo DE-PARA do Banco Supabase"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

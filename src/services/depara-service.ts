@@ -79,6 +79,21 @@ export class DeparaService {
   }
 
   /**
+   * Remove/Apaga um mapeamento DE-PARA do Supabase
+   */
+  static async removerMapeamento(tenantId: string, codigoSoftlab: string): Promise<void> {
+    try {
+      await supabaseBrowser
+        .from('depara_exames')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('codigo_softlab', codigoSoftlab);
+    } catch (e) {
+      console.error('[DeparaService] Erro ao remover mapeamento:', e);
+    }
+  }
+
+  /**
    * Cadastra ou atualiza uma lista de mapeamentos DE-PARA em Lote no Supabase
    */
   static async salvarMapeamentoEmLote(records: IDeparaExameRecord[]): Promise<void> {
