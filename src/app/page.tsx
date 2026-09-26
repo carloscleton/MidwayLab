@@ -432,15 +432,22 @@ export default function MidwayLabDashboard() {
       { codigo: "GASO", nome: "Gasometria Arterial" }
     ];
 
-    // Official Clean Catalog List (94 authentic unique exams)
-    const cleanList = realExamsToSync.map(e => ({
-      ...e,
-      autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
-    }));
+    // Official Clean Catalog List (Deduplicated by unique code)
+    const uniqueMap = new Map<string, any>();
+    realExamsToSync.forEach(e => {
+      const cleanCode = e.codigo.trim().toUpperCase();
+      if (!uniqueMap.has(cleanCode)) {
+        uniqueMap.set(cleanCode, {
+          ...e,
+          autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
+        });
+      }
+    });
+    const cleanList = Array.from(uniqueMap.values());
     setSoftlabExames(cleanList);
     setHasUnsavedApiChanges(true);
     setIsSyncingSoftlabApi(false);
-    showNotification("✨ 94 Exames oficiais listados na tela. Clique em 'Salvar no Banco (Supabase)' para gravar.");
+    showNotification(`✨ ${cleanList.length} Exames únicos oficiais do Softlab Apoio listados sem duplicados. Clique em 'Salvar no Banco (Supabase)' para gravar.`);
   };
 
   // 2. EXPLICIT SAVE CATALOG TO SUPABASE DATABASE
@@ -449,17 +456,24 @@ export default function MidwayLabDashboard() {
     showNotification("💾 Limpando registros antigos e gravando catálogo único no banco Supabase...");
 
     try {
-      const recordsToSave = softlabExames.map(e => ({
-        codigo: e.codigo,
-        descricao: e.descricao,
-        abreviacao: e.abreviacao,
-        tipo_resultado: e.tipo
-      }));
+      const uniqueRecordsMap = new Map<string, any>();
+      softlabExames.forEach(e => {
+        const cleanCode = e.codigo.trim().toUpperCase();
+        if (!uniqueRecordsMap.has(cleanCode)) {
+          uniqueRecordsMap.set(cleanCode, {
+            codigo: e.codigo,
+            descricao: e.descricao,
+            abreviacao: e.abreviacao,
+            tipo_resultado: e.tipo
+          });
+        }
+      });
+      const recordsToSave = Array.from(uniqueRecordsMap.values());
 
       await DeparaService.limparECadastrarLimpoSoftlab(recordsToSave);
       await DeparaService.salvarCatalogoAutolac(autolacCatalog);
       setHasUnsavedApiChanges(false);
-      showNotification(`✅ Catálogo do Softlab (${softlabExames.length} exames únicos) salvo no Supabase com sucesso!`);
+      showNotification(`✅ Catálogo do Softlab (${recordsToSave.length} exames únicos) salvo no Supabase com sucesso!`);
     } catch {
       showNotification("⚠️ Erro ao gravar catálogo no Supabase.");
     } finally {
@@ -535,54 +549,70 @@ export default function MidwayLabDashboard() {
         // 3. Fetch DE-PARA Mappings
         const dbMappings = await DeparaService.listarMapeamentos();
 
-        // 4. Fetch Softlab Catalog from Supabase Table catalogo_softlab_exames
+        // 4. Fetch Softlab Catalog from Supabase Table catalogo_softlab_exames with Deduplication
         let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
-        // Filter out any legacy fake suffix records (_0108, _0128, etc)
         dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
         if (dbSoftlabCatalog.length > 0) {
-          const mappedCatalog = dbSoftlabCatalog.map(item => ({
-            codigo: item.codigo,
-            descricao: item.descricao,
-            abreviacao: item.abreviacao || item.codigo,
-            autolacMapped: "",
-            tipo: item.tipo_resultado || "PDF"
-          }));
-
-          mappedCatalog.forEach(item => {
-            const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
-            if (found) {
-              item.autolacMapped = found.codigo_autolac;
-              item.tipo = found.tipo_resultado || 'PDF';
+          const uniqueSoftlabMap = new Map<string, any>();
+          dbSoftlabCatalog.forEach(item => {
+            const cleanCode = item.codigo.trim().toUpperCase();
+            if (!uniqueSoftlabMap.has(cleanCode)) {
+              const foundMapping = dbMappings.find(m => m.codigo_softlab === item.codigo);
+              uniqueSoftlabMap.set(cleanCode, {
+                codigo: item.codigo,
+                descricao: item.descricao,
+                abreviacao: item.abreviacao || item.codigo,
+                autolacMapped: foundMapping ? foundMapping.codigo_autolac : "",
+                tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
+              });
             }
           });
-
-          setSoftlabExames(mappedCatalog);
+          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
         } else if (dbMappings.length > 0) {
-          const mappedFromDb = dbMappings.map(m => ({
-            codigo: m.codigo_softlab,
-            descricao: m.descricao_softlab || m.codigo_softlab,
-            abreviacao: m.codigo_softlab,
-            autolacMapped: m.codigo_autolac,
-            tipo: m.tipo_resultado || "PDF"
-          }));
-          setSoftlabExames(mappedFromDb);
+          const uniqueSoftlabMap = new Map<string, any>();
+          dbMappings.forEach(m => {
+            const cleanCode = m.codigo_softlab.trim().toUpperCase();
+            if (!uniqueSoftlabMap.has(cleanCode)) {
+              uniqueSoftlabMap.set(cleanCode, {
+                codigo: m.codigo_softlab,
+                descricao: m.descricao_softlab || m.codigo_softlab,
+                abreviacao: m.codigo_softlab,
+                autolacMapped: m.codigo_autolac,
+                tipo: m.tipo_resultado || "PDF"
+              });
+            }
+          });
+          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
         } else {
           setSoftlabExames([]);
         }
 
-        // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames
+        // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames with Deduplication
         const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac();
         if (dbAutolacCatalog.length > 0) {
-          setAutolacCatalog(dbAutolacCatalog.map(item => ({
-            codigo: item.codigo,
-            nome: item.nome
-          })));
+          const uniqueAutolacMap = new Map<string, any>();
+          dbAutolacCatalog.forEach(item => {
+            const cleanCode = item.codigo.trim().toUpperCase();
+            if (!uniqueAutolacMap.has(cleanCode)) {
+              uniqueAutolacMap.set(cleanCode, {
+                codigo: item.codigo,
+                nome: item.nome
+              });
+            }
+          });
+          setAutolacCatalog(Array.from(uniqueAutolacMap.values()));
         } else if (dbMappings.length > 0) {
-          const mappedAutolacDb = dbMappings.map(m => ({
-            codigo: m.codigo_autolac,
-            nome: m.descricao_autolac || m.codigo_autolac
-          }));
-          setAutolacCatalog(mappedAutolacDb);
+          const uniqueAutolacMap = new Map<string, any>();
+          dbMappings.forEach(m => {
+            const cleanCode = m.codigo_autolac.trim().toUpperCase();
+            if (!uniqueAutolacMap.has(cleanCode)) {
+              uniqueAutolacMap.set(cleanCode, {
+                codigo: m.codigo_autolac,
+                nome: m.descricao_autolac || m.codigo_autolac
+              });
+            }
+          });
+          setAutolacCatalog(Array.from(uniqueAutolacMap.values()));
         } else {
           setAutolacCatalog([]);
         }
