@@ -1319,6 +1319,47 @@ export default function MidwayLabDashboard() {
     }
   };
 
+  // HELPER: CALCULATE STRING SIMILARITY (0 TO 100)
+  const calculateExamSimilarity = (softlabExam: any, autolacExam: any): number => {
+    if (!softlabExam || !autolacExam) return 0;
+    const softCode = (softlabExam.codigo || "").toUpperCase().trim();
+    const softDesc = (softlabExam.descricao || "").toUpperCase().trim();
+    const autCode = (autolacExam.codigo || "").toUpperCase().trim();
+    const autNome = (autolacExam.nome || "").toUpperCase().trim();
+
+    if (softCode === autCode || softlabExam.autolacMapped === autCode) return 100;
+    if (softDesc === autNome) return 98;
+    if (softCode.includes(autCode) || autCode.includes(softCode)) return 90;
+    if (softDesc.includes(autNome) || autNome.includes(softDesc)) return 85;
+
+    const softWords = softDesc.split(/\s+/).filter((w: string) => w.length > 2);
+    const autWords = autNome.split(/\s+/).filter((w: string) => w.length > 2);
+    const commonWords = softWords.filter((w: string) => autWords.includes(w));
+    if (commonWords.length > 0 && softWords.length > 0) {
+      return Math.round((commonWords.length / Math.max(softWords.length, autWords.length)) * 80);
+    }
+
+    return 0;
+  };
+
+  // SMART SELECTION HANDLER FOR SOFTLAB EXAM PANEL
+  const handleSelectSoftlabExam = (exam: any) => {
+    setSelectedSoftlabExam(exam);
+
+    const rankedAutolac = autolacCatalog
+      .map(autItem => ({
+        ...autItem,
+        similarity: calculateExamSimilarity(exam, autItem)
+      }))
+      .sort((a, b) => b.similarity - a.similarity);
+
+    if (rankedAutolac.length > 0 && rankedAutolac[0].similarity >= 30) {
+      setSelectedAutolacExam(rankedAutolac[0]);
+    } else {
+      setSelectedAutolacExam(null);
+    }
+  };
+
   // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (SOFTLAB ↔ AUTOLAC)
   const handleLinkSelectedPair = async () => {
     if (!selectedSoftlabExam || !selectedAutolacExam) {
@@ -1345,14 +1386,20 @@ export default function MidwayLabDashboard() {
         descricao_softlab: selectedSoftlabExam.descricao || softlabCode,
         tipo_resultado: selectedSoftlabExam.tipo || 'PDF'
       });
-      showNotification(`🔗 Vínculo DE-PARA (${softlabCode} ↔ ${autolacCode}) salvo no Supabase com sucesso!`);
+      showNotification(`⚡ Vínculo criado com sucesso: ${softlabCode} (Softlab) ↔ ${autolacCode} (Autolac)!`);
     } catch (err: any) {
       console.warn("Mapeamento salvo localmente:", err.message);
-      showNotification(`🔗 Vínculo DE-PARA (${softlabCode} ↔ ${autolacCode}) associado com sucesso!`);
+      showNotification(`⚡ Vínculo associado com sucesso: ${softlabCode} ↔ ${autolacCode}!`);
     }
 
-    setSelectedSoftlabExam(null);
-    setSelectedAutolacExam(null);
+    // Auto-advance to next unmapped Softlab exam!
+    const unmappedList = softlabExames.filter(e => !e.autolacMapped && e.codigo !== softlabCode);
+    if (unmappedList.length > 0) {
+      handleSelectSoftlabExam(unmappedList[0]);
+    } else {
+      setSelectedSoftlabExam(null);
+      setSelectedAutolacExam(null);
+    }
   };
 
   // DYNAMIC FEATURE 2: AUTO-MAPPER BY SIMILARITY
@@ -1745,11 +1792,22 @@ export default function MidwayLabDashboard() {
     return matchesSearch;
   });
 
-  // Filtered Autolac List
-  const filteredAutolacCatalog = autolacCatalog.filter(a =>
-    a.codigo.toLowerCase().includes(searchAutolac.toLowerCase()) ||
-    a.nome.toLowerCase().includes(searchAutolac.toLowerCase())
-  );
+  // Filtered Autolac List with Smart Similarity Ranking
+  const filteredAutolacCatalog = autolacCatalog
+    .filter(a =>
+      a.codigo.toLowerCase().includes(searchAutolac.toLowerCase()) ||
+      a.nome.toLowerCase().includes(searchAutolac.toLowerCase())
+    )
+    .map(a => ({
+      ...a,
+      similarity: selectedSoftlabExam ? calculateExamSimilarity(selectedSoftlabExam, a) : 0
+    }))
+    .sort((a, b) => {
+      if (selectedSoftlabExam) {
+        return b.similarity - a.similarity;
+      }
+      return a.codigo.localeCompare(b.codigo);
+    });
 
   // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
   if (!currentUser) {
@@ -2509,7 +2567,7 @@ export default function MidwayLabDashboard() {
                 {filteredSoftlabExames.map((item) => (
                   <div
                     key={item.codigo}
-                    onClick={() => setSelectedSoftlabExam(item)}
+                    onClick={() => handleSelectSoftlabExam(item)}
                     className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
                       selectedSoftlabExam?.codigo === item.codigo
                         ? "bg-teal-500/20 border-teal-500 text-teal-200 font-bold shadow-lg shadow-teal-500/10"
@@ -2549,27 +2607,59 @@ export default function MidwayLabDashboard() {
                 ))}
               </div>
 
-              {/* RIGHT PANEL: AUTOLAC LIST */}
+              {/* RIGHT PANEL: AUTOLAC LIST (SMART RANKED) */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
-                <p className="text-[11px] text-slate-400 font-semibold mb-2">2. Selecione o exame correspondente no Autolac:</p>
-                {filteredAutolacCatalog.map((item) => (
-                  <div
-                    key={item.codigo}
-                    onClick={() => setSelectedAutolacExam(item)}
-                    className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
-                      selectedAutolacExam?.codigo === item.codigo
-                        ? "bg-cyan-500/20 border-cyan-500 text-cyan-200 font-bold shadow-lg shadow-cyan-500/10"
-                        : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
-                    }`}
-                  >
-                    <div>
-                      <span className="font-mono text-xs font-bold text-cyan-300 block">{item.codigo}</span>
-                      <span className="font-semibold text-slate-100">{item.nome}</span>
-                    </div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] text-slate-400 font-semibold">2. Selecione o exame correspondente no Autolac:</p>
+                  {selectedSoftlabExam && (
+                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                      ✨ Ordenado por Similaridade
+                    </span>
+                  )}
+                </div>
+                {filteredAutolacCatalog.map((item) => {
+                  const isSelected = selectedAutolacExam?.codigo === item.codigo;
+                  return (
+                    <div
+                      key={item.codigo}
+                      onClick={() => setSelectedAutolacExam(item)}
+                      className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                        isSelected
+                          ? "bg-cyan-500/20 border-cyan-500 text-cyan-200 font-bold shadow-lg shadow-cyan-500/10"
+                          : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-cyan-300">{item.codigo}</span>
+                          {selectedSoftlabExam && item.similarity > 0 && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                              ✨ Match {item.similarity}%
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-semibold text-slate-100">{item.nome}</span>
+                      </div>
 
-                    <Check className={`w-4 h-4 text-cyan-400 ${selectedAutolacExam?.codigo === item.codigo ? "opacity-100" : "opacity-0"}`} />
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2">
+                        {selectedSoftlabExam && isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLinkSelectedPair();
+                            }}
+                            className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-3 py-1 rounded-lg text-xs shadow-md shadow-teal-500/20 transition flex items-center gap-1 cursor-pointer animate-pulse"
+                            title="Vincular estes dois exames agora"
+                          >
+                            <Zap className="w-3.5 h-3.5" /> Vincular Agora
+                          </button>
+                        )}
+                        <Check className={`w-4 h-4 text-cyan-400 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
