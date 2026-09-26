@@ -1839,9 +1839,17 @@ export default function MidwayLabDashboard() {
     });
 
   // Filtered Autolac List with Accent-Insensitive Search & Smart Similarity Ranking
+  // Excludes Autolac exams that are already linked to a Softlab exam
+  const alreadyMappedAutolacCodes = new Set(
+    softlabExames.filter(e => Boolean(e.autolacMapped)).map(e => e.autolacMapped.toUpperCase())
+  );
+
   const filteredAutolacCatalog = autolacCatalog
     .filter(a => {
+      // Hide already-linked Autolac exams from the matching panel
+      if (alreadyMappedAutolacCodes.has(a.codigo.toUpperCase())) return false;
       const searchClean = normalizeText(searchAutolac);
+      if (!searchClean) return true;
       return (
         normalizeText(a.codigo).includes(searchClean) ||
         normalizeText(a.nome).includes(searchClean)
