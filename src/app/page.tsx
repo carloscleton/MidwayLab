@@ -282,172 +282,52 @@ export default function MidwayLabDashboard() {
   // 1-CLICK DIRECT SOFTLAB API SYNC & SUPABASE CATALOG CACHE
   const handleSoftlabApiSync = async () => {
     setIsSyncingSoftlabApi(true);
-    showNotification("🔄 Conectando à API REST do Softlab Apoio para sincronizar catálogo real de exames...");
+    showNotification("🔄 Conectando à API REST do Softlab Apoio para buscar o catálogo completo e real de exames...");
 
-    const realExamsToSync = [
-      { codigo: "HEMO_FULL", descricao: "HEMOGRAMA COMPLETO COM CONTAGEM DE PLAQUETAS", abreviacao: "HEMOGRAMA", tipo: "ESTRUTURADO" },
-      { codigo: "GLI_JEJ", descricao: "GLICOSE DOSAGEM EM JEJUM", abreviacao: "GLICOSE", tipo: "ESTRUTURADO" },
-      { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH ULTRA SENSIVEL", abreviacao: "TSH ULTRA", tipo: "ESTRUTURADO" },
-      { codigo: "T3_SOFT", descricao: "TRIODOTIRONINA T3 DOSAGEM", abreviacao: "T3 DOSAGEM", tipo: "PDF" },
-      { codigo: "T4LIVRE", descricao: "TIROXINA LIVRE T4 LIVRE", abreviacao: "T4 LIVRE", tipo: "ESTRUTURADO" },
-      { codigo: "T4TOT", descricao: "TIROXINA TOTAL T4", abreviacao: "T4 TOTAL", tipo: "PDF" },
-      { codigo: "5HIAA", descricao: "ACIDO 5 HIDROXI INDOLACETICO (URINA 24H)", abreviacao: "AC 5 OH-INDOLACETICO", tipo: "PDF" },
-      { codigo: "2HG", descricao: "GLICOSE (APOS 50G BASAL E 120 MINUTOS), CURVA DE", abreviacao: "2 H APOS GLICOSE", tipo: "PDF" },
-      { codigo: "HB_GLIC", descricao: "HEMOGLOBINA GLICADA HPLC (HB A1C)", abreviacao: "HB GLICADA", tipo: "ESTRUTURADO" },
-      { codigo: "CREAT_SER", descricao: "CREATININA DOSAGEM SERICA", abreviacao: "CREATININA", tipo: "ESTRUTURADO" },
-      { codigo: "UREIA_DOS", descricao: "UREIA DOSAGEM SERICA", abreviacao: "UREIA", tipo: "ESTRUTURADO" },
-      { codigo: "AC_URICO", descricao: "ACIDO URICO DOSAGEM SERICA", abreviacao: "ACIDO URICO", tipo: "ESTRUTURADO" },
-      { codigo: "CHOL_TOT", descricao: "CHOLESTEROL TOTAL", abreviacao: "COLESTEROL", tipo: "PDF" },
-      { codigo: "HDL_CHOL", descricao: "CHOLESTEROL HDL FRACAO", abreviacao: "HDL COLESTEROL", tipo: "ESTRUTURADO" },
-      { codigo: "LDL_CHOL", descricao: "CHOLESTEROL LDL FRACAO", abreviacao: "LDL COLESTEROL", tipo: "ESTRUTURADO" },
-      { codigo: "VLDL_CHOL", descricao: "CHOLESTEROL VLDL FRACAO", abreviacao: "VLDL COLESTEROL", tipo: "PDF" },
-      { codigo: "TRIG_SER", descricao: "TRIGLICERIDEOS DOSAGEM SERICA", abreviacao: "TRIGLICERIDES", tipo: "ESTRUTURADO" },
-      { codigo: "TGO_AST", descricao: "TRANSAMINASE GLUTAMICO OXALACETICA (TGO/AST)", abreviacao: "TGO AST", tipo: "ESTRUTURADO" },
-      { codigo: "TGP_ALT", descricao: "TRANSAMINASE GLUTAMICO PIRUVICA (TGP/ALT)", abreviacao: "TGP ALT", tipo: "ESTRUTURADO" },
-      { codigo: "GAMA_GT", descricao: "GAMA GLUTAMIL TRANSFERASE (GAMA GT)", abreviacao: "GGT", tipo: "ESTRUTURADO" },
-      { codigo: "FOSF_ALT", descricao: "FOSFATASE ALCALINA SERICA", abreviacao: "FOSF ALCALINA", tipo: "ESTRUTURADO" },
-      { codigo: "BILIR_TOT", descricao: "BILIRRUBINAS TOTAL E FRACOES (DIRETA E INDIRETA)", abreviacao: "BILIRRUBINAS", tipo: "ESTRUTURADO" },
-      { codigo: "PCR_ULTRA", descricao: "PROTEINA C REATIVA ULTRA SENSIVEL (PCR)", abreviacao: "PCR ULTRA", tipo: "ESTRUTURADO" },
-      { codigo: "VHS_HEM", descricao: "VELOCIDADE DE HEMOSSEDIMENTACAO (VHS)", abreviacao: "VHS", tipo: "ESTRUTURADO" },
-      { codigo: "SODIO_SER", descricao: "SODIO DOSAGEM SERICA", abreviacao: "SODIO", tipo: "ESTRUTURADO" },
-      { codigo: "POT_SER", descricao: "POTASSIO DOSAGEM SERICA", abreviacao: "POTASSIO", tipo: "ESTRUTURADO" },
-      { codigo: "CALCIO_TOT", descricao: "CALCIO DOSAGEM SERICA TOTAL", abreviacao: "CALCIO", tipo: "ESTRUTURADO" },
-      { codigo: "MAGNESIO", descricao: "MAGNESIO DOSAGEM SERICA", abreviacao: "MAGNESIO", tipo: "ESTRUTURADO" },
-      { codigo: "FOSFORO", descricao: "FOSFORO DOSAGEM SERICA", abreviacao: "FOSFORO", tipo: "ESTRUTURADO" },
-      { codigo: "VIT_D25", descricao: "VITAMINA D 25 HYDROXI (25-OH VITAMINA D)", abreviacao: "VITAMINA D", tipo: "ESTRUTURADO" },
-      { codigo: "VIT_B12", descricao: "VITAMINA B12 DOSAGEM SERICA", abreviacao: "VITAMINA B12", tipo: "ESTRUTURADO" },
-      { codigo: "FERRITINA", descricao: "FERRITINA SERICA DOSAGEM", abreviacao: "FERRITINA", tipo: "ESTRUTURADO" },
-      { codigo: "FERRO_SER", descricao: "FERRO SERICO DOSAGEM", abreviacao: "FERRO SERICO", tipo: "ESTRUTURADO" },
-      { codigo: "PSA_TOT", descricao: "PSA TOTAL ANTIGENO PROSTATICO ESPECIFICO", abreviacao: "PSA TOTAL", tipo: "ESTRUTURADO" },
-      { codigo: "PSA_LIVRE", descricao: "PSA LIVRE E RELACAO PSA LIVRE/TOTAL", abreviacao: "PSA LIVRE", tipo: "ESTRUTURADO" },
-      { codigo: "BETA_HCG", descricao: "BETA HCG QUANTITATIVO (SORO)", abreviacao: "BETA HCG", tipo: "ESTRUTURADO" },
-      { codigo: "PROLACT", descricao: "PROLACTINA SERICA DOSAGEM", abreviacao: "PROLACTINA", tipo: "ESTRUTURADO" },
-      { codigo: "CORTISOL8", descricao: "CORTISOL SERICO 8 HORAS", abreviacao: "CORTISOL 8H", tipo: "ESTRUTURADO" },
-      { codigo: "ESTRADIOL", descricao: "ESTRADIOL E2 DOSAGEM SERICA", abreviacao: "ESTRADIOL", tipo: "ESTRUTURADO" },
-      { codigo: "PROGEST", descricao: "PROGESTERONA DOSAGEM SERICA", abreviacao: "PROGESTERONA", tipo: "ESTRUTURADO" },
-      { codigo: "TESTO_TOT", descricao: "TESTOSTERONA TOTAL SERICA", abreviacao: "TESTOSTERONA", tipo: "ESTRUTURADO" },
-      { codigo: "INSULINA", descricao: "INSULINA SERICA EM JEJUM", abreviacao: "INSULINA", tipo: "ESTRUTURADO" },
-      { codigo: "VDRL_SYPH", descricao: "VDRL TESTE DE SOROLOGIA PARA SIFILIS", abreviacao: "VDRL", tipo: "ESTRUTURADO" },
-      { codigo: "HIV_1_2", descricao: "HIV 1 E 2 ANTICORPOS E ANTIGENO P24", abreviacao: "ANTI-HIV", tipo: "ESTRUTURADO" },
-      { codigo: "HBSAG", descricao: "HEPATITE B HBSAG ANTIGENO DE SUPERFICIE", abreviacao: "HBSAG", tipo: "ESTRUTURADO" },
-      { codigo: "HCV_ANTI", descricao: "HEPATITE C ANTI-HCV SOROLOGIA", abreviacao: "ANTI-HCV", tipo: "ESTRUTURADO" },
-      { codigo: "URINA_EAS", descricao: "URINA TIPO 1 (EAS - ELEMENTOS ANORMAIS E SEDIMENTO)", abreviacao: "URINA TIPO 1", tipo: "ESTRUTURADO" },
-      { codigo: "CULT_URINA", descricao: "CULTURA DE URINA COM ANTIBIOGRAMA (UROCULTURA)", abreviacao: "UROCULTURA", tipo: "PDF" },
-      { codigo: "PARASIT_EPF", descricao: "EXAME PARASITOLOGICO DE FEZES (EPF)", abreviacao: "EPF FEZES", tipo: "ESTRUTURADO" },
-      { codigo: "COAGULO", descricao: "COAGULOGRAMA COMPLETO (TAP + PTT)", abreviacao: "COAGULOGRAMA", tipo: "PDF" },
-      { codigo: "TAP_INR", descricao: "TEMPO DE PROTROMBINA (TAP / INR)", abreviacao: "TAP INR", tipo: "ESTRUTURADO" },
-      { codigo: "PTT_KN", descricao: "TEMPO DE THROMBOPLASTINA PARCIAL (KPTT)", abreviacao: "KPTT PTT", tipo: "ESTRUTURADO" },
-      { codigo: "AMILASE", descricao: "AMILASE DOSAGEM SERICA", abreviacao: "AMILASE", tipo: "ESTRUTURADO" },
-      { codigo: "LIPASE", descricao: "LIPASE DOSAGEM SERICA", abreviacao: "LIPASE", tipo: "ESTRUTURADO" },
-      { codigo: "ABO_RH", descricao: "TIPAGEM SANGUINEA ABO E FATOR RH", abreviacao: "TIPO SANGUINEO", tipo: "ESTRUTURADO" },
-      { codigo: "GASOMETRIA", descricao: "GASOMETRIA ARTERIAL COMPLETA", abreviacao: "GASOMETRIA", tipo: "PDF" },
-      { codigo: "CEA_SER", descricao: "ANTIGENO CARCINOEMBRIONARIO (CEA)", abreviacao: "CEA", tipo: "ESTRUTURADO" },
-      { codigo: "CA125", descricao: "ANTIGENO CA 125 DOSAGEM SERICA", abreviacao: "CA 125", tipo: "ESTRUTURADO" },
-      { codigo: "CA153", descricao: "ANTIGENO CA 15-3 DOSAGEM SERICA", abreviacao: "CA 15-3", tipo: "ESTRUTURADO" },
-      { codigo: "CA199", descricao: "ANTIGENO CA 19-9 DOSAGEM SERICA", abreviacao: "CA 19-9", tipo: "ESTRUTURADO" },
-      { codigo: "ALFA_FETO", descricao: "ALFAFETOPROTEINA DOSAGEM SERICA", abreviacao: "ALFAFETO", tipo: "ESTRUTURADO" },
-      { codigo: "MICROALB", descricao: "MICROALBUMINURIA EM AMOSTRA ISOLADA", abreviacao: "MICROALB", tipo: "ESTRUTURADO" },
-      { codigo: "CLEARENCE_CREAT", descricao: "DEPURACAO DE CREATININA (CLEARANCE URINA 24H)", abreviacao: "CLEARANCE CREAT", tipo: "PDF" },
-      { codigo: "FSH_SER", descricao: "HORMONIO FOLICULO ESTIMULANTE (FSH)", abreviacao: "FSH", tipo: "ESTRUTURADO" },
-      { codigo: "LH_SER", descricao: "HORMONIO LUTEINIZANTE (LH)", abreviacao: "LH", tipo: "ESTRUTURADO" },
-      { codigo: "IGE_TOT", descricao: "IMUNOGLOBULINA E TOTAL (IGE TOTAL)", abreviacao: "IGE TOTAL", tipo: "ESTRUTURADO" },
-      { codigo: "TOXO_IGG", descricao: "TOXOPLASMOSE IGG ANTICORPOS", abreviacao: "TOXO IGG", tipo: "ESTRUTURADO" },
-      { codigo: "TOXO_IGM", descricao: "TOXOPLASMOSE IGM ANTICORPOS", abreviacao: "TOXO IGM", tipo: "ESTRUTURADO" },
-      { codigo: "RUBEO_IGG", descricao: "RUBROLA IGG ANTICORPOS", abreviacao: "RUBEOLA IGG", tipo: "ESTRUTURADO" },
-      { codigo: "RUBEO_IGM", descricao: "RUBROLA IGM ANTICORPOS", abreviacao: "RUBEOLA IGM", tipo: "ESTRUTURADO" },
-      { codigo: "CMV_IGG", descricao: "CITOMEGALOVIRUS IGG ANTICORPOS", abreviacao: "CMV IGG", tipo: "ESTRUTURADO" },
-      { codigo: "CMV_IGM", descricao: "CITOMEGALOVIRUS IGM ANTICORPOS", abreviacao: "CMV IGM", tipo: "ESTRUTURADO" },
-      { codigo: "BAAR_ESPUTO", descricao: "PESQUISA DE BAAR (BACILO DE KOCH - ESCARRO)", abreviacao: "BAAR ESCARRO", tipo: "PDF" },
-      { codigo: "GRAM_ESPUTO", descricao: "BACTERIOSCOPIA PELO METODO DE GRAM", abreviacao: "BACTERIOSCOPIA", tipo: "PDF" },
-      { codigo: "HEMOCULTURA", descricao: "HEMOCULTURA AUTOMATIZADA COM ANTIBIOGRAMA", abreviacao: "HEMOCULTURA", tipo: "PDF" },
-      { codigo: "SWAB_STREP", descricao: "PESQUISA DE STREPTOCOCCUS DO GRUPO A (SWAB)", abreviacao: "STREP A", tipo: "ESTRUTURADO" },
-      { codigo: "CITO_ONCO", descricao: "CITOPATOLOGICO ONCOCIAPATICO (PAPANICOLAU)", abreviacao: "PAPANICOLAU", tipo: "PDF" },
-      { codigo: "MICO_DIRETO", descricao: "EXAME MICOLOGICO DIRETO PARA FUNGO", abreviacao: "MICOLOGICO", tipo: "PDF" },
-      { codigo: "C3_COMPL", descricao: "COMPLEMENTO C3 DOSAGEM SERICA", abreviacao: "COMPLEMENTO C3", tipo: "ESTRUTURADO" },
-      { codigo: "C4_COMPL", descricao: "COMPLEMENTO C4 DOSAGEM SERICA", abreviacao: "COMPLEMENTO C4", tipo: "ESTRUTURADO" },
-      { codigo: "FAN_HELA", descricao: "FATOR ANTINUCLEO (FAN - CELULAS HEPA-2)", abreviacao: "FAN HEPA2", tipo: "ESTRUTURADO" },
-      { codigo: "FR_RHEUMA", descricao: "FATOR REUMATOIDE (TESTE DO LATEX)", abreviacao: "FATOR REUMATOIDE", tipo: "ESTRUTURADO" },
-      { codigo: "ASLO_SORO", descricao: "ANTIESTREPTOLISINA O (ASLO/ASO)", abreviacao: "ASLO", tipo: "ESTRUTURADO" },
-      { codigo: "CLOR_SER", descricao: "CLORETOS DOSAGEM SERICA", abreviacao: "CLORETOS", tipo: "ESTRUTURADO" },
-      { codigo: "ZINCO_SER", descricao: "ZINCO DOSAGEM SERICA", abreviacao: "ZINCO", tipo: "ESTRUTURADO" },
-      { codigo: "CHUMBO_SER", descricao: "CHUMBO SANGUINEO DOSAGEM", abreviacao: "CHUMBO", tipo: "ESTRUTURADO" },
-      { codigo: "LITIO_SER", descricao: "LITIO DOSAGEM SERICA", abreviacao: "LITIO", tipo: "ESTRUTURADO" },
-      { codigo: "VALPROATO", descricao: "ACIDO VALPROICO DOSAGEM SERICA", abreviacao: "AC VALPROICO", tipo: "ESTRUTURADO" },
-      { codigo: "CARBAMAZEP", descricao: "CARBAMAZEPINA DOSAGEM SERICA", abreviacao: "CARBAMAZEPINA", tipo: "ESTRUTURADO" },
-      { codigo: "DIGOXINA", descricao: "DIGOXINA DOSAGEM SERICA", abreviacao: "DIGOXINA", tipo: "ESTRUTURADO" },
-      { codigo: "TEOFILINA", descricao: "TEOFILINA DOSAGEM SERICA", abreviacao: "TEOFILINA", tipo: "ESTRUTURADO" },
-      { codigo: "FENOBARBITAL", descricao: "FENOBARBITAL DOSAGEM SERICA", abreviacao: "FENOBARBITAL", tipo: "ESTRUTURADO" },
-      { codigo: "FENITOINA", descricao: "FENITOINA DOSAGEM SERICA", abreviacao: "FENITOINA", tipo: "ESTRUTURADO" }
-    ];
+    try {
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      const res = await fetch('/api/softlab-catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          softlabLogin: activeTenantObj?.softlabLogin || "carloscleton.nat@gmail.com",
+          softlabSenha: activeTenantObj?.softlabSenha || "Carlos@2026",
+          softlabBaseUrl: "http://apoio.softlabsolucoes.com.br"
+        })
+      });
 
-    const realAutolacExamsToSync = [
-      { codigo: "T3", nome: "Triiodotironina T3" },
-      { codigo: "TSH", nome: "Hormônio Tireoestimulante Ultra" },
-      { codigo: "HEMO", nome: "Hemograma Completo com Plaquetas" },
-      { codigo: "GLIC", nome: "Glicose em Jejum" },
-      { codigo: "5HIAA", nome: "Ácido 5 Hidroxi Indolacético (Urina 24h)" },
-      { codigo: "2HG", nome: "Glicose Curva 2 Horas" },
-      { codigo: "CREAT", nome: "Creatinina Sérica" },
-      { codigo: "UREIA", nome: "Ureia Sérica" },
-      { codigo: "CHOLEST", nome: "Colesterol Total" },
-      { codigo: "TRIG", nome: "Triglicerídeos Séricos" },
-      { codigo: "PSA", nome: "PSA Antígeno Prostático Específico" },
-      { codigo: "HIV", nome: "Anti-HIV 1 e 2 Sorologia" },
-      { codigo: "VDRL", nome: "VDRL Sorologia para Sífilis" },
-      { codigo: "T4L", nome: "T4 Livre Tiroxina" },
-      { codigo: "HB1C", nome: "Hemoglobina Glicada HbA1c" },
-      { codigo: "URICO", nome: "Ácido Úrico SÉRICO" },
-      { codigo: "HDL", nome: "Colesterol HDL Fração" },
-      { codigo: "LDL", nome: "Colesterol LDL Fração" },
-      { codigo: "TGO", nome: "Transaminase TGO (AST)" },
-      { codigo: "TGP", nome: "Transaminase TGP (ALT)" },
-      { codigo: "GAMA_GT", nome: "Gama GT Transferase" },
-      { codigo: "FALC", nome: "Fosfatase Alcalina" },
-      { codigo: "BILIR", nome: "Bilirrubinas Total e Frações" },
-      { codigo: "PCR", nome: "Proteína C Reativa Ultra-Sensível" },
-      { codigo: "VHS", nome: "VHS Velocidade Hemossedimentação" },
-      { codigo: "NA", nome: "Sódio Sérico" },
-      { codigo: "K", nome: "Potássio Sérico" },
-      { codigo: "CA", nome: "Cálcio Sérico Total" },
-      { codigo: "MG", nome: "Magnésio Sérico" },
-      { codigo: "VITD", nome: "Vitamina D 25-OH" },
-      { codigo: "VITB12", nome: "Vitamina B12" },
-      { codigo: "FERRIT", nome: "Ferritina Sérica" },
-      { codigo: "FERRO", nome: "Ferro Sérico" },
-      { codigo: "PSAL", nome: "PSA Livre" },
-      { codigo: "BHCG", nome: "Beta HCG Quantitativo" },
-      { codigo: "PROL", nome: "Prolactina Sérica" },
-      { codigo: "CORT", nome: "Cortisol 8 horas" },
-      { codigo: "E2", nome: "Estradiol E2" },
-      { codigo: "PROG", nome: "Progesterona" },
-      { codigo: "TESTO", nome: "Testosterona Total" },
-      { codigo: "INS", nome: "Insulina em Jejum" },
-      { codigo: "EAS", nome: "Urina Tipo 1 (EAS)" },
-      { codigo: "UROC", nome: "Urocultura com Antibiograma" },
-      { codigo: "EPF", nome: "Parasitológico de Fezes EPF" },
-      { codigo: "COAG", nome: "Coagulograma Completo" },
-      { codigo: "TAP", nome: "Tempo de Protrombina (TAP/INR)" },
-      { codigo: "PTT", nome: "KPTT Tempo de Tromboplastina" },
-      { codigo: "ABO", nome: "Tipagem Sanguínea ABO e Rh" },
-      { codigo: "GASO", nome: "Gasometria Arterial" }
-    ];
-
-    // Official Clean Catalog List (Deduplicated by unique code)
-    const uniqueMap = new Map<string, any>();
-    realExamsToSync.forEach(e => {
-      const cleanCode = e.codigo.trim().toUpperCase();
-      if (!uniqueMap.has(cleanCode)) {
-        uniqueMap.set(cleanCode, {
-          ...e,
-          autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
-        });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.exams) && data.exams.length > 0) {
+          const uniqueMap = new Map<string, any>();
+          data.exams.forEach((e: any) => {
+            const cleanCode = e.codigo.trim().toUpperCase();
+            if (!uniqueMap.has(cleanCode)) {
+              uniqueMap.set(cleanCode, {
+                codigo: e.codigo,
+                descricao: e.descricao,
+                abreviacao: e.abreviacao || e.codigo,
+                tipo: e.tipo || "ESTRUTURADO",
+                autolacMapped: e.codigo === "HEMO_FULL" ? "HEMO" : e.codigo === "TSH01" ? "TSH" : e.codigo === "T3_SOFT" ? "T3" : ""
+              });
+            }
+          });
+          const cleanList = Array.from(uniqueMap.values());
+          setSoftlabExames(cleanList);
+          setHasUnsavedApiChanges(true);
+          showNotification(`✨ ${cleanList.length} Exames únicos do catálogo da API Softlab Apoio listados com sucesso! Clique em 'Salvar no Banco (Supabase)' para gravar.`);
+        } else {
+          showNotification("⚠️ Não foi possível obter exames da API Softlab.");
+        }
+      } else {
+        showNotification("⚠️ Erro na resposta do servidor Softlab.");
       }
-    });
-    const cleanList = Array.from(uniqueMap.values());
-    setSoftlabExames(cleanList);
-    setHasUnsavedApiChanges(true);
-    setIsSyncingSoftlabApi(false);
-    showNotification(`✨ ${cleanList.length} Exames únicos oficiais do Softlab Apoio listados sem duplicados. Clique em 'Salvar no Banco (Supabase)' para gravar.`);
+    } catch (apiErr: any) {
+      console.warn("[Softlab Catalog Fetch] Erro ao consultar rota de catálogo:", apiErr);
+      showNotification("❌ Falha na conexão com a API do Softlab.");
+    } finally {
+      setIsSyncingSoftlabApi(false);
+    }
   };
 
   // 2. EXPLICIT SAVE CATALOG TO SUPABASE DATABASE
