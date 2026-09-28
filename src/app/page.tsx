@@ -1899,66 +1899,8 @@ export default function MidwayLabDashboard() {
         <div className="absolute top-1/4 left-1/3 -translate-x-1/2 w-[600px] h-[600px] bg-teal-500/10 blur-[150px] rounded-full pointer-events-none" />
         <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
 
-        {/* LEFT PANEL: HERO BRANDING & FULL BANNER IMAGE */}
-        <div className="lg:w-7/12 xl:w-2/3 relative flex flex-col justify-between p-6 sm:p-10 lg:p-12 min-h-[450px] lg:min-h-screen overflow-hidden bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800/80">
-          {/* Background Full Banner Image */}
-          <img
-            src="/midway-banner.png"
-            alt="Midway Integração de Sistemas - Conectando o laboratório ao melhor cuidado"
-            className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 hover:scale-105 opacity-90"
-          />
-
-          {/* Dark Gradient Overlays for Readability & High Contrast */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-slate-950/60 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/50 via-transparent to-slate-950/80 pointer-events-none" />
-
-          {/* Top Header Badge */}
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="flex items-center gap-3 bg-slate-950/70 backdrop-blur-md border border-slate-800/80 px-4 py-2 rounded-2xl shadow-xl">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-400 flex items-center justify-center shadow-md shadow-teal-500/20">
-                <Activity className="w-5 h-5 text-slate-950 font-black" />
-              </div>
-              <span className="text-sm font-black tracking-wide text-white">
-                MidwayLab <span className="text-[10px] text-teal-400 font-bold ml-1 uppercase">SaaS</span>
-              </span>
-            </div>
-            <span className="hidden sm:inline-flex items-center gap-2 bg-teal-500/15 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-teal-400" /> Integração de Sistemas
-            </span>
-          </div>
-
-          {/* Bottom Hero Information Card */}
-          <div className="relative z-10 mt-auto pt-12 space-y-4">
-            <div className="max-w-xl bg-slate-950/80 border border-slate-800/90 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-xs font-semibold">
-                <Building2 className="w-3.5 h-3.5" /> Conectando o laboratório ao melhor cuidado
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
-                Orquestrador Inteligente Autolac ↔ Softlab Apoio
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Sincronização automática de pedidos SOAP, tráfego de laudos em lote, recoletas e mapeamento DE-PARA de exames com inteligência e confiabilidade.
-              </p>
-              <div className="pt-2 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-300">
-                <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                  🧪 Sistema Laboratorial
-                </span>
-                <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                  📄 Resultados Online
-                </span>
-                <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                  ☁️ Integração de Dados
-                </span>
-                <span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                  🛡️ Confiabilidade
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT PANEL: AUTHENTICATION FORM */}
-        <div className="lg:w-5/12 xl:w-1/3 flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 min-h-screen relative z-10 w-full my-auto">
+        {/* LEFT PANEL: AUTHENTICATION FORM */}
+        <div className="lg:w-5/12 xl:w-1/3 flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 min-h-screen relative z-20 w-full my-auto bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800/80">
           <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl">
           {/* Logo & Header */}
           <div className="text-center space-y-3">
@@ -2287,6 +2229,32 @@ export default function MidwayLabDashboard() {
               </button>
             </form>
           )}
+        </div>
+      </div>
+
+      {/* RIGHT PANEL: 100% VIVID HIGH-DEFINITION MIDWAY IMAGE SHOWCASE */}
+      <div className="lg:w-7/12 xl:w-2/3 w-full relative flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 bg-slate-950 overflow-hidden min-h-[450px] lg:min-h-screen">
+        {/* Ambient Lighting Behind Image */}
+        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-teal-500/10 blur-[150px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
+
+        {/* Pristine 100% Vivid Bright Image Showcase */}
+        <div className="relative group w-full h-full max-h-[85vh] flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden z-10">
+          <img
+            src="/midway-banner.png"
+            alt="Midway Integração de Sistemas - Conectando o laboratório ao melhor cuidado"
+            className="w-full h-auto max-h-[75vh] object-contain rounded-2xl drop-shadow-2xl opacity-100 transition-transform duration-500 hover:scale-[1.01]"
+          />
+        </div>
+
+        {/* Elegant Vivid Caption */}
+        <div className="mt-4 text-center space-y-1 relative z-10 px-4">
+          <p className="text-sm font-extrabold text-slate-200 tracking-wide flex items-center justify-center gap-2">
+            <Sparkles className="w-4 h-4 text-teal-400" /> Plataforma de Integração Autolac ↔ Softlab Apoio
+          </p>
+          <p className="text-xs text-slate-400">
+            Orquestrador Inteligente de Pedidos SOAP, Laudos e Mapeamentos DE-PARA
+          </p>
         </div>
       </div>
     </div>
