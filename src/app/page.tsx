@@ -1886,7 +1886,7 @@ export default function MidwayLabDashboard() {
   // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
   if (!currentUser) {
     return (
-      <div className="h-screen w-full flex flex-col lg:flex-row bg-[#070E1B] text-slate-100 relative font-sans select-none overflow-hidden">
+      <div className="h-screen w-full flex flex-col lg:flex-row bg-[#050D1C] text-slate-100 relative font-sans select-none overflow-hidden">
         {/* Toast Notification Banner */}
         {toastMessage && (
           <div className="fixed top-4 right-4 z-50 bg-cyan-400 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-cyan-500/30 border border-cyan-200 flex items-center gap-3 animate-bounce">
@@ -1895,13 +1895,13 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-        {/* Ambient Glows */}
-        <div className="absolute top-1/4 left-1/4 -translate-x-1/2 w-[500px] h-[500px] bg-blue-500/10 blur-[150px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-10 left-1/3 w-80 h-80 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
+        {/* Ambient Glows Following 3D Image Color Tonality */}
+        <div className="absolute top-1/4 left-1/6 -translate-x-1/2 w-[600px] h-[600px] bg-cyan-400/20 blur-[140px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/4 w-[500px] h-[500px] bg-blue-600/25 blur-[160px] rounded-full pointer-events-none" />
 
-        {/* LEFT PANEL: AUTHENTICATION FORM (Compact & Aligned) */}
-        <div className="lg:w-4/12 xl:w-1/3 w-full h-full flex flex-col justify-center items-center p-3 sm:p-4 lg:p-6 bg-[#070E1B] border-b lg:border-b-0 lg:border-r border-blue-900/30 relative z-20 overflow-y-auto">
-          <div className="w-full max-w-md bg-[#0B172E]/95 border border-blue-500/30 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl shadow-blue-950/80 backdrop-blur-2xl my-auto hover:border-cyan-400/50 transition duration-500">
+        {/* LEFT PANEL: AUTHENTICATION FORM (Background matching 3D Image Laboratory Tonality) */}
+        <div className="lg:w-4/12 xl:w-1/3 w-full h-full flex flex-col justify-center items-center p-3 sm:p-4 lg:p-6 bg-gradient-to-b from-[#0C1B38] via-[#08142B] to-[#050D1C] border-b lg:border-b-0 lg:border-r border-cyan-500/20 relative z-20 overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0D1E3A]/95 border border-cyan-400/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl shadow-blue-950/90 backdrop-blur-2xl my-auto hover:border-cyan-300 transition duration-500">
             {/* Logo & Header */}
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/30">
@@ -2232,7 +2232,7 @@ export default function MidwayLabDashboard() {
         </div>
 
         {/* RIGHT PANEL: BORDERLESS & FULL-EXPANDED 3D DIAGRAM IMAGE */}
-        <div className="lg:w-8/12 xl:w-2/3 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center bg-[#070E1B] overflow-hidden p-0">
+        <div className="lg:w-8/12 xl:w-2/3 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center bg-[#050D1C] overflow-hidden p-0">
           <img
             src="/midway-banner.png"
             alt="MidwayLab 3D Integração de Sistemas"
