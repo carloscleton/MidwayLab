@@ -4660,12 +4660,12 @@ P1`}
               <table className="w-full text-left text-sm text-slate-300">
                 <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider sticky top-0 border-b border-slate-800 z-10">
                   <tr>
-                    <th className="py-3 px-4">Código Softlab</th>
-                    <th className="py-3 px-4">Exame Softlab Apoio</th>
-                    <th className="py-3 px-4">Código Autolac (Mapeado)</th>
-                    <th className="py-3 px-4">Tipo Resultado</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Ação</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Cód. Softlab</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Cód. Autolac</th>
+                    <th className="py-3 px-4">Descrição do Exame (Softlab Apoio)</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Tipo</th>
+                    <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                    <th className="py-3 px-4 text-right whitespace-nowrap">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
@@ -4681,21 +4681,32 @@ P1`}
                     })
                     .map((exam) => (
                       <tr key={exam.codigo} className="hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
+                        {/* 1. CÓDIGO SOFTLAB */}
+                        <td className="py-3 px-4 font-mono text-xs font-bold text-teal-300 whitespace-nowrap">
+                          {exam.codigo}
+                        </td>
+
+                        {/* 2. CÓDIGO AUTOLAC */}
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                            {exam.autolacMapped}
+                          </span>
+                        </td>
+
+                        {/* 3. DESCRIÇÃO */}
                         <td className="py-3 px-4">
                           <span className="font-semibold text-slate-100 text-xs block">{exam.descricao}</span>
                           <span className="text-[11px] text-slate-500">{exam.abreviacao}</span>
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg">
-                            {exam.autolacMapped}
-                          </span>
-                        </td>
+
+                        {/* 4. TIPO */}
                         <td className="py-3 px-4">
                           <span className="text-[11px] font-bold px-2.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
                             PDF
                           </span>
                         </td>
+
+                        {/* 5. STATUS */}
                         <td className="py-3 px-4 text-center">
                           {exam.blocked ? (
                             <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
