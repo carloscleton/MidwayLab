@@ -1886,356 +1886,365 @@ export default function MidwayLabDashboard() {
   // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
   if (!currentUser) {
     return (
-      <div className="h-screen w-full relative flex items-center justify-center lg:justify-start bg-slate-950 text-slate-100 font-sans select-none overflow-hidden p-4 sm:p-6 lg:p-10">
+      <div className="h-screen w-full flex flex-col lg:flex-row bg-[#070E1B] text-slate-100 relative font-sans select-none overflow-hidden">
         {/* Toast Notification Banner */}
         {toastMessage && (
-          <div className="fixed top-4 right-4 z-50 bg-teal-500 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-teal-500/30 border border-teal-300 flex items-center gap-3 animate-bounce">
+          <div className="fixed top-4 right-4 z-50 bg-cyan-400 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-cyan-500/30 border border-cyan-200 flex items-center gap-3 animate-bounce">
             <Sparkles className="w-5 h-5 text-slate-950" />
             <span>{toastMessage}</span>
           </div>
         )}
 
-        {/* 3D FULL-PAGE BACKGROUND IMAGE */}
-        <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
-          <img
-            src="/midway-banner.png"
-            alt="MidwayLab 3D Integração de Sistemas"
-            className="w-full h-full object-cover object-center opacity-95 transition-transform duration-1000 scale-100"
-          />
-          {/* Soft Gradient Overlay for Left Side Legibility */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/70 to-slate-950/20 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-slate-950/50 pointer-events-none" />
-        </div>
+        {/* Ambient Glows */}
+        <div className="absolute top-1/4 left-1/4 -translate-x-1/2 w-[500px] h-[500px] bg-blue-500/10 blur-[150px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-10 left-1/3 w-80 h-80 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
 
-        {/* FLOATING GLASS LOGIN CARD (Matching 3D Image Color Scheme) */}
-        <div className="relative z-10 w-full max-w-md bg-slate-950/80 border border-slate-800/90 rounded-3xl p-5 sm:p-7 space-y-4 shadow-2xl backdrop-blur-2xl my-auto lg:ml-8 xl:ml-16 border-blue-500/20 hover:border-teal-500/40 transition duration-500 overflow-y-auto max-h-[92vh]">
-          {/* Logo & Header */}
-          <div className="text-center space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 mx-auto flex items-center justify-center shadow-xl shadow-teal-500/20">
-              <Activity className="w-8 h-8 text-slate-950 font-extrabold" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-                MidwayLab <span className="text-xs bg-teal-500/15 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-full font-bold">Orquestrador SaaS</span>
-              </h1>
-              <p className="text-xs text-slate-400 mt-1">Plataforma de Integração Autolac ↔ Softlab Apoio</p>
-            </div>
-          </div>
-
-          {/* Login / Self-Registration / Password Reset Tabs */}
-          <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800/80 text-xs">
-            <button
-              type="button"
-              onClick={() => setLoginTab("login")}
-              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                loginTab === "login"
-                  ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" /> Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => setLoginTab("solicitar")}
-              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                loginTab === "solicitar"
-                  ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <UserPlus className="w-3.5 h-3.5" /> Solicitar
-            </button>
-            <button
-              type="button"
-              onClick={() => setLoginTab("trocarSenha")}
-              className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                loginTab === "trocarSenha"
-                  ? "bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Key className="w-3.5 h-3.5" /> Mudar Senha
-            </button>
-          </div>
-
-          {/* FORM 1: LOGIN */}
-          {loginTab === "login" && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
-              {loginError && (
-                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-xl flex items-center gap-2 font-medium">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-                  <span>{loginError}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-teal-400" /> E-mail de Acesso
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="Ex.: carloscleton.nat@gmail.com"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-teal-500/50 text-xs font-mono"
-                />
+        {/* LEFT PANEL: AUTHENTICATION FORM (Styled in 3D Image Color Scheme) */}
+        <div className="lg:w-5/12 xl:w-4/12 w-full h-full flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 bg-[#070E1B] border-b lg:border-b-0 lg:border-r border-blue-900/40 relative z-20 overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0B172E]/95 border border-blue-500/30 rounded-3xl p-5 sm:p-7 space-y-4 shadow-2xl shadow-blue-950/80 backdrop-blur-2xl my-auto hover:border-cyan-400/50 transition duration-500">
+            {/* Logo & Header */}
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Activity className="w-7 h-7 text-white font-extrabold" />
               </div>
-
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-slate-400 font-semibold flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetEmail(loginEmail);
-                      setLoginTab("trocarSenha");
-                    }}
-                    className="text-[11px] text-teal-400 hover:text-teal-300 font-bold transition cursor-pointer"
-                  >
-                    Esqueceu a senha?
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showLoginPassword ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-100 focus:outline-none focus:border-teal-500/50 text-xs font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-3 top-3.5 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                    title={showLoginPassword ? "Ocultar Senha" : "Exibir Senha"}
-                  >
-                    {showLoginPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <h1 className="text-xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+                  MidwayLab <span className="text-[10px] bg-blue-500/20 text-cyan-300 border border-cyan-400/40 px-2 py-0.5 rounded-full font-bold">Orquestrador SaaS</span>
+                </h1>
+                <p className="text-xs text-blue-200/70 mt-0.5">Plataforma de Integração Autolac ↔ Softlab Apoio</p>
               </div>
+            </div>
 
-
+            {/* Login / Self-Registration / Password Reset Tabs */}
+            <div className="grid grid-cols-3 gap-1 bg-[#060D1A] p-1.5 rounded-2xl border border-blue-900/50 text-xs">
               <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-teal-500/25 flex items-center justify-center gap-2 text-sm cursor-pointer"
+                type="button"
+                onClick={() => setLoginTab("login")}
+                className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  loginTab === "login"
+                    ? "bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 text-white shadow-md shadow-blue-500/30"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
               >
-                <Lock className="w-4 h-4" /> Entrar no MidwayLab
+                <Lock className="w-3.5 h-3.5" /> Entrar
               </button>
+              <button
+                type="button"
+                onClick={() => setLoginTab("solicitar")}
+                className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  loginTab === "solicitar"
+                    ? "bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 text-white shadow-md shadow-blue-500/30"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Solicitar
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginTab("trocarSenha")}
+                className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  loginTab === "trocarSenha"
+                    ? "bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 text-white shadow-md shadow-blue-500/30"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" /> Mudar Senha
+              </button>
+            </div>
 
-              {/* DEMO PRESETS */}
-              <div className="pt-4 border-t border-slate-800/80 space-y-2">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold block text-center">
-                  ⚡ Acesso Rápido para Testes (Demo Presets)
-                </span>
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDemoLogin("carloscleton.nat@gmail.com")}
-                    className="w-full bg-slate-950 hover:bg-slate-850 border border-teal-500/30 p-2.5 rounded-xl text-left transition flex items-center justify-between text-xs cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-teal-400 group-hover:scale-110 transition" />
-                      <div>
-                        <p className="font-bold text-slate-100">Carlos Cleton (Proprietário)</p>
-                        <p className="text-[10px] text-teal-400 font-mono">carloscleton.nat@gmail.com</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] bg-teal-500/20 text-teal-300 font-bold px-2 py-0.5 rounded-md">SUPER ADMIN</span>
-                  </button>
+            {/* FORM 1: LOGIN */}
+            {loginTab === "login" && (
+              <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs">
+                {loginError && (
+                  <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-2.5 rounded-xl flex items-center gap-2 font-medium">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleDemoLogin("atendimento@sanmathews.com.br")}
-                    className="w-full bg-slate-950 hover:bg-slate-850 border border-slate-800 p-2.5 rounded-xl text-left transition flex items-center justify-between text-xs cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition" />
-                      <div>
-                        <p className="font-bold text-slate-200">Cliente: Lab San Mathews</p>
-                        <p className="text-[10px] text-slate-400 font-mono">atendimento@sanmathews.com.br</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md">CLIENTE</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          )}
-
-          {/* FORM 2: SOLICITAR ACESSO */}
-          {loginTab === "solicitar" && (
-            <form onSubmit={handleRequestAccessSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nome do Laboratório</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex.: Laboratório Bio Vida"
-                  value={requestFormData.nomeLab}
-                  onChange={(e) => setRequestFormData({ ...requestFormData, nomeLab: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nome do Responsável Técnico</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex.: Dra. Maria Fernanda"
-                  value={requestFormData.nomeResponsavel}
-                  onChange={(e) => setRequestFormData({ ...requestFormData, nomeResponsavel: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">E-mail de Contato</label>
+                  <label className="block text-blue-200/80 font-semibold mb-1 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-cyan-400" /> E-mail de Acesso
+                  </label>
                   <input
                     type="email"
                     required
-                    placeholder="contato@lab.com.br"
-                    value={requestFormData.email}
-                    onChange={(e) => setRequestFormData({ ...requestFormData, email: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500/50"
+                    placeholder="Ex.: carloscleton.nat@gmail.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">CNPJ do Laboratório</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-blue-200/80 font-semibold flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetEmail(loginEmail);
+                        setLoginTab("trocarSenha");
+                      }}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold transition cursor-pointer"
+                    >
+                      Esqueceu a senha?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showLoginPassword ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3.5 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+                      title={showLoginPassword ? "Ocultar Senha" : "Exibir Senha"}
+                    >
+                      {showLoginPassword ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-3 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  <Lock className="w-4 h-4" /> Entrar no MidwayLab
+                </button>
+
+                {/* DEMO PRESETS */}
+                <div className="pt-3 border-t border-blue-900/50 space-y-1.5">
+                  <span className="text-[10px] text-blue-300/70 uppercase tracking-wider font-bold block text-center">
+                    ⚡ Acesso Rápido para Testes (Demo Presets)
+                  </span>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDemoLogin("carloscleton.nat@gmail.com")}
+                      className="w-full bg-[#060D1A] hover:bg-[#09152A] border border-blue-500/30 p-2 rounded-xl text-left transition flex items-center justify-between text-xs cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition" />
+                        <div>
+                          <p className="font-bold text-white text-[11px]">Carlos Cleton (Proprietário)</p>
+                          <p className="text-[10px] text-cyan-400 font-mono">carloscleton.nat@gmail.com</p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] bg-blue-500/20 text-cyan-300 font-bold px-2 py-0.5 rounded-md">SUPER ADMIN</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDemoLogin("atendimento@sanmathews.com.br")}
+                      className="w-full bg-[#060D1A] hover:bg-[#09152A] border border-blue-900/50 p-2 rounded-xl text-left transition flex items-center justify-between text-xs cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition" />
+                        <div>
+                          <p className="font-bold text-slate-200 text-[11px]">Cliente: Lab San Mathews</p>
+                          <p className="text-[10px] text-slate-400 font-mono">atendimento@sanmathews.com.br</p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md">CLIENTE</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* FORM 2: SOLICITAR ACESSO */}
+            {loginTab === "solicitar" && (
+              <form onSubmit={handleRequestAccessSubmit} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">Nome do Laboratório</label>
                   <input
                     type="text"
                     required
-                    placeholder="00.000.000/0001-00"
-                    value={requestFormData.cnpj}
-                    onChange={(e) => setRequestFormData({ ...requestFormData, cnpj: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500/50"
+                    placeholder="Ex.: Laboratório Bio Vida"
+                    value={requestFormData.nomeLab}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, nomeLab: e.target.value })}
+                    className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Senha Desejada</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={requestFormData.senha}
-                  onChange={(e) => setRequestFormData({ ...requestFormData, senha: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 cursor-pointer mt-2"
-              >
-                <UserPlus className="w-4 h-4" /> Enviar Solicitação de Cadastro
-              </button>
-            </form>
-          )}
-
-          {/* FORM 3: REDEFINIR / ALTERAR SENHA */}
-          {loginTab === "trocarSenha" && (
-            <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5 text-xs">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
-                <Key className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>Informe o e-mail da sua conta e defina a sua nova senha de acesso.</span>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">E-mail Cadastrado</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="Ex.: carloscleton.nat@gmail.com"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Senha Atual da Conta</label>
-                <div className="relative">
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">Nome do Responsável Técnico</label>
                   <input
-                    type={showResetPassword ? "text" : "password"}
+                    type="text"
+                    required
+                    placeholder="Ex.: Dra. Maria Fernanda"
+                    value={requestFormData.nomeResponsavel}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, nomeResponsavel: e.target.value })}
+                    className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-blue-200/80 font-semibold mb-1">E-mail de Contato</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="contato@lab.com.br"
+                      value={requestFormData.email}
+                      onChange={(e) => setRequestFormData({ ...requestFormData, email: e.target.value })}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono text-[11px] placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-blue-200/80 font-semibold mb-1">CNPJ do Laboratório</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="00.000.000/0001-00"
+                      value={requestFormData.cnpj}
+                      onChange={(e) => setRequestFormData({ ...requestFormData, cnpj: e.target.value })}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono text-[11px] placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">Senha Desejada</label>
+                  <input
+                    type="password"
                     required
                     placeholder="••••••••"
-                    value={resetCurrentPassword}
-                    onChange={(e) => setResetCurrentPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                    value={requestFormData.senha}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, senha: e.target.value })}
+                    className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
-                  >
-                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nova Senha</label>
-                <div className="relative">
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer mt-1"
+                >
+                  <UserPlus className="w-4 h-4" /> Enviar Solicitação de Cadastro
+                </button>
+              </form>
+            )}
+
+            {/* FORM 3: REDEFINIR / ALTERAR SENHA */}
+            {loginTab === "trocarSenha" && (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-3 text-xs">
+                <div className="bg-[#060D1A] p-2.5 rounded-xl border border-blue-900/50 text-[11px] text-blue-200/80 flex items-center gap-2">
+                  <Key className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span>Informe o e-mail da sua conta e defina a sua nova senha de acesso.</span>
+                </div>
+
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">E-mail Cadastrado</label>
                   <input
-                    type={showResetPassword ? "text" : "password"}
+                    type="email"
                     required
-                    placeholder="••••••••"
-                    value={resetNewPassword}
-                    onChange={(e) => setResetNewPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
+                    placeholder="Ex.: carloscleton.nat@gmail.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                  >
-                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Confirmar Nova Senha</label>
-                <div className="relative">
-                  <input
-                    type={showResetPassword ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    value={resetConfirmPassword}
-                    onChange={(e) => setResetConfirmPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
-                  >
-                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">Senha Atual da Conta</label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={resetCurrentPassword}
+                      onChange={(e) => setResetCurrentPassword(e.target.value)}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3 pr-9 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+                      title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
+                    >
+                      {showResetPassword ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={isResettingPassword}
-                className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 cursor-pointer mt-2"
-              >
-                <Key className="w-4 h-4" />
-                {isResettingPassword ? "Alterando..." : "🔐 Redefinir Minha Senha"}
-              </button>
-            </form>
-          )}
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">Nova Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3 pr-9 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+                    >
+                      {showResetPassword ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-blue-200/80 font-semibold mb-1">Confirmar Nova Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={resetConfirmPassword}
+                      onChange={(e) => setResetConfirmPassword(e.target.value)}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3 pr-9 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+                      title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
+                    >
+                      {showResetPassword ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer mt-1"
+                >
+                  <Key className="w-4 h-4" />
+                  {isResettingPassword ? "Alterando..." : "🔐 Redefinir Minha Senha"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT PANEL: 100% PRISTINE FULL 3D DIAGRAM IMAGE (UNCOVERED & UNUNCROPPED) */}
+        <div className="lg:w-7/12 xl:w-8/12 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center p-3 sm:p-5 lg:p-8 bg-[#070E1B] overflow-hidden">
+          {/* Ambient Lighting */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/10 blur-[160px] rounded-full pointer-events-none" />
+          <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[140px] rounded-full pointer-events-none" />
+
+          {/* Floating Glass Showcase Card presenting 100% of Image 2 */}
+          <div className="relative group w-full h-full max-h-full flex items-center justify-center p-2 sm:p-4 rounded-3xl bg-[#0B172E]/60 border border-blue-500/20 shadow-2xl backdrop-blur-xl overflow-hidden z-10 transition-all duration-500 hover:border-cyan-400/40">
+            <img
+              src="/midway-banner.png"
+              alt="MidwayLab 3D Integração de Sistemas"
+              className="w-full h-full object-contain drop-shadow-2xl opacity-100 transition-transform duration-700 hover:scale-[1.01]"
+            />
+          </div>
         </div>
       </div>
     );
