@@ -1886,7 +1886,7 @@ export default function MidwayLabDashboard() {
   // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 relative font-sans select-none overflow-hidden">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 lg:p-8 relative font-sans select-none overflow-x-hidden">
         {/* Toast Notification Banner */}
         {toastMessage && (
           <div className="fixed top-4 right-4 z-50 bg-teal-500 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-teal-500/30 border border-teal-300 flex items-center gap-3 animate-bounce">
@@ -1896,10 +1896,29 @@ export default function MidwayLabDashboard() {
         )}
 
         {/* Ambient Glows */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-teal-500/10 blur-[120px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-10 left-10 w-72 h-72 bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[550px] h-[550px] bg-teal-500/10 blur-[140px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-10 left-10 w-80 h-80 bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-2xl backdrop-blur-xl relative z-10">
+        <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10 my-auto">
+          {/* Left Visual Banner Column */}
+          <div className="lg:col-span-6 flex flex-col items-center justify-center space-y-4">
+            <div className="relative group w-full overflow-hidden rounded-3xl border border-slate-800/90 bg-slate-900/80 p-2 shadow-2xl backdrop-blur-xl transition duration-500 hover:border-teal-500/40">
+              <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition duration-500 pointer-events-none rounded-3xl" />
+              <img
+                src="/midway-banner.png"
+                alt="Midway Integração de Sistemas - Conectando o laboratório ao melhor cuidado"
+                className="w-full h-auto object-cover rounded-2xl shadow-inner border border-slate-800/60"
+              />
+            </div>
+            <div className="text-center px-4 space-y-1">
+              <p className="text-sm font-bold text-slate-200">Plataforma de Integração Autolac ↔ Softlab Apoio</p>
+              <p className="text-xs text-slate-400">Orquestrador Inteligente de Pedidos, Laudos e Mapeamentos DE-PARA</p>
+            </div>
+          </div>
+
+          {/* Right Form Column */}
+          <div className="lg:col-span-6 w-full">
+            <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl">
           {/* Logo & Header */}
           <div className="text-center space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 mx-auto flex items-center justify-center shadow-xl shadow-teal-500/20">
@@ -2227,6 +2246,8 @@ export default function MidwayLabDashboard() {
               </button>
             </form>
           )}
+            </div>
+          </div>
         </div>
       </div>
     );
