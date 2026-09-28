@@ -2232,30 +2232,13 @@ export default function MidwayLabDashboard() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: 100% VIVID HIGH-DEFINITION MIDWAY IMAGE SHOWCASE */}
-      <div className="lg:w-7/12 xl:w-2/3 w-full relative flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 bg-slate-950 overflow-hidden min-h-[450px] lg:min-h-screen">
-        {/* Ambient Lighting Behind Image */}
-        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-teal-500/10 blur-[150px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
-
-        {/* Pristine 100% Vivid Bright Image Showcase */}
-        <div className="relative group w-full h-full max-h-[85vh] flex flex-col items-center justify-center p-3 sm:p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden z-10">
-          <img
-            src="/midway-banner.png"
-            alt="Midway Integração de Sistemas - Conectando o laboratório ao melhor cuidado"
-            className="w-full h-auto max-h-[75vh] object-contain rounded-2xl drop-shadow-2xl opacity-100 transition-transform duration-500 hover:scale-[1.01]"
-          />
-        </div>
-
-        {/* Elegant Vivid Caption */}
-        <div className="mt-4 text-center space-y-1 relative z-10 px-4">
-          <p className="text-sm font-extrabold text-slate-200 tracking-wide flex items-center justify-center gap-2">
-            <Sparkles className="w-4 h-4 text-teal-400" /> Plataforma de Integração Autolac ↔ Softlab Apoio
-          </p>
-          <p className="text-xs text-slate-400">
-            Orquestrador Inteligente de Pedidos SOAP, Laudos e Mapeamentos DE-PARA
-          </p>
-        </div>
+      {/* RIGHT PANEL: FULL-BLEED 100% VIVID HIGH-DEFINITION MIDWAY IMAGE */}
+      <div className="lg:w-7/12 xl:w-2/3 w-full min-h-[450px] lg:min-h-screen relative overflow-hidden bg-slate-900 flex items-center justify-center">
+        <img
+          src="/midway-banner.png"
+          alt="Midway Integração de Sistemas - Conectando o laboratório ao melhor cuidado"
+          className="absolute inset-0 w-full h-full object-cover object-center opacity-100"
+        />
       </div>
     </div>
   );
