@@ -1899,9 +1899,9 @@ export default function MidwayLabDashboard() {
         <div className="absolute top-1/4 left-1/4 -translate-x-1/2 w-[500px] h-[500px] bg-blue-500/10 blur-[150px] rounded-full pointer-events-none" />
         <div className="absolute bottom-10 left-1/3 w-80 h-80 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
 
-        {/* LEFT PANEL: AUTHENTICATION FORM (Styled in 3D Image Color Scheme) */}
-        <div className="lg:w-5/12 xl:w-4/12 w-full h-full flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 bg-[#070E1B] border-b lg:border-b-0 lg:border-r border-blue-900/40 relative z-20 overflow-y-auto">
-          <div className="w-full max-w-md bg-[#0B172E]/95 border border-blue-500/30 rounded-3xl p-5 sm:p-7 space-y-4 shadow-2xl shadow-blue-950/80 backdrop-blur-2xl my-auto hover:border-cyan-400/50 transition duration-500">
+        {/* LEFT PANEL: AUTHENTICATION FORM (Compact & Aligned) */}
+        <div className="lg:w-4/12 xl:w-1/3 w-full h-full flex flex-col justify-center items-center p-3 sm:p-4 lg:p-6 bg-[#070E1B] border-b lg:border-b-0 lg:border-r border-blue-900/30 relative z-20 overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0B172E]/95 border border-blue-500/30 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl shadow-blue-950/80 backdrop-blur-2xl my-auto hover:border-cyan-400/50 transition duration-500">
             {/* Logo & Header */}
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/30">
@@ -2231,18 +2231,18 @@ export default function MidwayLabDashboard() {
           </div>
         </div>
 
-        {/* RIGHT PANEL: 100% PRISTINE FULL 3D DIAGRAM IMAGE (UNCOVERED & UNUNCROPPED) */}
-        <div className="lg:w-7/12 xl:w-8/12 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center p-3 sm:p-5 lg:p-8 bg-[#070E1B] overflow-hidden">
+        {/* RIGHT PANEL: 100% EXPANDED FULL 3D DIAGRAM IMAGE (SITTING CLOSE TO LOGIN MODAL) */}
+        <div className="lg:w-8/12 xl:w-2/3 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center p-1 sm:p-2 lg:p-4 bg-[#070E1B] overflow-hidden">
           {/* Ambient Lighting */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/10 blur-[160px] rounded-full pointer-events-none" />
           <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[140px] rounded-full pointer-events-none" />
 
-          {/* Floating Glass Showcase Card presenting 100% of Image 2 */}
-          <div className="relative group w-full h-full max-h-full flex items-center justify-center p-2 sm:p-4 rounded-3xl bg-[#0B172E]/60 border border-blue-500/20 shadow-2xl backdrop-blur-xl overflow-hidden z-10 transition-all duration-500 hover:border-cyan-400/40">
+          {/* Floating Glass Showcase Card presenting Expanded Image 2 */}
+          <div className="relative group w-full h-full max-h-full flex items-center justify-center p-1 sm:p-2 rounded-3xl bg-[#0B172E]/40 border border-blue-500/20 shadow-2xl backdrop-blur-xl overflow-hidden z-10 transition-all duration-500 hover:border-cyan-400/40">
             <img
               src="/midway-banner.png"
               alt="MidwayLab 3D Integração de Sistemas"
-              className="w-full h-full object-contain drop-shadow-2xl opacity-100 transition-transform duration-700 hover:scale-[1.01]"
+              className="w-full h-full object-contain drop-shadow-2xl opacity-100 scale-[1.03] transition-transform duration-700 hover:scale-[1.04]"
             />
           </div>
         </div>
