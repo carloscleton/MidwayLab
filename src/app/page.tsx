@@ -1886,7 +1886,7 @@ export default function MidwayLabDashboard() {
   // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
   if (!currentUser) {
     return (
-      <div className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-950 text-slate-100 relative font-sans select-none overflow-x-hidden">
+      <div className="h-screen w-full flex flex-col lg:flex-row bg-slate-950 text-slate-100 relative font-sans select-none overflow-hidden">
         {/* Toast Notification Banner */}
         {toastMessage && (
           <div className="fixed top-4 right-4 z-50 bg-teal-500 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl shadow-teal-500/30 border border-teal-300 flex items-center gap-3 animate-bounce">
@@ -1900,8 +1900,8 @@ export default function MidwayLabDashboard() {
         <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
 
         {/* LEFT PANEL: AUTHENTICATION FORM */}
-        <div className="lg:w-5/12 xl:w-1/3 flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 min-h-screen relative z-20 w-full my-auto bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800/80">
-          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl">
+        <div className="lg:w-5/12 xl:w-4/12 w-full h-full flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 bg-slate-950 relative z-20 overflow-y-auto">
+          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl my-auto">
           {/* Logo & Header */}
           <div className="text-center space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 mx-auto flex items-center justify-center shadow-xl shadow-teal-500/20">
@@ -2232,13 +2232,20 @@ export default function MidwayLabDashboard() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: FULL-BLEED 100% VIVID HIGH-DEFINITION MIDWAY IMAGE */}
-      <div className="lg:w-7/12 xl:w-2/3 w-full min-h-[450px] lg:min-h-screen relative overflow-hidden bg-slate-900 flex items-center justify-center">
-        <img
-          src="/midway-banner.png"
-          alt="Midway Integração de Sistemas - Conectando o laboratório ao melhor cuidado"
-          className="absolute inset-0 w-full h-full object-cover object-center opacity-100"
-        />
+      {/* RIGHT PANEL: 3D VIVID MIDWAY SHOWCASE CARD WITH ROUNDED CORNERS */}
+      <div className="lg:w-7/12 xl:w-8/12 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-950 overflow-hidden">
+        {/* Ambient Glows */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-teal-500/10 blur-[160px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[140px] rounded-full pointer-events-none" />
+
+        {/* Floating Glass Showcase Card with Rounded Borders */}
+        <div className="relative group w-full h-full max-h-full flex items-center justify-center p-2 rounded-3xl bg-slate-900/60 border border-slate-800/80 shadow-2xl backdrop-blur-xl overflow-hidden z-10 transition-all duration-500 hover:border-teal-500/30">
+          <img
+            src="/midway-banner.png"
+            alt="MidwayLab 3D - Integração de Sistemas"
+            className="w-full h-full object-cover lg:object-contain rounded-2xl drop-shadow-2xl opacity-100 transition-transform duration-700 hover:scale-[1.01]"
+          />
+        </div>
       </div>
     </div>
   );
