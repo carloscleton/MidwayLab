@@ -2231,20 +2231,13 @@ export default function MidwayLabDashboard() {
           </div>
         </div>
 
-        {/* RIGHT PANEL: 100% EXPANDED FULL 3D DIAGRAM IMAGE (SITTING CLOSE TO LOGIN MODAL) */}
-        <div className="lg:w-8/12 xl:w-2/3 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center p-1 sm:p-2 lg:p-4 bg-[#070E1B] overflow-hidden">
-          {/* Ambient Lighting */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/10 blur-[160px] rounded-full pointer-events-none" />
-          <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[140px] rounded-full pointer-events-none" />
-
-          {/* Floating Glass Showcase Card presenting Expanded Image 2 */}
-          <div className="relative group w-full h-full max-h-full flex items-center justify-center p-1 sm:p-2 rounded-3xl bg-[#0B172E]/40 border border-blue-500/20 shadow-2xl backdrop-blur-xl overflow-hidden z-10 transition-all duration-500 hover:border-cyan-400/40">
-            <img
-              src="/midway-banner.png"
-              alt="MidwayLab 3D Integração de Sistemas"
-              className="w-full h-full object-contain drop-shadow-2xl opacity-100 scale-[1.03] transition-transform duration-700 hover:scale-[1.04]"
-            />
-          </div>
+        {/* RIGHT PANEL: BORDERLESS & FULL-EXPANDED 3D DIAGRAM IMAGE */}
+        <div className="lg:w-8/12 xl:w-2/3 w-full h-full min-h-[400px] lg:min-h-screen relative flex items-center justify-center bg-[#070E1B] overflow-hidden p-0">
+          <img
+            src="/midway-banner.png"
+            alt="MidwayLab 3D Integração de Sistemas"
+            className="w-full h-full object-contain drop-shadow-2xl opacity-100 scale-[1.05] transition-transform duration-700"
+          />
         </div>
       </div>
     );
