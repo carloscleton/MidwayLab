@@ -873,6 +873,17 @@ export default function MidwayLabDashboard() {
     gerarNovoTubo: true
   });
 
+  const [asaasForm, setAsaasForm] = useState({
+    cobrancaId: "CHG-1790439935791-104",
+    dueDate: "2026-10-15",
+    value: "3500.00",
+    description: "Prestação de serviço avulsa",
+    billingType: "BOLETO",
+    discountValue: "50.00",
+    interestValue: "1.00",
+    fineValue: "2.00"
+  });
+
   const handleConfirmCancelAmostra = async (e: React.FormEvent) => {
     e.preventDefault();
     showNotification(`🗑️ Amostra '${cancelForm.codigoAmostra}' cancelada com sucesso no Softlab Apoio!`);
@@ -888,6 +899,12 @@ export default function MidwayLabDashboard() {
   const handleConfirmAdicaoExames = async (e: React.FormEvent) => {
     e.preventDefault();
     showNotification(`➕ ${lote12Form.novosExames.length} exames adicionados com sucesso ao atendimento '${lote12Form.protocolo}' no Softlab Apoio (Lote 1.2)!`);
+    setActiveWorkflowModal(null);
+  };
+
+  const handleConfirmUpdateAsaas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    showNotification(`⚡ Cobrança '${asaasForm.cobrancaId}' atualizada no Asaas com sucesso! Novo Vencimento: ${asaasForm.dueDate}, Valor: R$ ${asaasForm.value}, Forma: ${asaasForm.billingType}`);
     setActiveWorkflowModal(null);
   };
 
@@ -3167,7 +3184,7 @@ export default function MidwayLabDashboard() {
               <p className="text-xs text-slate-400">Orquestração completa dos fluxos de Recoletas, Impressão EPL, Cancelamento, Ajuste de Coleta e Adição de Exames (Lote 1.2)</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div onClick={() => setActiveWorkflowModal("epl")} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-teal-500/50 transition cursor-pointer space-y-2 group">
                 <div className="p-3 bg-teal-500/10 text-teal-400 rounded-xl w-fit group-hover:scale-110 transition"><Tag className="w-6 h-6" /></div>
                 <h3 className="font-bold text-slate-100 text-sm">Etiquetas EPL (5x3cm)</h3>
@@ -3190,6 +3207,12 @@ export default function MidwayLabDashboard() {
                 <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit group-hover:scale-110 transition"><Plus className="w-6 h-6" /></div>
                 <h3 className="font-bold text-slate-100 text-sm">Adição de Exames (Lote 1.2)</h3>
                 <p className="text-xs text-slate-400">Adicionar exames a paciente gerando novo tubo sem alterar tubos colhidos.</p>
+              </div>
+
+              <div onClick={() => setActiveWorkflowModal("asaas")} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-emerald-500/50 transition cursor-pointer space-y-2 group">
+                <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit group-hover:scale-110 transition"><Key className="w-6 h-6" /></div>
+                <h3 className="font-bold text-slate-100 text-sm">Gestão Boleto/PIX (ASAAS)</h3>
+                <p className="text-xs text-slate-400">Alterar vencimento, valor bruto, encargos, forma de pagamento e detalhes.</p>
               </div>
             </div>
 
@@ -4603,6 +4626,161 @@ P1`}
                   className="bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-bold px-4 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-lg shadow-indigo-500/20"
                 >
                   <Plus className="w-4 h-4" /> Adicionar Exames ao Lote
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GESTÃO DE BOLETO E COBRANÇA (ASAAS) */}
+      {activeWorkflowModal === "asaas" && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  Gestão de Boleto Bancário & PIX (ASAAS)
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Atualizar dados da cobrança ativa no gateway de pagamento
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveWorkflowModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmUpdateAsaas} className="space-y-4 text-xs">
+              {/* ID DA COBRANÇA */}
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">ID / Referência da Cobrança Asaas</label>
+                <input
+                  type="text"
+                  value={asaasForm.cobrancaId}
+                  onChange={(e) => setAsaasForm({ ...asaasForm, cobrancaId: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500/50"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* 1. DATA DE VENCIMENTO */}
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-emerald-400" /> Data de Vencimento (dueDate)
+                  </label>
+                  <input
+                    type="date"
+                    value={asaasForm.dueDate}
+                    onChange={(e) => setAsaasForm({ ...asaasForm, dueDate: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-emerald-500/50"
+                    required
+                  />
+                </div>
+
+                {/* 2. VALOR DA COBRANÇA */}
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-emerald-400" /> Valor Bruto R$ (value)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={asaasForm.value}
+                    onChange={(e) => setAsaasForm({ ...asaasForm, value: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold text-teal-300 focus:outline-none focus:border-emerald-500/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* 5. FORMA DE PAGAMENTO */}
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Key className="w-4 h-4 text-cyan-400" /> Forma de Pagamento (billingType)
+                </label>
+                <select
+                  value={asaasForm.billingType}
+                  onChange={(e) => setAsaasForm({ ...asaasForm, billingType: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-cyan-500/50"
+                >
+                  <option value="BOLETO">📄 BOLETO BANCÁRIO (ASAAS)</option>
+                  <option value="PIX">⚡ PIX (QR CODE & CHAVE COPIA E COLA)</option>
+                  <option value="CREDIT_CARD">💳 CARTÃO DE CRÉDITO</option>
+                </select>
+              </div>
+
+              {/* 3. DESCRIÇÃO */}
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-slate-400" /> Descrição / Detalhes da Cobrança (description)
+                </label>
+                <textarea
+                  value={asaasForm.description}
+                  onChange={(e) => setAsaasForm({ ...asaasForm, description: e.target.value })}
+                  rows={2}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+
+              {/* 4. ENCARGOS: DESCONTO, JUROS E MULTA */}
+              <div className="space-y-1.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <span className="text-[11px] font-bold text-amber-400 block uppercase tracking-wider">
+                  Configuração de Descontos, Juros e Multa
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-slate-400 font-medium block text-[10px]">Desconto R$ (discount)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={asaasForm.discountValue}
+                      onChange={(e) => setAsaasForm({ ...asaasForm, discountValue: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-100 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 font-medium block text-[10px]">Juros Mês % (interest)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={asaasForm.interestValue}
+                      onChange={(e) => setAsaasForm({ ...asaasForm, interestValue: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-100 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 font-medium block text-[10px]">Multa Atraso % (fine)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={asaasForm.fineValue}
+                      onChange={(e) => setAsaasForm({ ...asaasForm, fineValue: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-100 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowModal(null)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                >
+                  <Save className="w-4 h-4" /> Salvar Alterações no Asaas
                 </button>
               </div>
             </form>
