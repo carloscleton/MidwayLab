@@ -447,12 +447,20 @@ export default function MidwayLabDashboard() {
           const mappedTenants = dbTenants.map(t => ({
             id: t.id,
             nome: t.nome,
-            identificacaoEntidade: t.identificacao_entidade,
-            senhaWs: t.senha_ws,
+            identificacaoEntidade: t.identificacao_entidade || "",
+            identificacao_entidade: t.identificacao_entidade || "",
+            senhaWs: t.senha_ws || "",
+            senha_ws: t.senha_ws || "",
             codigoAgente: t.codigo_entidade || "1",
-            wsUrl: "http://177.22.36.202:8002/",
-            softlabLogin: t.softlab_login,
-            softlabSenha: t.softlab_senha || "Carlos@2026",
+            codigo_entidade: t.codigo_entidade || "1",
+            wsUrl: (t as any).ws_url || "http://177.22.36.202:8002/",
+            ws_url: (t as any).ws_url || "http://177.22.36.202:8002/",
+            softlabBaseUrl: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+            softlab_base_url: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+            softlabLogin: t.softlab_login || "",
+            softlab_login: t.softlab_login || "",
+            softlabSenha: t.softlab_senha || "",
+            softlab_senha: t.softlab_senha || "",
             ultimoLote: "1",
             status: t.ativo ? "ONLINE" : "OFFLINE"
           }));
@@ -1773,14 +1781,14 @@ export default function MidwayLabDashboard() {
   const handleOpenEditTenant = (t: any) => {
     setEditingTenant(t);
     setTenantFormData({
-      nome: t.nome,
-      identificacaoEntidade: t.identificacaoEntidade,
-      senhaWs: t.senhaWs || "Soft@2026",
-      codigoAgente: t.codigoAgente || "1",
-      wsUrl: t.wsUrl || "http://177.22.36.202:8002/",
+      nome: t.nome || "",
+      identificacaoEntidade: t.identificacaoEntidade || t.identificacao_entidade || "",
+      senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
+      codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
+      wsUrl: t.wsUrl || t.ws_url || "http://177.22.36.202:8002/",
       softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
-      softlabLogin: t.softlabLogin || "",
-      softlabSenha: t.softlabSenha || ""
+      softlabLogin: t.softlabLogin || t.softlab_login || "",
+      softlabSenha: t.softlabSenha || t.softlab_senha || ""
     });
     setIsNewTenantModalOpen(true);
   };
@@ -3920,7 +3928,7 @@ export default function MidwayLabDashboard() {
               </h3>
               <button 
                 type="button"
-                onClick={() => setIsNewTenantModalOpen(false)}
+                onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
                 className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -4102,7 +4110,7 @@ export default function MidwayLabDashboard() {
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => { setIsNewTenantModalOpen(false); setTenantTestResult(null); }}
+                    onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
                     className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
                   >
                     Cancelar
