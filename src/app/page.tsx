@@ -1266,7 +1266,9 @@ export default function MidwayLabDashboard() {
       tenantFormData.softlabLogin,
       tenantFormData.softlabSenha,
       tenantFormData.wsUrl,
-      tenantFormData.softlabBaseUrl || "http://apoio.softlabsolucoes.com.br"
+      tenantFormData.softlabBaseUrl || "http://apoio.softlabsolucoes.com.br",
+      tenantFormData.identificacaoEntidade,
+      tenantFormData.senhaWs
     );
 
     setIsTestingTenantConnection(false);

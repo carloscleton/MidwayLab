@@ -89,7 +89,14 @@ export class TenantService {
   /**
    * Valida em TEMPO REAL e INDIVIDUALMENTE as credenciais da API Softlab Apoio e a conectividade do WebService Autolac via Rota Server-Side
    */
-  static async testarConexaoTenant(softlabLogin: string, softlabSenha: string, wsUrl: string, softlabBaseUrl?: string): Promise<{
+  static async testarConexaoTenant(
+    softlabLogin: string,
+    softlabSenha: string,
+    wsUrl: string,
+    softlabBaseUrl?: string,
+    identificacaoEntidade?: string,
+    senhaWs?: string
+  ): Promise<{
     softlabSuccess: boolean;
     softlabMsg: string;
     autolacSuccess: boolean;
@@ -103,7 +110,9 @@ export class TenantService {
           softlabLogin,
           softlabSenha,
           softlabBaseUrl: softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
-          wsUrl
+          wsUrl,
+          identificacaoEntidade,
+          senhaWs
         })
       });
 

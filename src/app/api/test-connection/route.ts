@@ -4,7 +4,7 @@ import axios from 'axios';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { softlabLogin, softlabSenha, softlabBaseUrl, wsUrl } = body;
+    const { softlabLogin, softlabSenha, softlabBaseUrl, wsUrl, identificacaoEntidade, senhaWs } = body;
 
     // -------------------------------------------------------------------------
     // 1. TESTE INDIVIDUAL DA API REST DO SOFTLAB APOIO
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
           if (err.response.status === 401 || err.response.status === 400) {
             softlabMsg = `❌ Erro ${err.response.status}: Credenciais (Login '${softlabLogin}' / Senha) recusadas pela API Softlab em ${targetSoftlabUrl}.`;
           } else {
-            softlabMsg = `❌ Resposta da API Softlab (HTTP ${err.response.status}): ${err.response.data?.mensagem || err.response.statusText}`;
+            softlabMsg = `❌ Resposta da API Softlab (HTTP ${err.response.status}): ${err.response.data?.message || err.response.data?.mensagem || err.response.statusText}`;
           }
         } else if (err.code === "ENOTFOUND" || err.code === "EAI_AGAIN") {
           softlabMsg = `❌ Servidor do Softlab não encontrado no domínio '${targetSoftlabUrl}'. Verifique a URL.`;
@@ -62,42 +62,35 @@ export async function POST(request: Request) {
 
     if (!wsUrl || !wsUrl.startsWith("http")) {
       autolacMsg = "Informe uma URL válida do WebService Autolac (iniciada com http:// ou https://).";
+    } else if (!identificacaoEntidade || !senhaWs) {
+      autolacSuccess = false;
+      autolacMsg = "❌ Preencha a Identificação da Entidade (Autolac) e a Senha de Acesso ao WS.";
     } else {
       try {
-        console.log(`[TestConnection API] Testando WebService Autolac em ${targetWsUrl}...`);
+        console.log(`[TestConnection API] Testando WebService Autolac em ${targetWsUrl} com entidade '${identificacaoEntidade}'...`);
         const pingUrl = targetWsUrl.endsWith('wsdl') ? targetWsUrl : `${targetWsUrl}/?wsdl`;
-        await axios.get(pingUrl, { timeout: 6000 });
-        autolacSuccess = true;
-        autolacMsg = `✓ WebService Autolac WSDL Respondendo OK em ${targetWsUrl}!`;
-      } catch (err: any) {
-        if (err.response) {
-          // Response received (even HTTP 404/405/500), proving host exists and responds
+        
+        // Pings WSDL endpoint
+        const wsRes = await axios.get(pingUrl, { timeout: 6000 });
+        if (wsRes.status === 200) {
           autolacSuccess = true;
-          autolacMsg = `✓ Servidor WebService Autolac Ativo em ${targetWsUrl} (HTTP ${err.response.status}).`;
+          autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
         } else {
-          // Fallback: try direct base URL
-          try {
-            await axios.get(targetWsUrl, { timeout: 5000 });
-            autolacSuccess = true;
-            autolacMsg = `✓ WebService Autolac Online em ${targetWsUrl}!`;
-          } catch (err2: any) {
-            if (err2.response) {
-              autolacSuccess = true;
-              autolacMsg = `✓ Servidor Autolac Respondendo em ${targetWsUrl} (HTTP ${err2.response.status}).`;
-            } else {
-              autolacSuccess = false;
-              const code = err2.code || err.code || "";
-              if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
-                autolacMsg = `❌ Servidor Autolac inacessível: Domínio ou IP em '${targetWsUrl}' não foi encontrado.`;
-              } else if (code === "ECONNREFUSED") {
-                autolacMsg = `❌ Conexão recusada pela porta no servidor '${targetWsUrl}'.`;
-              } else if (code === "ETIMEDOUT" || code === "ECONNABORTED") {
-                autolacMsg = `❌ Timeout: Servidor Autolac em '${targetWsUrl}' não respondeu em 6s.`;
-              } else {
-                autolacMsg = `❌ Erro Conectividade Autolac: ${err2.message || err.message}`;
-              }
-            }
-          }
+          autolacSuccess = false;
+          autolacMsg = `❌ Resposta do WebService Autolac (HTTP ${wsRes.status}) em ${targetWsUrl}.`;
+        }
+      } catch (err: any) {
+        autolacSuccess = false;
+        if (err.response) {
+          autolacMsg = `❌ Erro de Resposta no WebService Autolac (HTTP ${err.response.status}): O servidor em '${targetWsUrl}' recusou a requisição.`;
+        } else if (err.code === "ENOTFOUND" || err.code === "EAI_AGAIN") {
+          autolacMsg = `❌ Servidor Autolac inacessível: Domínio ou IP em '${targetWsUrl}' não foi encontrado.`;
+        } else if (err.code === "ECONNREFUSED") {
+          autolacMsg = `❌ Conexão recusada pela porta no servidor '${targetWsUrl}'.`;
+        } else if (err.code === "ETIMEDOUT" || err.code === "ECONNABORTED") {
+          autolacMsg = `❌ Timeout: Servidor Autolac em '${targetWsUrl}' não respondeu em 6s.`;
+        } else {
+          autolacMsg = `❌ Erro Conectividade Autolac: ${err.message}`;
         }
       }
     }
