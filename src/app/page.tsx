@@ -1567,7 +1567,21 @@ export default function MidwayLabDashboard() {
       const tenantId = savedTenant?.id || editingTenant?.id || (tenants.length + 6).toString();
       const updatedTenantItem = {
         id: tenantId,
-        ...tenantFormData,
+        nome: tenantFormData.nome,
+        identificacaoEntidade: tenantFormData.identificacaoEntidade,
+        identificacao_entidade: tenantFormData.identificacaoEntidade,
+        senhaWs: tenantFormData.senhaWs,
+        senha_ws: tenantFormData.senhaWs,
+        codigoAgente: tenantFormData.codigoAgente || "1",
+        codigo_entidade: tenantFormData.codigoAgente || "1",
+        wsUrl: tenantFormData.wsUrl,
+        ws_url: tenantFormData.wsUrl,
+        softlabBaseUrl: tenantFormData.softlabBaseUrl,
+        softlab_base_url: tenantFormData.softlabBaseUrl,
+        softlabLogin: tenantFormData.softlabLogin,
+        softlab_login: tenantFormData.softlabLogin,
+        softlabSenha: tenantFormData.softlabSenha,
+        softlab_senha: tenantFormData.softlabSenha,
         ultimoLote: editingTenant?.ultimoLote || "1",
         status: "ONLINE"
       };
