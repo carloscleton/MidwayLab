@@ -95,12 +95,13 @@ export class TenantService {
     wsUrl: string,
     softlabBaseUrl?: string,
     identificacaoEntidade?: string,
-    senhaWs?: string
+    senhaWs?: string,
+    targetService: 'softlab' | 'autolac' | 'both' = 'both'
   ): Promise<{
-    softlabSuccess: boolean;
-    softlabMsg: string;
-    autolacSuccess: boolean;
-    autolacMsg: string;
+    softlabSuccess?: boolean;
+    softlabMsg?: string;
+    autolacSuccess?: boolean;
+    autolacMsg?: string;
   }> {
     try {
       const response = await fetch('/api/test-connection', {
@@ -112,7 +113,8 @@ export class TenantService {
           softlabBaseUrl: softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
           wsUrl,
           identificacaoEntidade,
-          senhaWs
+          senhaWs,
+          targetService
         })
       });
 
