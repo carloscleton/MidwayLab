@@ -1548,7 +1548,7 @@ export default function MidwayLabDashboard() {
         identificacao_entidade: tenantFormData.identificacaoEntidade,
         senha_ws: tenantFormData.senhaWs,
         codigo_entidade: tenantFormData.codigoAgente || '1',
-        softlab_base_url: tenantFormData.wsUrl || 'http://apoio.softlabsolucoes.com.br',
+        softlab_base_url: tenantFormData.softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
         softlab_login: tenantFormData.softlabLogin,
         softlab_senha: tenantFormData.softlabSenha,
         ativo: true
@@ -1571,13 +1571,9 @@ export default function MidwayLabDashboard() {
         showNotification(`🎉 Novo Laboratório "${tenantFormData.nome}" cadastrado e salvo no Supabase!`);
       }
     } catch (err: any) {
-      console.warn("Retorno mantido localmente:", err.message);
-      if (editingTenant) {
-        setTenants(prev => prev.map(t => t.id === editingTenant.id ? { ...t, ...tenantFormData } : t));
-      } else {
-        setTenants(prev => [...prev, { id: (tenants.length + 6).toString(), ...tenantFormData, ultimoLote: "1", status: "ONLINE" }]);
-      }
-      showNotification(`Laboratório "${tenantFormData.nome}" salvo com sucesso!`);
+      console.error("Erro ao salvar no Supabase:", err);
+      alert(`Erro ao salvar no banco de dados Supabase: ${err.message || 'Verifique o console'}`);
+      return;
     }
 
     setIsNewTenantModalOpen(false);

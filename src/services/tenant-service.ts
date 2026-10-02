@@ -46,19 +46,24 @@ export class TenantService {
    * Salva ou atualiza um Tenant no Supabase
    */
   static async salvarTenant(tenant: Partial<ITenantRecord>): Promise<ITenantRecord | null> {
+    const payload: any = {
+      nome: tenant.nome,
+      codigo_entidade: tenant.codigo_entidade || '1',
+      identificacao_entidade: tenant.identificacao_entidade,
+      senha_ws: tenant.senha_ws || 'Soft@2026',
+      softlab_base_url: tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
+      softlab_login: tenant.softlab_login,
+      softlab_senha: tenant.softlab_senha,
+      ativo: tenant.ativo !== undefined ? tenant.ativo : true
+    };
+
+    if (tenant.id && typeof tenant.id === 'string' && tenant.id.includes('-') && tenant.id.length >= 30) {
+      payload.id = tenant.id;
+    }
+
     const { data, error } = await supabaseBrowser
       .from('tenants')
-      .upsert({
-        id: tenant.id,
-        nome: tenant.nome,
-        codigo_entidade: tenant.codigo_entidade || '1',
-        identificacao_entidade: tenant.identificacao_entidade,
-        senha_ws: tenant.senha_ws || 'Soft@2026',
-        softlab_base_url: tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
-        softlab_login: tenant.softlab_login,
-        softlab_senha: tenant.softlab_senha,
-        ativo: true
-      })
+      .upsert(payload)
       .select('*')
       .single();
 
