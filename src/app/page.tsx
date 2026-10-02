@@ -4053,12 +4053,21 @@ export default function MidwayLabDashboard() {
                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs font-mono">
                   <div className="flex items-center justify-between text-slate-400 font-bold border-b border-slate-900 pb-1.5">
                     <span>⚡ Relatório Diagnóstico de Conexão</span>
-                    <span className="text-emerald-400">✓ Teste Concluído</span>
+                    {tenantTestResult.softlabSuccess && tenantTestResult.autolacSuccess ? (
+                      <span className="text-emerald-400 flex items-center gap-1">✓ Teste Concluído</span>
+                    ) : (
+                      <span className="text-rose-400 flex items-center gap-1">⚠️ Teste Concluído (Com Erros)</span>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-slate-300 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-teal-400" /> Softlab Apoio API REST:
+                      {tenantTestResult.softlabSuccess ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      )}
+                      Softlab Apoio API REST:
                     </span>
                     <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${tenantTestResult.softlabSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
                       {tenantTestResult.softlabMsg}
@@ -4067,7 +4076,12 @@ export default function MidwayLabDashboard() {
 
                   <div className="flex items-center justify-between">
                     <span className="text-slate-300 flex items-center gap-1.5">
-                      <Server className="w-4 h-4 text-cyan-400" /> Autolac WebService SOAP:
+                      {tenantTestResult.autolacSuccess ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      )}
+                      Autolac WebService SOAP:
                     </span>
                     <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${tenantTestResult.autolacSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
                       {tenantTestResult.autolacMsg}
