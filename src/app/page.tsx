@@ -2029,7 +2029,7 @@ export default function MidwayLabDashboard() {
 
             {/* FORM 1: LOGIN */}
             {loginTab === "login" && (
-              <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs">
+              <form onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-3.5 text-xs">
                 {loginError && (
                   <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-2.5 rounded-xl flex items-center gap-2 font-medium">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
@@ -2044,7 +2044,7 @@ export default function MidwayLabDashboard() {
                   <input
                     type="email"
                     required
-                    autoComplete="username"
+                    autoComplete="off"
                     placeholder="Ex.: carloscleton.nat@gmail.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
@@ -2072,7 +2072,7 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showLoginPassword ? "text" : "password"}
                       required
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
