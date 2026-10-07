@@ -74,16 +74,63 @@ export async function POST(request: Request) {
         autolacMsg = "❌ Preencha a Identificação da Entidade (Autolac) e a Senha de Acesso ao WS.";
       } else {
         try {
-          console.log(`[TestConnection API] Testando WebService Autolac em ${targetWsUrl} com entidade '${identificacaoEntidade}'...`);
-          const pingUrl = targetWsUrl.endsWith('wsdl') ? targetWsUrl : `${targetWsUrl}/?wsdl`;
-          
-          const wsRes = await axios.get(pingUrl, { timeout: 6000 });
-          if (wsRes.status === 200) {
-            autolacSuccess = true;
-            autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
-          } else {
-            autolacSuccess = false;
-            autolacMsg = `❌ Resposta do WebService Autolac (HTTP ${wsRes.status}) em ${targetWsUrl}.`;
+          console.log(`[TestConnection API] Testando Autolac em ${targetWsUrl} com entidade '${identificacaoEntidade}'...`);
+          let isTested = false;
+
+          // 1. Tenta autenticação na REST API do Autolac (/Api/Inter-Autolac/Login)
+          try {
+            const apoiadoNum = parseInt(identificacaoEntidade, 10);
+            const loginPayload = {
+              apoiadoId: isNaN(apoiadoNum) ? identificacaoEntidade : apoiadoNum,
+              senha: senhaWs
+            };
+
+            console.log(`[TestConnection API] Tentando POST ${targetWsUrl}/Api/Inter-Autolac/Login...`);
+            const loginRes = await axios.post(`${targetWsUrl}/Api/Inter-Autolac/Login`, loginPayload, { timeout: 5000 });
+            if (loginRes.status === 200 && loginRes.data?.success !== false) {
+              autolacSuccess = true;
+              autolacMsg = `✓ Autolac API Online (HTTP 200 OK) - Autenticado com Sucesso! (ApoiadoId/Entidade: '${identificacaoEntidade}') em ${targetWsUrl}!`;
+              isTested = true;
+            }
+          } catch (loginErr: any) {
+            if (loginErr.response && loginErr.response.data) {
+              const respData = loginErr.response.data;
+              const msg = respData.message || respData.mensagem || loginErr.response.statusText;
+              if (loginErr.response.status === 404 || loginErr.response.status === 401 || msg.toLowerCase().includes('login') || msg.toLowerCase().includes('inválid')) {
+                autolacSuccess = false;
+                autolacMsg = `⚠️ Servidor Autolac API em ${targetWsUrl} está ONLINE, mas as credenciais (Entidade '${identificacaoEntidade}' / Senha) foram RECUSADAS pela Lifesys (${msg}).`;
+                isTested = true;
+              }
+            }
+          }
+
+          // 2. Tenta Health Check na API do Autolac (/Api/Health)
+          if (!isTested) {
+            try {
+              console.log(`[TestConnection API] Tentando GET ${targetWsUrl}/Api/Health...`);
+              const healthRes = await axios.get(`${targetWsUrl}/Api/Health`, { timeout: 4000 });
+              if (healthRes.status === 200) {
+                autolacSuccess = true;
+                autolacMsg = `✓ Servidor Autolac API Online (/Api/Health 200 OK) em ${targetWsUrl}! Entidade: '${identificacaoEntidade}'.`;
+                isTested = true;
+              }
+            } catch (hErr) {
+              // segue para fallback WSDL
+            }
+          }
+
+          // 3. Fallback: Teste WSDL SOAP
+          if (!isTested) {
+            const pingUrl = targetWsUrl.endsWith('wsdl') ? targetWsUrl : `${targetWsUrl}/?wsdl`;
+            console.log(`[TestConnection API] Tentando GET SOAP WSDL ${pingUrl}...`);
+            const wsRes = await axios.get(pingUrl, { timeout: 6000 });
+            if (wsRes.status === 200) {
+              autolacSuccess = true;
+              autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
+            } else {
+              autolacSuccess = false;
+              autolacMsg = `❌ Resposta do WebService Autolac (HTTP ${wsRes.status}) em ${targetWsUrl}.`;
+            }
           }
         } catch (err: any) {
           autolacSuccess = false;

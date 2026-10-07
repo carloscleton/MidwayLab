@@ -3975,9 +3975,9 @@ export default function MidwayLabDashboard() {
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1">Identificação da Entidade (Autolac)</label>
                   <input
-                    type="email"
+                    type="text"
                     required
-                    placeholder="Ex.: yorod23826@gcont.com"
+                    placeholder="Ex.: 783 ou yorod23826@gcont.com"
                     value={tenantFormData.identificacaoEntidade}
                     onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
