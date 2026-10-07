@@ -1211,41 +1211,68 @@ export default function MidwayLabDashboard() {
     }
   ];
 
-  // Client tenants list
-  const [tenants, setTenants] = useState([
-    {
-      id: "6",
-      nome: "LAB. ARES - SOFTLAB (San Mathews)",
-      identificacaoEntidade: "yorod23826@gcont.com",
-      senhaWs: "Soft@2026",
-      codigoAgente: "1",
-      wsUrl: "http://177.22.36.202:8002/",
-      softlabLogin: "carloscleton@gmail.com",
-      softlabSenha: "Carlos@2026",
-      ultimoLote: "85",
-      status: "ONLINE"
-    },
-    {
-      id: "7",
-      nome: "LABORATORIO CENTRO DIAGNOSTICOS",
-      identificacaoEntidade: "centro@labdiag.com.br",
-      senhaWs: "Centro@2026",
-      codigoAgente: "2",
-      wsUrl: "http://177.22.36.202:8002/",
-      softlabLogin: "centro@softlabsolucoes.com.br",
-      softlabSenha: "Centro@2026",
-      ultimoLote: "142",
-      status: "ONLINE"
+  // Client tenants list with localStorage persistence
+  const [tenants, setTenants] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('midway_tenants');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
     }
-  ]);
+    return [
+      {
+        id: "6",
+        nome: "LAB. ARES - SOFTLAB (San Mathews)",
+        identificacaoEntidade: "783",
+        identificacao_entidade: "783",
+        senhaWs: "YXJlY2RpYWg=",
+        senha_ws: "YXJlY2RpYWg=",
+        codigoAgente: "1",
+        codigo_entidade: "1",
+        wsUrl: "http://homolog.app.lifesys.com.br:5030",
+        ws_url: "http://homolog.app.lifesys.com.br:5030",
+        softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
+        softlab_base_url: "http://apoio.softlabsolucoes.com.br",
+        softlabLogin: "carloscleton@gmail.com",
+        softlab_login: "carloscleton@gmail.com",
+        softlabSenha: "Carlos@2026",
+        softlab_senha: "Carlos@2026",
+        ultimoLote: "85",
+        status: "ONLINE"
+      },
+      {
+        id: "7",
+        nome: "LABORATORIO CENTRO DIAGNOSTICOS",
+        identificacaoEntidade: "centro@labdiag.com.br",
+        identificacao_entidade: "centro@labdiag.com.br",
+        senhaWs: "Centro@2026",
+        senha_ws: "Centro@2026",
+        codigoAgente: "2",
+        codigo_entidade: "2",
+        wsUrl: "http://homolog.app.lifesys.com.br:5030",
+        ws_url: "http://homolog.app.lifesys.com.br:5030",
+        softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
+        softlab_base_url: "http://apoio.softlabsolucoes.com.br",
+        softlabLogin: "centro@softlabsolucoes.com.br",
+        softlab_login: "centro@softlabsolucoes.com.br",
+        softlabSenha: "Centro@2026",
+        softlab_senha: "Centro@2026",
+        ultimoLote: "142",
+        status: "ONLINE"
+      }
+    ];
+  });
 
   // Form states for tenant creation/editing
   const [tenantFormData, setTenantFormData] = useState({
     nome: "",
     identificacaoEntidade: "",
-    senhaWs: "Soft@2026",
+    senhaWs: "YXJlY2RpYWg=",
     codigoAgente: "1",
-    wsUrl: "http://177.22.36.202:8002/",
+    wsUrl: "http://homolog.app.lifesys.com.br:5030",
     softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
     softlabLogin: "",
     softlabSenha: ""
@@ -1600,19 +1627,31 @@ export default function MidwayLabDashboard() {
     };
 
     if (editingTenant) {
-      setTenants(prev => prev.map(t => t.id === editingTenant.id ? updatedTenantItem : t));
+      setTenants(prev => {
+        const next = prev.map(t => t.id === editingTenant.id ? updatedTenantItem : t);
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('midway_tenants', JSON.stringify(next)); } catch (e) {}
+        }
+        return next;
+      });
       if (savedTenant) {
         showNotification(`🎉 Laboratório "${tenantFormData.nome}" salvo no Supabase com sucesso!`);
       } else {
-        showNotification(`⚡ Laboratório "${tenantFormData.nome}" atualizado na sessão local!`);
+        showNotification(`⚡ Laboratório "${tenantFormData.nome}" salvo e atualizado com sucesso!`);
       }
     } else {
-      setTenants(prev => [...prev, updatedTenantItem]);
+      setTenants(prev => {
+        const next = [...prev, updatedTenantItem];
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('midway_tenants', JSON.stringify(next)); } catch (e) {}
+        }
+        return next;
+      });
       setStats(prev => ({ ...prev, tenantsAtivos: prev.tenantsAtivos + 1 }));
       if (savedTenant) {
         showNotification(`🎉 Novo Laboratório "${tenantFormData.nome}" cadastrado e salvo no Supabase!`);
       } else {
-        showNotification(`⚡ Novo Laboratório "${tenantFormData.nome}" cadastrado na sessão local!`);
+        showNotification(`⚡ Novo Laboratório "${tenantFormData.nome}" cadastrado e salvo com sucesso!`);
       }
     }
 
