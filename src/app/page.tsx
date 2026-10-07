@@ -2005,6 +2005,7 @@ export default function MidwayLabDashboard() {
                   <input
                     type="email"
                     required
+                    autoComplete="username"
                     placeholder="Ex.: carloscleton.nat@gmail.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
@@ -2032,6 +2033,7 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showLoginPassword ? "text" : "password"}
                       required
+                      autoComplete="current-password"
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
@@ -3997,6 +3999,7 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showSenhaWs ? "text" : "password"}
                       required
+                      autoComplete="current-password"
                       placeholder="Ex.: Soft@2026"
                       value={tenantFormData.senhaWs}
                       onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
@@ -4020,6 +4023,7 @@ export default function MidwayLabDashboard() {
                   <input
                     type="email"
                     required
+                    autoComplete="username"
                     placeholder="Ex.: carloscleton@gmail.com"
                     value={tenantFormData.softlabLogin}
                     onChange={(e) => setTenantFormData({ ...tenantFormData, softlabLogin: e.target.value })}
@@ -4033,6 +4037,7 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showSoftlabSenha ? "text" : "password"}
                       required
+                      autoComplete="current-password"
                       placeholder="Ex.: Carlos@2026"
                       value={tenantFormData.softlabSenha}
                       onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}

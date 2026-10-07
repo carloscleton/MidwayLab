@@ -4,15 +4,33 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://iibwbufbshqiaeorwoja.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpYndidWZic2hxaWFlb3J3b2phIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDA4ODkyOSwiZXhwIjoyMTA1NjY0OTI5fQ.ATJTk9yL22oU2953OB0I956RlxUu2AtW5tdotehyhj0';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+const isConfigured = Boolean(supabaseUrl && !supabaseUrl.includes('seu-projeto') && !supabaseUrl.includes('iibwbufbshqiaeorwoja') && !supabaseUrl.includes('iibwbufbshpiaeonwoja'));
+
+export const supabase = isConfigured
+  ? createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        storageKey: 'midway_server_auth',
+      },
+    })
+  : ({
+      from: () => ({
+        select: () => ({
+          order: () => Promise.resolve({ data: [], error: null }),
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: null }),
+            order: () => Promise.resolve({ data: [], error: null }),
+            eq: () => Promise.resolve({ data: [], error: null }),
+          }),
+        }),
+        insert: () => Promise.resolve({ data: null, error: null }),
+        upsert: () => Promise.resolve({ data: null, error: null }),
+      }),
+    } as any);
 
 export interface ITenantRecord {
   id: string;
