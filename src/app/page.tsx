@@ -441,33 +441,32 @@ export default function MidwayLabDashboard() {
   useEffect(() => {
     async function loadSupabaseData() {
       try {
-        // 1. Fetch Tenants
+        // 1. Fetch Tenants directly from Supabase DB
         const dbTenants = await TenantService.listarTenants();
-        if (dbTenants.length > 0) {
-          const mappedTenants = dbTenants.map(t => ({
-            id: t.id,
-            nome: t.nome,
-            identificacaoEntidade: t.identificacao_entidade || "",
-            identificacao_entidade: t.identificacao_entidade || "",
-            senhaWs: t.senha_ws || "",
-            senha_ws: t.senha_ws || "",
-            codigoAgente: t.codigo_entidade || "1",
-            codigo_entidade: t.codigo_entidade || "1",
-            wsUrl: (t as any).ws_url || "http://homolog.app.lifesys.com.br:5030",
-            ws_url: (t as any).ws_url || "http://homolog.app.lifesys.com.br:5030",
-            softlabBaseUrl: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
-            softlab_base_url: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
-            softlabLogin: t.softlab_login || "",
-            softlab_login: t.softlab_login || "",
-            softlabSenha: t.softlab_senha || "",
-            softlab_senha: t.softlab_senha || "",
-            ultimoLote: "1",
-            status: t.ativo ? "ONLINE" : "OFFLINE"
-          }));
-          setTenants(mappedTenants);
-          if (mappedTenants.length > 0) {
-            setSelectedTenant(mappedTenants[0].nome);
-          }
+        const mappedTenants = dbTenants.map(t => ({
+          id: t.id,
+          nome: t.nome,
+          identificacaoEntidade: t.identificacao_entidade || "",
+          identificacao_entidade: t.identificacao_entidade || "",
+          senhaWs: t.senha_ws || "",
+          senha_ws: t.senha_ws || "",
+          codigoAgente: t.codigo_entidade || "1",
+          codigo_entidade: t.codigo_entidade || "1",
+          wsUrl: (t as any).ws_url || "http://homolog.app.lifesys.com.br:5030",
+          ws_url: (t as any).ws_url || "http://homolog.app.lifesys.com.br:5030",
+          softlabBaseUrl: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+          softlab_base_url: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+          softlabLogin: t.softlab_login || "",
+          softlab_login: t.softlab_login || "",
+          softlabSenha: t.softlab_senha || "",
+          softlab_senha: t.softlab_senha || "",
+          ultimoLote: "1",
+          status: t.ativo ? "ONLINE" : "OFFLINE"
+        }));
+        setTenants(mappedTenants);
+        setStats(prev => ({ ...prev, tenantsAtivos: mappedTenants.length }));
+        if (mappedTenants.length > 0) {
+          setSelectedTenant(mappedTenants[0].nome);
         }
 
         // 2. Fetch Users
@@ -1212,90 +1211,8 @@ export default function MidwayLabDashboard() {
   ];
 
   // Client tenants list with localStorage persistence
-  // Client tenants list initialized with all records from Supabase database
-  const defaultTenantsList = [
-    {
-      id: "11111111-1111-1111-1111-111111111111",
-      nome: "LAB. ARES - SOFTLAB (San Mathews)",
-      identificacaoEntidade: "783",
-      identificacao_entidade: "783",
-      senhaWs: "YXJlY2RpYWg=",
-      senha_ws: "YXJlY2RpYWg=",
-      codigoAgente: "1",
-      codigo_entidade: "1",
-      wsUrl: "http://homolog.app.lifesys.com.br:5030",
-      ws_url: "http://homolog.app.lifesys.com.br:5030",
-      softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-      softlab_base_url: "http://apoio.softlabsolucoes.com.br",
-      softlabLogin: "carloscleton@gmail.com",
-      softlab_login: "carloscleton@gmail.com",
-      softlabSenha: "Carlos@2026",
-      softlab_senha: "Carlos@2026",
-      ultimoLote: "85",
-      status: "ONLINE"
-    },
-    {
-      id: "84009ec8-5f09-4bde-8085-b52450bdfc55",
-      nome: "ambiente de cleton",
-      identificacaoEntidade: "autolac6@gcont.com.br",
-      identificacao_entidade: "autolac6@gcont.com.br",
-      senhaWs: "Smt@202601",
-      senha_ws: "Smt@202601",
-      codigoAgente: "1",
-      codigo_entidade: "1",
-      wsUrl: "http://homolog.app.lifesys.com.br:5030",
-      ws_url: "http://homolog.app.lifesys.com.br:5030",
-      softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-      softlab_base_url: "http://apoio.softlabsolucoes.com.br",
-      softlabLogin: "yorod23826@gcont.com",
-      softlab_login: "yorod23826@gcont.com",
-      softlabSenha: "Smt@2026",
-      softlab_senha: "Smt@2026",
-      ultimoLote: "42",
-      status: "ONLINE"
-    },
-    {
-      id: "e3e01755-da80-483f-a225-edff3fd43101",
-      nome: "LABORATÓRIO BIO VIDA APOIO",
-      identificacaoEntidade: "contato@biovidaapoio.com.br",
-      identificacao_entidade: "contato@biovidaapoio.com.br",
-      senhaWs: "Soft@2026",
-      senha_ws: "Soft@2026",
-      codigoAgente: "1",
-      codigo_entidade: "1",
-      wsUrl: "http://homolog.app.lifesys.com.br:5030",
-      ws_url: "http://homolog.app.lifesys.com.br:5030",
-      softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-      softlab_base_url: "http://apoio.softlabsolucoes.com.br",
-      softlabLogin: "contato@biovidaapoio.com.br",
-      softlab_login: "contato@biovidaapoio.com.br",
-      softlabSenha: "Carlos@2026",
-      softlab_senha: "Carlos@2026",
-      ultimoLote: "142",
-      status: "ONLINE"
-    }
-  ];
-
-  const [tenants, setTenants] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('midway_tenants');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const hasCleton = parsed.some((t: any) => t.id === "84009ec8-5f09-4bde-8085-b52450bdfc55" || (t.nome && t.nome.toLowerCase().includes("cleton")));
-            if (!hasCleton) {
-              const merged = [...parsed, defaultTenantsList[1]];
-              try { localStorage.setItem('midway_tenants', JSON.stringify(merged)); } catch (e) {}
-              return merged;
-            }
-            return parsed;
-          }
-        }
-      } catch (e) {}
-    }
-    return defaultTenantsList;
-  });
+  // Client tenants list loaded strictly from Supabase Database
+  const [tenants, setTenants] = useState<any[]>([]);
 
   // Form states for tenant creation/editing
   const [tenantFormData, setTenantFormData] = useState({
@@ -1685,6 +1602,34 @@ export default function MidwayLabDashboard() {
         showNotification(`⚡ Novo Laboratório "${tenantFormData.nome}" cadastrado e salvo com sucesso!`);
       }
     }
+
+    try {
+      const dbTenants = await TenantService.listarTenants();
+      if (dbTenants.length > 0) {
+        const mappedTenants = dbTenants.map(t => ({
+          id: t.id,
+          nome: t.nome,
+          identificacaoEntidade: t.identificacao_entidade || "",
+          identificacao_entidade: t.identificacao_entidade || "",
+          senhaWs: t.senha_ws || "",
+          senha_ws: t.senha_ws || "",
+          codigoAgente: t.codigo_entidade || "1",
+          codigo_entidade: t.codigo_entidade || "1",
+          wsUrl: (t as any).ws_url || "http://homolog.app.lifesys.com.br:5030",
+          ws_url: (t as any).ws_url || "http://homolog.app.lifesys.com.br:5030",
+          softlabBaseUrl: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+          softlab_base_url: t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+          softlabLogin: t.softlab_login || "",
+          softlab_login: t.softlab_login || "",
+          softlabSenha: t.softlab_senha || "",
+          softlab_senha: t.softlab_senha || "",
+          ultimoLote: "1",
+          status: t.ativo ? "ONLINE" : "OFFLINE"
+        }));
+        setTenants(mappedTenants);
+        setStats(prev => ({ ...prev, tenantsAtivos: mappedTenants.length }));
+      }
+    } catch (e) {}
 
     setIsNewTenantModalOpen(false);
     setEditingTenant(null);
