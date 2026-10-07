@@ -5,6 +5,27 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const isConfigured = Boolean(supabaseUrl && !supabaseUrl.includes('seu-projeto') && !supabaseUrl.includes('iibwbufbshqiaeorwoja') && !supabaseUrl.includes('iibwbufbshpiaeonwoja'));
 
+function createDummySupabaseClient(): any {
+  const createChainable = (): any => {
+    const fn: any = function () {
+      return createChainable();
+    };
+
+    fn.then = function (onFulfilled: any) {
+      return Promise.resolve({ data: [], error: null, count: 0 }).then(onFulfilled);
+    };
+
+    return new Proxy(fn, {
+      get(target, prop) {
+        if (prop === 'then') return target.then;
+        return createChainable();
+      }
+    });
+  };
+
+  return createChainable();
+}
+
 export const supabaseBrowser = isConfigured
   ? createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -13,27 +34,4 @@ export const supabaseBrowser = isConfigured
         storageKey: 'midway_browser_auth',
       },
     })
-  : ({
-      from: () => ({
-        select: () => ({
-          order: () => Promise.resolve({ data: [], error: null }),
-          eq: () => ({
-            single: () => Promise.resolve({ data: null, error: null }),
-            order: () => Promise.resolve({ data: [], error: null }),
-            eq: () => Promise.resolve({ data: [], error: null }),
-          }),
-        }),
-        upsert: () => Promise.resolve({ data: null, error: null }),
-        delete: () => ({
-          eq: () => Promise.resolve({ data: null, error: null }),
-          in: () => Promise.resolve({ data: null, error: null }),
-        }),
-      }),
-      channel: () => ({
-        on: () => ({
-          subscribe: () => ({}),
-        }),
-        subscribe: () => ({}),
-      }),
-      removeChannel: () => {},
-    } as any);
+  : createDummySupabaseClient();
