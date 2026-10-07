@@ -61,18 +61,23 @@ export class TenantService {
       payload.id = tenant.id;
     }
 
-    const { data, error } = await supabaseBrowser
-      .from('tenants')
-      .upsert(payload)
-      .select('*')
-      .single();
+    try {
+      const { data, error } = await supabaseBrowser
+        .from('tenants')
+        .upsert(payload)
+        .select('*')
+        .single();
 
-    if (error) {
-      console.error('[TenantService] Erro ao salvar tenant:', error);
-      throw error;
+      if (error) {
+        console.warn('[TenantService] Erro ao salvar tenant no Supabase:', error);
+        return null;
+      }
+
+      return data as ITenantRecord;
+    } catch (err: any) {
+      console.warn('[TenantService] Conexão com Supabase indisponível (Failed to fetch/DNS):', err?.message || err);
+      return null;
     }
-
-    return data as ITenantRecord;
   }
 
   /**

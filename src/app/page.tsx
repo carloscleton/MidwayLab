@@ -1560,8 +1560,9 @@ export default function MidwayLabDashboard() {
       return;
     }
 
+    let savedTenant: any = null;
     try {
-      const savedTenant = await TenantService.salvarTenant({
+      savedTenant = await TenantService.salvarTenant({
         id: editingTenant?.id,
         nome: tenantFormData.nome,
         identificacao_entidade: tenantFormData.identificacaoEntidade,
@@ -1572,41 +1573,47 @@ export default function MidwayLabDashboard() {
         softlab_senha: tenantFormData.softlabSenha,
         ativo: true
       });
-
-      const tenantId = savedTenant?.id || editingTenant?.id || (tenants.length + 6).toString();
-      const updatedTenantItem = {
-        id: tenantId,
-        nome: tenantFormData.nome,
-        identificacaoEntidade: tenantFormData.identificacaoEntidade,
-        identificacao_entidade: tenantFormData.identificacaoEntidade,
-        senhaWs: tenantFormData.senhaWs,
-        senha_ws: tenantFormData.senhaWs,
-        codigoAgente: tenantFormData.codigoAgente || "1",
-        codigo_entidade: tenantFormData.codigoAgente || "1",
-        wsUrl: tenantFormData.wsUrl,
-        ws_url: tenantFormData.wsUrl,
-        softlabBaseUrl: tenantFormData.softlabBaseUrl,
-        softlab_base_url: tenantFormData.softlabBaseUrl,
-        softlabLogin: tenantFormData.softlabLogin,
-        softlab_login: tenantFormData.softlabLogin,
-        softlabSenha: tenantFormData.softlabSenha,
-        softlab_senha: tenantFormData.softlabSenha,
-        ultimoLote: editingTenant?.ultimoLote || "1",
-        status: "ONLINE"
-      };
-
-      if (editingTenant) {
-        setTenants(prev => prev.map(t => t.id === editingTenant.id ? updatedTenantItem : t));
-        showNotification(`🎉 Laboratório "${tenantFormData.nome}" salvo no banco Supabase com sucesso!`);
-      } else {
-        setTenants(prev => [...prev, updatedTenantItem]);
-        setStats(prev => ({ ...prev, tenantsAtivos: prev.tenantsAtivos + 1 }));
-        showNotification(`🎉 Novo Laboratório "${tenantFormData.nome}" cadastrado e salvo no Supabase!`);
-      }
     } catch (err: any) {
-      console.error("Erro ao salvar no Supabase:", err);
-      alert(`Erro ao salvar no banco de dados Supabase: ${err.message || 'Verifique o console'}`);
-      return;
+      console.warn("Aviso ao salvar no Supabase:", err);
+    }
+
+    const tenantId = savedTenant?.id || editingTenant?.id || (tenants.length + 6).toString();
+    const updatedTenantItem = {
+      id: tenantId,
+      nome: tenantFormData.nome,
+      identificacaoEntidade: tenantFormData.identificacaoEntidade,
+      identificacao_entidade: tenantFormData.identificacaoEntidade,
+      senhaWs: tenantFormData.senhaWs,
+      senha_ws: tenantFormData.senhaWs,
+      codigoAgente: tenantFormData.codigoAgente || "1",
+      codigo_entidade: tenantFormData.codigoAgente || "1",
+      wsUrl: tenantFormData.wsUrl,
+      ws_url: tenantFormData.wsUrl,
+      softlabBaseUrl: tenantFormData.softlabBaseUrl,
+      softlab_base_url: tenantFormData.softlabBaseUrl,
+      softlabLogin: tenantFormData.softlabLogin,
+      softlab_login: tenantFormData.softlabLogin,
+      softlabSenha: tenantFormData.softlabSenha,
+      softlab_senha: tenantFormData.softlabSenha,
+      ultimoLote: editingTenant?.ultimoLote || "1",
+      status: "ONLINE"
+    };
+
+    if (editingTenant) {
+      setTenants(prev => prev.map(t => t.id === editingTenant.id ? updatedTenantItem : t));
+      if (savedTenant) {
+        showNotification(`🎉 Laboratório "${tenantFormData.nome}" salvo no Supabase com sucesso!`);
+      } else {
+        showNotification(`⚡ Laboratório "${tenantFormData.nome}" atualizado na sessão local!`);
+      }
+    } else {
+      setTenants(prev => [...prev, updatedTenantItem]);
+      setStats(prev => ({ ...prev, tenantsAtivos: prev.tenantsAtivos + 1 }));
+      if (savedTenant) {
+        showNotification(`🎉 Novo Laboratório "${tenantFormData.nome}" cadastrado e salvo no Supabase!`);
+      } else {
+        showNotification(`⚡ Novo Laboratório "${tenantFormData.nome}" cadastrado na sessão local!`);
+      }
     }
 
     setIsNewTenantModalOpen(false);
