@@ -51,9 +51,22 @@ export class TenantService {
       codigo_entidade: tenant.codigo_entidade || '1',
       identificacao_entidade: tenant.identificacao_entidade,
       senha_ws: tenant.senha_ws || 'Soft@2026',
+      ws_url: (tenant as any).ws_url || (tenant as any).wsUrl || 'http://homolog.app.lifesys.com.br:5030',
       softlab_base_url: tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
       softlab_login: tenant.softlab_login,
       softlab_senha: tenant.softlab_senha,
+      configuracoes: tenant.configuracoes || {
+        autolac: {
+          ws_url: (tenant as any).ws_url || (tenant as any).wsUrl || 'http://homolog.app.lifesys.com.br:5030',
+          identificacao_entidade: tenant.identificacao_entidade,
+          senha_ws: tenant.senha_ws
+        },
+        softlab: {
+          base_url: tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
+          login: tenant.softlab_login,
+          senha: tenant.softlab_senha
+        }
+      },
       ativo: tenant.ativo !== undefined ? tenant.ativo : true
     };
 
