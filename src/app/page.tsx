@@ -7,9 +7,9 @@ import { TenantService } from "../services/tenant-service";
 import { DeparaService } from "../services/depara-service";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
-
   Activity,
   Server,
+  Database,
   Building2,
   GitCompare,
   FileText,
@@ -3995,83 +3995,108 @@ export default function MidwayLabDashboard() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* SEÇÃO 1: INTEGRACAO AUTOLAC (LIFESYS) */}
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
+                  <Server className="w-4 h-4 text-cyan-400" />
+                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">1. Parâmetros do WebService Autolac (LifeSys)</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">Identificação da Entidade (Autolac)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex.: 783 ou autolac6@gcont.com.br"
+                      value={tenantFormData.identificacaoEntidade}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">Senha de Acesso ao WS (Autolac)</label>
+                    <div className="relative">
+                      <input
+                        type={showSenhaWs ? "text" : "password"}
+                        required
+                        autoComplete="current-password"
+                        placeholder="Ex.: Soft@2026"
+                        value={tenantFormData.senhaWs}
+                        onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSenhaWs(!showSenhaWs)}
+                        className="absolute right-3 top-2 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+                        title={showSenhaWs ? "Ocultar Senha" : "Exibir Senha"}
+                      >
+                        {showSenhaWs ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Identificação da Entidade (Autolac)</label>
+                  <label className="block text-slate-400 font-semibold mb-1">URL WebService Autolac (Porta 5030 / 8002)</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ex.: 783 ou yorod23826@gcont.com"
-                    value={tenantFormData.identificacaoEntidade}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                    placeholder="http://homolog.app.lifesys.com.br:5030"
+                    value={tenantFormData.wsUrl}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Senha de Acesso ao WS (Autolac)</label>
-                  <div className="relative">
-                    <input
-                      type={showSenhaWs ? "text" : "password"}
-                      required
-                      autoComplete="current-password"
-                      placeholder="Ex.: Soft@2026"
-                      value={tenantFormData.senhaWs}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowSenhaWs(!showSenhaWs)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                      title={showSenhaWs ? "Ocultar Senha" : "Exibir Senha"}
-                    >
-                      {showSenhaWs ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Login API Softlab Apoio</label>
-                  <input
-                    type="email"
-                    required
-                    autoComplete="username"
-                    placeholder="Ex.: carloscleton@gmail.com"
-                    value={tenantFormData.softlabLogin}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabLogin: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
+              {/* SEÇÃO 2: INTEGRACAO SOFTLAB APOIO */}
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
+                  <Database className="w-4 h-4 text-teal-400" />
+                  <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Softlab Apoio</span>
                 </div>
 
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Senha API Softlab Apoio</label>
-                  <div className="relative">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">Login API Softlab Apoio</label>
                     <input
-                      type={showSoftlabSenha ? "text" : "password"}
+                      type="email"
                       required
-                      autoComplete="current-password"
-                      placeholder="Ex.: Carlos@2026"
-                      value={tenantFormData.softlabSenha}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                      autoComplete="username"
+                      placeholder="Ex.: yorod23826@qicont.com"
+                      value={tenantFormData.softlabLogin}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, softlabLogin: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowSoftlabSenha(!showSoftlabSenha)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                      title={showSoftlabSenha ? "Ocultar Senha" : "Exibir Senha"}
-                    >
-                      {showSoftlabSenha ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">Senha API Softlab Apoio</label>
+                    <div className="relative">
+                      <input
+                        type={showSoftlabSenha ? "text" : "password"}
+                        required
+                        autoComplete="current-password"
+                        placeholder="Ex.: Smt@2026"
+                        value={tenantFormData.softlabSenha}
+                        onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSoftlabSenha(!showSoftlabSenha)}
+                        className="absolute right-3 top-2 text-slate-400 hover:text-teal-300 transition cursor-pointer"
+                        title={showSoftlabSenha ? "Ocultar Senha" : "Exibir Senha"}
+                      >
+                        {showSoftlabSenha ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1">URL Base da API Softlab Apoio</label>
                   <input
@@ -4080,19 +4105,7 @@ export default function MidwayLabDashboard() {
                     placeholder="http://apoio.softlabsolucoes.com.br"
                     value={tenantFormData.softlabBaseUrl}
                     onChange={(e) => setTenantFormData({ ...tenantFormData, softlabBaseUrl: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">URL WebService Autolac (Porta 8002)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="http://177.22.36.202:8002/"
-                    value={tenantFormData.wsUrl}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
                   />
                 </div>
               </div>
