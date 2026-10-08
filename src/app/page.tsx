@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, startTransition } from "react";
 import { supabaseBrowser } from "../lib/supabase-client";
 import { UserService } from "../services/user-service";
 import { TenantService } from "../services/tenant-service";
@@ -341,24 +341,37 @@ export default function MidwayLabDashboard() {
       setIsSyncingSoftlabApi(false);
     }
   };
-  // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS EXCLUSIVELY FOR ACTIVE TENANT
+  // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS EXCLUSIVELY FOR ACTIVE TENANT (OPTIMIZED O(1))
   const loadSoftlabCatalogForTenant = async (tenantId?: string) => {
     if (!tenantId) {
-      setSoftlabExames([]);
+      startTransition(() => {
+        setSoftlabExames([]);
+      });
       return;
     }
 
     try {
-      const dbMappings = await DeparaService.listarMapeamentos(tenantId);
-      let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab(tenantId);
-      dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
+      const [dbMappings, rawSoftlabCatalog] = await Promise.all([
+        DeparaService.listarMapeamentos(tenantId),
+        DeparaService.listarCatalogoSoftlab(tenantId)
+      ]);
+
+      const dbSoftlabCatalog = rawSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
+
+      // Build O(1) Hash Map for instant mapping lookups
+      const mappingsMap = new Map<string, any>();
+      dbMappings.forEach(m => {
+        if (m.codigo_softlab) {
+          mappingsMap.set(m.codigo_softlab.trim().toUpperCase(), m);
+        }
+      });
 
       if (dbSoftlabCatalog.length > 0) {
         const uniqueSoftlabMap = new Map<string, any>();
         dbSoftlabCatalog.forEach(item => {
           const cleanCode = item.codigo.trim().toUpperCase();
           if (!uniqueSoftlabMap.has(cleanCode)) {
-            const foundMapping = dbMappings.find(m => m.codigo_softlab === item.codigo);
+            const foundMapping = mappingsMap.get(cleanCode);
             uniqueSoftlabMap.set(cleanCode, {
               codigo: item.codigo,
               descricao: item.descricao,
@@ -368,7 +381,9 @@ export default function MidwayLabDashboard() {
             });
           }
         });
-        setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+        startTransition(() => {
+          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+        });
       } else if (dbMappings.length > 0) {
         const uniqueSoftlabMap = new Map<string, any>();
         dbMappings.forEach(m => {
@@ -383,13 +398,19 @@ export default function MidwayLabDashboard() {
             });
           }
         });
-        setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+        startTransition(() => {
+          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+        });
       } else {
-        setSoftlabExames([]);
+        startTransition(() => {
+          setSoftlabExames([]);
+        });
       }
     } catch (e) {
       console.error("[DeparaService] Erro ao carregar catálogo para a empresa:", e);
-      setSoftlabExames([]);
+      startTransition(() => {
+        setSoftlabExames([]);
+      });
     }
   };
 
