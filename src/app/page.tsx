@@ -1633,6 +1633,7 @@ export default function MidwayLabDashboard() {
 
     setIsNewTenantModalOpen(false);
     setEditingTenant(null);
+    setTenantTestResult(null);
   };
 
   // ACTION 3: Confirm Recoleta Execution
@@ -1825,6 +1826,7 @@ export default function MidwayLabDashboard() {
 
   const handleOpenEditTenant = (t: any) => {
     setEditingTenant(t);
+    setTenantTestResult(null);
     setTenantFormData({
       nome: t.nome || "",
       identificacaoEntidade: t.identificacaoEntidade || t.identificacao_entidade || "",
@@ -3997,9 +3999,21 @@ export default function MidwayLabDashboard() {
 
               {/* SEÇÃO 1: INTEGRACAO AUTOLAC (LIFESYS) */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
-                  <Server className="w-4 h-4 text-cyan-400" />
-                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">1. Parâmetros do WebService Autolac (LifeSys)</span>
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Server className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">1. Parâmetros do WebService Autolac (LifeSys)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTestTenantConnection("autolac")}
+                    disabled={testingTarget !== "none"}
+                    className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50"
+                    title="Testar especificamente a conexão do Autolac"
+                  >
+                    <Zap className="w-3 h-3 text-cyan-400 fill-current" />
+                    {testingTarget === "autolac" ? "Testando Autolac..." : "Testar Conexão Autolac"}
+                  </button>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
@@ -4054,9 +4068,21 @@ export default function MidwayLabDashboard() {
 
               {/* SEÇÃO 2: INTEGRACAO SOFTLAB APOIO */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
-                  <Database className="w-4 h-4 text-teal-400" />
-                  <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Softlab Apoio</span>
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-teal-400" />
+                    <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Softlab Apoio</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTestTenantConnection("softlab")}
+                    disabled={testingTarget !== "none"}
+                    className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50"
+                    title="Testar especificamente a API Softlab Apoio"
+                  >
+                    <Zap className="w-3 h-3 text-teal-400 fill-current" />
+                    {testingTarget === "softlab" ? "Testando Softlab..." : "Testar Conexão Softlab"}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -4116,7 +4142,7 @@ export default function MidwayLabDashboard() {
                   <RefreshCw className="w-4 h-4 text-teal-400 animate-spin shrink-0" />
                   <span>
                     {testingTarget === "softlab" && "Testando autenticação da API Softlab Apoio..."}
-                    {testingTarget === "autolac" && "Testando conectividade do WebService Autolac SOAP..."}
+                    {testingTarget === "autolac" && "Testando conectividade do WebService Autolac..."}
                     {testingTarget === "both" && "Testando autenticação API Softlab e conectividade WebService Autolac..."}
                   </span>
                 </div>
@@ -4133,6 +4159,22 @@ export default function MidwayLabDashboard() {
                     )}
                   </div>
 
+                  {tenantTestResult.autolacMsg && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-300 flex items-center gap-1.5 shrink-0">
+                        {tenantTestResult.autolacSuccess ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                        )}
+                        Autolac WebService (LifeSys):
+                      </span>
+                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] text-right ${tenantTestResult.autolacSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
+                        {tenantTestResult.autolacMsg}
+                      </span>
+                    </div>
+                  )}
+
                   {tenantTestResult.softlabMsg && (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-slate-300 flex items-center gap-1.5 shrink-0">
@@ -4148,22 +4190,6 @@ export default function MidwayLabDashboard() {
                       </span>
                     </div>
                   )}
-
-                  {tenantTestResult.autolacMsg && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-300 flex items-center gap-1.5 shrink-0">
-                        {tenantTestResult.autolacSuccess ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                        )}
-                        Autolac WebService SOAP:
-                      </span>
-                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] text-right ${tenantTestResult.autolacSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
-                        {tenantTestResult.autolacMsg}
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -4171,35 +4197,13 @@ export default function MidwayLabDashboard() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleTestTenantConnection("softlab")}
-                    disabled={testingTarget !== "none"}
-                    className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 font-bold px-3 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50"
-                    title="Testar especificamente a API Softlab Apoio"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-teal-400 fill-current" />
-                    {testingTarget === "softlab" ? "Testando..." : "Testar Softlab"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleTestTenantConnection("autolac")}
-                    disabled={testingTarget !== "none"}
-                    className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold px-3 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50"
-                    title="Testar especificamente o WebService Autolac SOAP"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-cyan-400 fill-current" />
-                    {testingTarget === "autolac" ? "Testando..." : "Testar Autolac"}
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => handleTestTenantConnection("both")}
                     disabled={testingTarget !== "none"}
-                    className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-extrabold px-3 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50"
+                    className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-extrabold px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50"
                     title="Testar ambas as conexões simultaneamente"
                   >
                     <Zap className="w-3.5 h-3.5 text-amber-300 fill-current" />
-                    {testingTarget === "both" ? "Testando..." : "Testar Ambos"}
+                    {testingTarget === "both" ? "Testando Conexões..." : "⚡ Testar Ambos (Geral)"}
                   </button>
                 </div>
 
