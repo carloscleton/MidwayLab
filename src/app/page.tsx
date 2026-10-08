@@ -1385,7 +1385,7 @@ export default function MidwayLabDashboard() {
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
   // CHANGE ACTIVE TENANT & RE-FETCH DE-PARA MAPPINGS SPECIFIC TO THAT LABORATORY
-  const handleSelectTenantChange = async (tenantNome: string) => {
+  const handleSelectTenantChange = (tenantNome: string) => {
     setSelectedTenant(tenantNome);
     setSelectedSoftlabExam(null);
     setSelectedAutolacExam(null);
@@ -1397,19 +1397,21 @@ export default function MidwayLabDashboard() {
 
     showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando catálogo e mapeamentos...`);
 
-    try {
-      const dbMappings = await DeparaService.listarMapeamentos(tenantId);
-      setSoftlabExames(prev => prev.map(item => {
-        const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
-        return {
-          ...item,
-          autolacMapped: found ? found.codigo_autolac : "",
-          tipo: found?.tipo_resultado || item.tipo
-        };
-      }));
-    } catch {
-      // Retém estado local se erro
-    }
+    setTimeout(async () => {
+      try {
+        const dbMappings = await DeparaService.listarMapeamentos(tenantId);
+        setSoftlabExames(prev => prev.map(item => {
+          const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
+          return {
+            ...item,
+            autolacMapped: found ? found.codigo_autolac : "",
+            tipo: found?.tipo_resultado || item.tipo
+          };
+        }));
+      } catch {
+        // Retém estado local se erro
+      }
+    }, 10);
   };
 
   // HELPER: ACCENT-INSENSITIVE TEXT NORMALIZATION (cálcio = calcio)
