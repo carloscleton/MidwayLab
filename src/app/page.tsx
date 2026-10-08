@@ -2134,7 +2134,11 @@ export default function MidwayLabDashboard() {
 
             {/* FORM 1: LOGIN */}
             {loginTab === "login" && (
-              <form onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-3.5 text-xs">
+              <form key="form-login" onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-3.5 text-xs">
+                {/* Dummy inputs to absorb Chrome autofill */}
+                <input type="text" name="fake_email_login" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+                <input type="password" name="fake_password_login" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+
                 {loginError && (
                   <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-2.5 rounded-xl flex items-center gap-2 font-medium">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
@@ -2151,7 +2155,7 @@ export default function MidwayLabDashboard() {
                     required
                     autoComplete="off"
                     placeholder="Ex.: carloscleton.nat@gmail.com"
-                    value={loginEmail}
+                    value={loginEmail || ""}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
                   />
@@ -2180,7 +2184,7 @@ export default function MidwayLabDashboard() {
                       required
                       autoComplete="new-password"
                       placeholder="••••••••"
-                      value={loginPassword}
+                      value={loginPassword || ""}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3.5 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
                     />
@@ -2244,14 +2248,19 @@ export default function MidwayLabDashboard() {
 
             {/* FORM 2: SOLICITAR ACESSO */}
             {loginTab === "solicitar" && (
-              <form onSubmit={handleRequestAccessSubmit} className="space-y-3 text-xs">
+              <form key="form-solicitar" onSubmit={handleRequestAccessSubmit} autoComplete="off" className="space-y-3 text-xs">
+                {/* Dummy inputs to absorb Chrome autofill */}
+                <input type="text" name="fake_email_solicitar" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+                <input type="password" name="fake_password_solicitar" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+
                 <div>
                   <label className="block text-blue-200/80 font-semibold mb-1">Nome do Laboratório</label>
                   <input
                     type="text"
                     required
+                    autoComplete="off"
                     placeholder="Ex.: Laboratório Bio Vida"
-                    value={requestFormData.nomeLab}
+                    value={requestFormData.nomeLab || ""}
                     onChange={(e) => setRequestFormData({ ...requestFormData, nomeLab: e.target.value })}
                     className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
@@ -2262,8 +2271,9 @@ export default function MidwayLabDashboard() {
                   <input
                     type="text"
                     required
+                    autoComplete="off"
                     placeholder="Ex.: Dra. Maria Fernanda"
-                    value={requestFormData.nomeResponsavel}
+                    value={requestFormData.nomeResponsavel || ""}
                     onChange={(e) => setRequestFormData({ ...requestFormData, nomeResponsavel: e.target.value })}
                     className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
@@ -2275,8 +2285,9 @@ export default function MidwayLabDashboard() {
                     <input
                       type="email"
                       required
+                      autoComplete="off"
                       placeholder="contato@lab.com.br"
-                      value={requestFormData.email}
+                      value={requestFormData.email || ""}
                       onChange={(e) => setRequestFormData({ ...requestFormData, email: e.target.value })}
                       className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono text-[11px] placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
@@ -2287,8 +2298,9 @@ export default function MidwayLabDashboard() {
                     <input
                       type="text"
                       required
+                      autoComplete="off"
                       placeholder="00.000.000/0001-00"
-                      value={requestFormData.cnpj}
+                      value={requestFormData.cnpj || ""}
                       onChange={(e) => setRequestFormData({ ...requestFormData, cnpj: e.target.value })}
                       className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono text-[11px] placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
@@ -2300,8 +2312,9 @@ export default function MidwayLabDashboard() {
                   <input
                     type="password"
                     required
+                    autoComplete="new-password"
                     placeholder="••••••••"
-                    value={requestFormData.senha}
+                    value={requestFormData.senha || ""}
                     onChange={(e) => setRequestFormData({ ...requestFormData, senha: e.target.value })}
                     className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
@@ -2318,7 +2331,11 @@ export default function MidwayLabDashboard() {
 
             {/* FORM 3: REDEFINIR / ALTERAR SENHA */}
             {loginTab === "trocarSenha" && (
-              <form onSubmit={handleResetPasswordSubmit} className="space-y-3 text-xs">
+              <form key="form-trocarSenha" onSubmit={handleResetPasswordSubmit} autoComplete="off" className="space-y-3 text-xs">
+                {/* Dummy inputs to absorb Chrome autofill */}
+                <input type="text" name="fake_email_reset" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+                <input type="password" name="fake_password_reset" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+
                 <div className="bg-[#060D1A] p-2.5 rounded-xl border border-blue-900/50 text-[11px] text-blue-200/80 flex items-center gap-2">
                   <Key className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <span>Informe o e-mail da sua conta e defina a sua nova senha de acesso.</span>
@@ -2329,8 +2346,9 @@ export default function MidwayLabDashboard() {
                   <input
                     type="email"
                     required
+                    autoComplete="off"
                     placeholder="Ex.: carloscleton.nat@gmail.com"
-                    value={resetEmail}
+                    value={resetEmail || ""}
                     onChange={(e) => setResetEmail(e.target.value)}
                     className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                   />
@@ -2342,8 +2360,9 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showResetPassword ? "text" : "password"}
                       required
+                      autoComplete="new-password"
                       placeholder="••••••••"
-                      value={resetCurrentPassword}
+                      value={resetCurrentPassword || ""}
                       onChange={(e) => setResetCurrentPassword(e.target.value)}
                       className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3 pr-9 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
@@ -2364,8 +2383,9 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showResetPassword ? "text" : "password"}
                       required
+                      autoComplete="new-password"
                       placeholder="••••••••"
-                      value={resetNewPassword}
+                      value={resetNewPassword || ""}
                       onChange={(e) => setResetNewPassword(e.target.value)}
                       className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3 pr-9 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
@@ -2385,8 +2405,9 @@ export default function MidwayLabDashboard() {
                     <input
                       type={showResetPassword ? "text" : "password"}
                       required
+                      autoComplete="new-password"
                       placeholder="••••••••"
-                      value={resetConfirmPassword}
+                      value={resetConfirmPassword || ""}
                       onChange={(e) => setResetConfirmPassword(e.target.value)}
                       className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3 pr-9 py-2 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
