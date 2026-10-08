@@ -80,12 +80,19 @@ export async function POST(request: Request) {
           // 1. Tenta autenticação na REST API do Autolac (/Api/Inter-Autolac/Login)
           try {
             const apoiadoNum = parseInt(identificacaoEntidade, 10);
+            
+            // Garante que a senha vá em formato Base64 exigido pela API Autolac
+            let base64Senha = senhaWs;
+            if (!/^[A-Za-z0-9+/=]+$/.test(senhaWs) || senhaWs.length % 4 !== 0 || senhaWs.includes('@')) {
+              base64Senha = Buffer.from(senhaWs).toString('base64');
+            }
+
             const loginPayload = {
               apoiadoId: isNaN(apoiadoNum) ? identificacaoEntidade : apoiadoNum,
-              senha: senhaWs
+              senha: base64Senha
             };
 
-            console.log(`[TestConnection API] Tentando POST ${targetWsUrl}/Api/Inter-Autolac/Login...`);
+            console.log(`[TestConnection API] Tentando POST ${targetWsUrl}/Api/Inter-Autolac/Login com apoiadoId=${loginPayload.apoiadoId}...`);
             const loginRes = await axios.post(`${targetWsUrl}/Api/Inter-Autolac/Login`, loginPayload, { timeout: 5000 });
             if (loginRes.status === 200 && loginRes.data?.success !== false) {
               autolacSuccess = true;
@@ -95,8 +102,8 @@ export async function POST(request: Request) {
           } catch (loginErr: any) {
             if (loginErr.response && loginErr.response.data) {
               const respData = loginErr.response.data;
-              const msg = respData.message || respData.mensagem || loginErr.response.statusText;
-              if (loginErr.response.status === 404 || loginErr.response.status === 401 || msg.toLowerCase().includes('login') || msg.toLowerCase().includes('inválid')) {
+              const msg = respData.message || respData.mensagem || (respData.errors ? JSON.stringify(respData.errors) : loginErr.response.statusText);
+              if (loginErr.response.status === 404 || loginErr.response.status === 401 || msg.toLowerCase().includes('login') || msg.toLowerCase().includes('inválid') || msg.toLowerCase().includes('retornou')) {
                 autolacSuccess = false;
                 autolacMsg = `⚠️ Servidor Autolac API em ${targetWsUrl} está ONLINE, mas as credenciais (Entidade '${identificacaoEntidade}' / Senha) foram RECUSADAS pela Lifesys (${msg}).`;
                 isTested = true;
@@ -125,8 +132,14 @@ export async function POST(request: Request) {
             console.log(`[TestConnection API] Tentando GET SOAP WSDL ${pingUrl}...`);
             const wsRes = await axios.get(pingUrl, { timeout: 6000 });
             if (wsRes.status === 200) {
-              autolacSuccess = true;
-              autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
+              const dataStr = String(wsRes.data || '');
+              if (dataStr.includes('SoftlabWeb Apoio') || dataStr.includes('SoftlabWeb')) {
+                autolacSuccess = false;
+                autolacMsg = `⚠️ A URL ${targetWsUrl} é o portal "SoftlabWeb Apoio" (HTML), e NÃO o WebService Autolac! Utilize a URL da Lifesys: http://homolog.app.lifesys.com.br:5030`;
+              } else {
+                autolacSuccess = true;
+                autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
+              }
             } else {
               autolacSuccess = false;
               autolacMsg = `❌ Resposta do WebService Autolac (HTTP ${wsRes.status}) em ${targetWsUrl}.`;
