@@ -97,11 +97,10 @@ export class TenantService {
    * Instancia um cliente Softlab parametrizado com as credenciais daquele Tenant
    */
   static createSoftlabClient(tenant: ITenantRecord): SoftlabClient {
-    return new SoftlabClient(
-      tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
-      tenant.softlab_login,
-      tenant.softlab_senha
-    );
+    const baseUrl = tenant.softlab_base_url || tenant.configuracoes?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
+    const login = tenant.softlab_login || tenant.configuracoes?.softlab?.login || '';
+    const senha = tenant.softlab_senha || tenant.configuracoes?.softlab?.senha || '';
+    return new SoftlabClient(baseUrl, login, senha);
   }
 
   /**

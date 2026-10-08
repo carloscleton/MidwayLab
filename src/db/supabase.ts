@@ -45,12 +45,24 @@ export interface ITenantRecord {
   nome: string;
   codigo_entidade: string;
   identificacao_entidade: string;
-  senha_ws: string;
+  configuracoes?: {
+    autolac?: {
+      ws_url?: string;
+      identificacao_entidade?: string;
+      senha_ws?: string;
+    };
+    softlab?: {
+      base_url?: string;
+      login?: string;
+      senha?: string;
+    };
+    [key: string]: any;
+  };
+  senha_ws?: string;
   ws_url?: string;
-  softlab_base_url: string;
-  softlab_login: string;
-  softlab_senha: string;
-  configuracoes?: Record<string, any>;
+  softlab_base_url?: string;
+  softlab_login?: string;
+  softlab_senha?: string;
   ativo: boolean;
   created_at?: string;
   updated_at?: string;
