@@ -341,6 +341,57 @@ export default function MidwayLabDashboard() {
       setIsSyncingSoftlabApi(false);
     }
   };
+  // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS EXCLUSIVELY FOR ACTIVE TENANT
+  const loadSoftlabCatalogForTenant = async (tenantId?: string) => {
+    if (!tenantId) {
+      setSoftlabExames([]);
+      return;
+    }
+
+    try {
+      const dbMappings = await DeparaService.listarMapeamentos(tenantId);
+      let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab(tenantId);
+      dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
+
+      if (dbSoftlabCatalog.length > 0) {
+        const uniqueSoftlabMap = new Map<string, any>();
+        dbSoftlabCatalog.forEach(item => {
+          const cleanCode = item.codigo.trim().toUpperCase();
+          if (!uniqueSoftlabMap.has(cleanCode)) {
+            const foundMapping = dbMappings.find(m => m.codigo_softlab === item.codigo);
+            uniqueSoftlabMap.set(cleanCode, {
+              codigo: item.codigo,
+              descricao: item.descricao,
+              abreviacao: item.abreviacao || item.codigo,
+              autolacMapped: foundMapping ? foundMapping.codigo_autolac : "",
+              tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
+            });
+          }
+        });
+        setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+      } else if (dbMappings.length > 0) {
+        const uniqueSoftlabMap = new Map<string, any>();
+        dbMappings.forEach(m => {
+          const cleanCode = m.codigo_softlab.trim().toUpperCase();
+          if (!uniqueSoftlabMap.has(cleanCode)) {
+            uniqueSoftlabMap.set(cleanCode, {
+              codigo: m.codigo_softlab,
+              descricao: m.descricao_softlab || m.codigo_softlab,
+              abreviacao: m.codigo_softlab,
+              autolacMapped: m.codigo_autolac,
+              tipo: m.tipo_resultado || "PDF"
+            });
+          }
+        });
+        setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+      } else {
+        setSoftlabExames([]);
+      }
+    } catch (e) {
+      console.error("[DeparaService] Erro ao carregar catálogo para a empresa:", e);
+      setSoftlabExames([]);
+    }
+  };
 
   // 2. EXPLICIT SAVE CATALOG TO SUPABASE DATABASE (WITH CONFIRMATION & TENANT SELECTION)
   const [isSaveCatalogModalOpen, setIsSaveCatalogModalOpen] = useState(false);
@@ -509,50 +560,12 @@ export default function MidwayLabDashboard() {
           setUsersList(mappedUsers);
         }
 
-        // 3. Fetch DE-PARA Mappings for the Active Tenant
+        // 3. Fetch DE-PARA Mappings & Softlab Catalog for the Active Tenant
         const activeTenantObj = mappedTenants.find(t => t.nome === selectedTenant) || mappedTenants[0];
-        const dbMappings = await DeparaService.listarMapeamentos(activeTenantObj?.id);
-
-        // 4. Fetch Softlab Catalog from Supabase Table catalogo_softlab_exames with Deduplication
-        let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
-        dbSoftlabCatalog = dbSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
-        if (dbSoftlabCatalog.length > 0) {
-          const uniqueSoftlabMap = new Map<string, any>();
-          dbSoftlabCatalog.forEach(item => {
-            const cleanCode = item.codigo.trim().toUpperCase();
-            if (!uniqueSoftlabMap.has(cleanCode)) {
-              const foundMapping = dbMappings.find(m => m.codigo_softlab === item.codigo);
-              uniqueSoftlabMap.set(cleanCode, {
-                codigo: item.codigo,
-                descricao: item.descricao,
-                abreviacao: item.abreviacao || item.codigo,
-                autolacMapped: foundMapping ? foundMapping.codigo_autolac : "",
-                tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
-              });
-            }
-          });
-          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
-        } else if (dbMappings.length > 0) {
-          const uniqueSoftlabMap = new Map<string, any>();
-          dbMappings.forEach(m => {
-            const cleanCode = m.codigo_softlab.trim().toUpperCase();
-            if (!uniqueSoftlabMap.has(cleanCode)) {
-              uniqueSoftlabMap.set(cleanCode, {
-                codigo: m.codigo_softlab,
-                descricao: m.descricao_softlab || m.codigo_softlab,
-                abreviacao: m.codigo_softlab,
-                autolacMapped: m.codigo_autolac,
-                tipo: m.tipo_resultado || "PDF"
-              });
-            }
-          });
-          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
-        } else {
-          setSoftlabExames([]);
-        }
+        await loadSoftlabCatalogForTenant(activeTenantObj?.id);
 
         // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames with Deduplication
-        const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac();
+        const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac(activeTenantObj?.id);
         if (dbAutolacCatalog.length > 0) {
           const uniqueAutolacMap = new Map<string, any>();
           dbAutolacCatalog.forEach(item => {
@@ -565,20 +578,6 @@ export default function MidwayLabDashboard() {
             }
           });
           setAutolacCatalog(Array.from(uniqueAutolacMap.values()));
-        } else if (dbMappings.length > 0) {
-          const uniqueAutolacMap = new Map<string, any>();
-          dbMappings.forEach(m => {
-            const cleanCode = m.codigo_autolac.trim().toUpperCase();
-            if (!uniqueAutolacMap.has(cleanCode)) {
-              uniqueAutolacMap.set(cleanCode, {
-                codigo: m.codigo_autolac,
-                nome: m.descricao_autolac || m.codigo_autolac
-              });
-            }
-          });
-          setAutolacCatalog(Array.from(uniqueAutolacMap.values()));
-        } else {
-          setAutolacCatalog([]);
         }
 
 
@@ -1398,19 +1397,7 @@ export default function MidwayLabDashboard() {
     showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando catálogo e mapeamentos...`);
 
     setTimeout(async () => {
-      try {
-        const dbMappings = await DeparaService.listarMapeamentos(tenantId);
-        setSoftlabExames(prev => prev.map(item => {
-          const found = dbMappings.find(m => m.codigo_softlab === item.codigo);
-          return {
-            ...item,
-            autolacMapped: found ? found.codigo_autolac : "",
-            tipo: found?.tipo_resultado || item.tipo
-          };
-        }));
-      } catch {
-        // Retém estado local se erro
-      }
+      await loadSoftlabCatalogForTenant(tenantId);
     }, 10);
   };
 
