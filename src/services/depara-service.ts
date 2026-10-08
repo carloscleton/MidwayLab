@@ -111,8 +111,10 @@ export class DeparaService {
   /**
    * Busca o Catálogo de Exames do Softlab salvo no banco Supabase (Cache de Catálogo)
    * Usa paginação para superar o limite padrão de 1000 linhas do Supabase
+  /**
+   * Busca o Catálogo de Exames do Softlab salvo no banco Supabase (Cache de Catálogo por Tenant/Global)
    */
-  static async listarCatalogoSoftlab(): Promise<ICatalogoSoftlabRecord[]> {
+  static async listarCatalogoSoftlab(tenantId?: string): Promise<ICatalogoSoftlabRecord[]> {
     try {
       const PAGE_SIZE = 1000;
       let allData: ICatalogoSoftlabRecord[] = [];
@@ -120,9 +122,15 @@ export class DeparaService {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabaseBrowser
+        let query = supabaseBrowser
           .from('catalogo_softlab_exames')
-          .select('*')
+          .select('*');
+
+        if (tenantId) {
+          query = query.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+        }
+
+        const { data, error } = await query
           .order('descricao', { ascending: true })
           .range(from, from + PAGE_SIZE - 1);
 
@@ -141,48 +149,17 @@ export class DeparaService {
 
 
   /**
-   * Limpa integralmente a tabela de Catálogo do Softlab no Supabase em loop até 0 registros
+   * Limpa integralmente a tabela de Catálogo do Softlab no Supabase
    */
-  static async limparCatalogoSoftlab(): Promise<void> {
+  static async limparCatalogoSoftlab(tenantId?: string): Promise<void> {
     try {
-      let hasMore = true;
-      let loopCounter = 0;
-      while (hasMore && loopCounter < 25) {
-        loopCounter++;
-        const { data } = await supabaseBrowser
-          .from('catalogo_softlab_exames')
-          .select('id, codigo')
-          .limit(1000);
-
-        if (!data || data.length === 0) {
-          hasMore = false;
-          break;
-        }
-
-        const ids = data.map((item: any) => item.id).filter(Boolean);
-        if (ids.length > 0) {
-          const CHUNK_SIZE = 100;
-          for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-            const chunk = ids.slice(i, i + CHUNK_SIZE);
-            await supabaseBrowser
-              .from('catalogo_softlab_exames')
-              .delete()
-              .in('id', chunk);
-          }
-        }
-
-        const codigos = data.map((item: any) => item.codigo).filter(Boolean);
-        if (codigos.length > 0) {
-          const CHUNK_SIZE = 100;
-          for (let i = 0; i < codigos.length; i += CHUNK_SIZE) {
-            const chunk = codigos.slice(i, i + CHUNK_SIZE);
-            await supabaseBrowser
-              .from('catalogo_softlab_exames')
-              .delete()
-              .in('codigo', chunk);
-          }
-        }
+      let query = supabaseBrowser.from('catalogo_softlab_exames').delete();
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      } else {
+        query = query.is('tenant_id', null);
       }
+      await query;
     } catch (e) {
       console.error('[DeparaService] Erro ao limpar catálogo Softlab:', e);
     }
@@ -191,22 +168,27 @@ export class DeparaService {
   /**
    * Limpa exames antigos/fakes duplicados e cadastra a lista limpa e oficial do Softlab no Supabase
    */
-  static async limparECadastrarLimpoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
-    await this.limparCatalogoSoftlab();
-    await this.salvarCatalogoSoftlab(records);
+  static async limparECadastrarLimpoSoftlab(records: ICatalogoSoftlabRecord[], tenantId?: string): Promise<void> {
+    await this.limparCatalogoSoftlab(tenantId);
+    await this.salvarCatalogoSoftlab(records, tenantId);
   }
 
   /**
-   * Salva ou atualiza a tabela de Catálogo de Exames do Softlab no Supabase em lotes fracionados (Chunked Inserts de 100 em 100)
+   * Salva ou atualiza a tabela de Catálogo de Exames do Softlab no Supabase em lotes fracionados
    */
-  static async salvarCatalogoSoftlab(records: ICatalogoSoftlabRecord[]): Promise<void> {
+  static async salvarCatalogoSoftlab(records: ICatalogoSoftlabRecord[], tenantId?: string): Promise<void> {
     if (!records || records.length === 0) return;
+    const recordsWithTenant = records.map(r => ({
+      ...r,
+      ...(tenantId ? { tenant_id: tenantId } : {})
+    }));
+
     const CHUNK_SIZE = 100;
-    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-      const chunk = records.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < recordsWithTenant.length; i += CHUNK_SIZE) {
+      const chunk = recordsWithTenant.slice(i, i + CHUNK_SIZE);
       const { error } = await supabaseBrowser
         .from('catalogo_softlab_exames')
-        .upsert(chunk, { onConflict: 'codigo' });
+        .upsert(chunk);
 
       if (error) {
         console.error(`[DeparaService] Erro ao salvar lote de exames Softlab (${i}..${i + chunk.length}):`, error);
@@ -215,14 +197,19 @@ export class DeparaService {
   }
 
   /**
-   * Busca o Catálogo de Exames do Autolac salvo no banco Supabase
+   * Busca o Catálogo de Exames do Autolac salvo no banco Supabase (Cache de Catálogo por Tenant/Global)
    */
-  static async listarCatalogoAutolac(): Promise<ICatalogoAutolacRecord[]> {
+  static async listarCatalogoAutolac(tenantId?: string): Promise<ICatalogoAutolacRecord[]> {
     try {
-      const { data, error } = await supabaseBrowser
+      let query = supabaseBrowser
         .from('catalogo_autolac_exames')
-        .select('*')
-        .order('nome', { ascending: true });
+        .select('*');
+
+      if (tenantId) {
+        query = query.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+      }
+
+      const { data, error } = await query.order('nome', { ascending: true });
 
       if (error || !data) return [];
       return data as ICatalogoAutolacRecord[];
@@ -235,19 +222,23 @@ export class DeparaService {
   /**
    * Salva ou atualiza o Catálogo de Exames do Autolac no Supabase em lotes fracionados
    */
-  static async salvarCatalogoAutolac(records: ICatalogoAutolacRecord[]): Promise<void> {
+  static async salvarCatalogoAutolac(records: ICatalogoAutolacRecord[], tenantId?: string): Promise<void> {
     if (!records || records.length === 0) return;
+    const recordsWithTenant = records.map(r => ({
+      ...r,
+      ...(tenantId ? { tenant_id: tenantId } : {})
+    }));
+
     const CHUNK_SIZE = 100;
-    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-      const chunk = records.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < recordsWithTenant.length; i += CHUNK_SIZE) {
+      const chunk = recordsWithTenant.slice(i, i + CHUNK_SIZE);
       const { error } = await supabaseBrowser
         .from('catalogo_autolac_exames')
-        .upsert(chunk, { onConflict: 'codigo' });
+        .upsert(chunk);
 
       if (error) {
         console.error(`[DeparaService] Erro ao salvar lote de exames Autolac (${i}..${i + chunk.length}):`, error);
       }
     }
   }
-
 }

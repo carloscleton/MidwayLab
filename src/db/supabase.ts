@@ -80,6 +80,7 @@ export interface IDeparaExameRecord {
 
 export interface ICatalogoSoftlabRecord {
   id?: string;
+  tenant_id?: string | null;
   codigo: string;
   descricao: string;
   abreviacao?: string;
