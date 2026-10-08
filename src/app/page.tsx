@@ -3969,7 +3969,7 @@ export default function MidwayLabDashboard() {
       {/* MODAL 1: CREATE / EDIT TENANT */}
       {isNewTenantModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl max-h-[90vh] rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-teal-400" />
@@ -3999,16 +3999,16 @@ export default function MidwayLabDashboard() {
 
               {/* SEÇÃO 1: INTEGRACAO AUTOLAC (LIFESYS) */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 flex-wrap gap-2">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 gap-2">
                   <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-cyan-400" />
+                    <Server className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">1. Parâmetros do WebService Autolac (LifeSys)</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleTestTenantConnection("autolac")}
                     disabled={testingTarget !== "none"}
-                    className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50"
+                    className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50 shrink-0"
                     title="Testar especificamente a conexão do Autolac"
                   >
                     <Zap className="w-3 h-3 text-cyan-400 fill-current" />
@@ -4068,16 +4068,16 @@ export default function MidwayLabDashboard() {
 
               {/* SEÇÃO 2: INTEGRACAO SOFTLAB APOIO */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 flex-wrap gap-2">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 gap-2">
                   <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-teal-400" />
+                    <Database className="w-4 h-4 text-teal-400 shrink-0" />
                     <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Softlab Apoio</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleTestTenantConnection("softlab")}
                     disabled={testingTarget !== "none"}
-                    className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50"
+                    className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50 shrink-0"
                     title="Testar especificamente a API Softlab Apoio"
                   >
                     <Zap className="w-3 h-3 text-teal-400 fill-current" />
