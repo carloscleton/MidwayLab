@@ -342,10 +342,23 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  // 2. EXPLICIT SAVE CATALOG TO SUPABASE DATABASE
-  const handleSaveSoftlabCatalogToDb = async () => {
+  // 2. EXPLICIT SAVE CATALOG TO SUPABASE DATABASE (WITH CONFIRMATION & TENANT SELECTION)
+  const [isSaveCatalogModalOpen, setIsSaveCatalogModalOpen] = useState(false);
+  const [saveCatalogTargetTenantId, setSaveCatalogTargetTenantId] = useState<string>("");
+
+  const handleOpenSaveCatalogModal = () => {
+    const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+    setSaveCatalogTargetTenantId(activeTenantObj ? activeTenantObj.id : (tenants[0]?.id || "GLOBAL"));
+    setIsSaveCatalogModalOpen(true);
+  };
+
+  const handleConfirmSaveCatalog = async () => {
     setIsSavingCatalogToDb(true);
-    showNotification("💾 Limpando registros antigos e gravando catálogo único no banco Supabase...");
+    const targetTenantId = saveCatalogTargetTenantId === "GLOBAL" ? undefined : saveCatalogTargetTenantId;
+    const targetTenantObj = tenants.find(t => t.id === saveCatalogTargetTenantId);
+    const tenantNameLabel = targetTenantObj ? targetTenantObj.nome : "Global (Todos os Laboratórios)";
+
+    showNotification(`💾 Gravando catálogo no Supabase para a empresa "${tenantNameLabel}"...`);
 
     try {
       const uniqueRecordsMap = new Map<string, any>();
@@ -356,17 +369,26 @@ export default function MidwayLabDashboard() {
             codigo: e.codigo,
             descricao: e.descricao,
             abreviacao: e.abreviacao,
-            tipo_resultado: "PDF"
+            tipo_resultado: "PDF",
+            ...(targetTenantId ? { tenant_id: targetTenantId } : {})
           });
         }
       });
       const recordsToSave = Array.from(uniqueRecordsMap.values());
 
-      await DeparaService.limparECadastrarLimpoSoftlab(recordsToSave);
-      await DeparaService.salvarCatalogoAutolac(autolacCatalog);
+      await DeparaService.limparECadastrarLimpoSoftlab(recordsToSave, targetTenantId);
+
+      const autolacRecordsWithTenant = autolacCatalog.map(a => ({
+        ...a,
+        ...(targetTenantId ? { tenant_id: targetTenantId } : {})
+      }));
+      await DeparaService.salvarCatalogoAutolac(autolacRecordsWithTenant, targetTenantId);
+
       setHasUnsavedApiChanges(false);
-      showNotification(`✅ Catálogo do Softlab (${recordsToSave.length} exames únicos) salvo no Supabase com sucesso!`);
-    } catch {
+      setIsSaveCatalogModalOpen(false);
+      showNotification(`✅ Catálogo (${recordsToSave.length} exames) associado e salvo no Supabase para "${tenantNameLabel}"!`);
+    } catch (err: any) {
+      console.error("Erro ao gravar catálogo no Supabase:", err);
       showNotification("⚠️ Erro ao gravar catálogo no Supabase.");
     } finally {
       setIsSavingCatalogToDb(false);
@@ -2729,7 +2751,7 @@ export default function MidwayLabDashboard() {
 
                   <button
                     type="button"
-                    onClick={handleSaveSoftlabCatalogToDb}
+                    onClick={handleOpenSaveCatalogModal}
                     disabled={isSavingCatalogToDb}
                     className={`w-full font-extrabold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow ${
                       hasUnsavedApiChanges
@@ -4535,6 +4557,88 @@ export default function MidwayLabDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRM SAVE CATALOG & SELECT TENANT */}
+      {isSaveCatalogModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Database className="w-5 h-5 text-teal-400" />
+                Confirmar Gravação do Catálogo de Exames
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setIsSaveCatalogModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* DETAILS SUMMARY BOX */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Exames Softlab Apoio:</span>
+                  <span className="font-bold text-teal-300">{softlabExames.length} exames</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Exames Autolac WS:</span>
+                  <span className="font-bold text-cyan-300">{autolacCatalog.length} exames</span>
+                </div>
+              </div>
+
+              {/* COMPANY / TENANT SELECTOR FOR SAFETY */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-200 font-bold flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-teal-400" />
+                  Associar à Empresa (tenant_id) <span className="text-rose-400 font-bold">*</span>
+                </label>
+                <select
+                  required
+                  value={saveCatalogTargetTenantId}
+                  onChange={(e) => setSaveCatalogTargetTenantId(e.target.value)}
+                  className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3.5 py-2.5 text-slate-100 font-semibold focus:outline-none focus:border-teal-400 cursor-pointer"
+                >
+                  {tenants.map(t => (
+                    <option key={t.id} value={t.id} className="bg-slate-900 text-slate-200">
+                      🏥 {t.nome} (ID: {t.id.slice(0, 8)}...)
+                    </option>
+                  ))}
+                  <option value="GLOBAL" className="bg-slate-900 text-amber-300 font-bold">
+                    🌐 Catálogo Global (Compartilhado para Todos os Laboratórios)
+                  </option>
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  Os exames serão gravados no banco Supabase vinculando a coluna <code className="text-cyan-300">tenant_id</code> da empresa selecionada acima.
+                </p>
+              </div>
+
+              {/* ACTIONS */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsSaveCatalogModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSavingCatalogToDb}
+                  onClick={handleConfirmSaveCatalog}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSavingCatalogToDb ? "Gravando..." : "Confirmar & Gravar para a Empresa"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
