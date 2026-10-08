@@ -904,11 +904,27 @@ export default function MidwayLabDashboard() {
   };
 
 
-  const handleLogout = () => {
-    setCurrentUser(null);
+  const handleSwitchLoginTab = (tab: "login" | "solicitar" | "trocarSenha") => {
+    setLoginTab(tab);
+    setLoginError(null);
     setLoginEmail("");
     setLoginPassword("");
-    setLoginError(null);
+    setResetEmail("");
+    setResetCurrentPassword("");
+    setResetNewPassword("");
+    setResetConfirmPassword("");
+    setRequestFormData({
+      nomeLab: "",
+      nomeResponsavel: "",
+      email: "",
+      senha: "",
+      cnpj: ""
+    });
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    handleSwitchLoginTab("login");
     showNotification("🔒 Sessão encerrada com sucesso.");
   };
 
@@ -2083,7 +2099,7 @@ export default function MidwayLabDashboard() {
             <div className="grid grid-cols-3 gap-1 bg-[#060D1A] p-1.5 rounded-2xl border border-blue-900/50 text-xs">
               <button
                 type="button"
-                onClick={() => setLoginTab("login")}
+                onClick={() => handleSwitchLoginTab("login")}
                 className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   loginTab === "login"
                     ? "bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 text-white shadow-md shadow-blue-500/30"
@@ -2094,7 +2110,7 @@ export default function MidwayLabDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => setLoginTab("solicitar")}
+                onClick={() => handleSwitchLoginTab("solicitar")}
                 className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   loginTab === "solicitar"
                     ? "bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 text-white shadow-md shadow-blue-500/30"
@@ -2105,7 +2121,7 @@ export default function MidwayLabDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => setLoginTab("trocarSenha")}
+                onClick={() => handleSwitchLoginTab("trocarSenha")}
                 className={`py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   loginTab === "trocarSenha"
                     ? "bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 text-white shadow-md shadow-blue-500/30"
@@ -2149,8 +2165,9 @@ export default function MidwayLabDashboard() {
                     <button
                       type="button"
                       onClick={() => {
-                        setResetEmail(loginEmail);
-                        setLoginTab("trocarSenha");
+                        const emailToKeep = loginEmail;
+                        handleSwitchLoginTab("trocarSenha");
+                        setResetEmail(emailToKeep);
                       }}
                       className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold transition cursor-pointer"
                     >
