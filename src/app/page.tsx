@@ -1242,31 +1242,37 @@ export default function MidwayLabDashboard() {
     autolacMsg?: string;
   } | null>(null);
 
-  const handleTestTenantConnection = async (target: "softlab" | "autolac" | "both" = "both") => {
+  const handleTestTenantConnection = (target: "softlab" | "autolac" | "both" = "both") => {
     setTestingTarget(target);
 
-    const res = await TenantService.testarConexaoTenant(
-      tenantFormData.softlabLogin,
-      tenantFormData.softlabSenha,
-      tenantFormData.wsUrl,
-      tenantFormData.softlabBaseUrl || "http://apoio.softlabsolucoes.com.br",
-      tenantFormData.identificacaoEntidade,
-      tenantFormData.senhaWs,
-      target
-    );
+    setTimeout(async () => {
+      try {
+        const res = await TenantService.testarConexaoTenant(
+          tenantFormData.softlabLogin,
+          tenantFormData.softlabSenha,
+          tenantFormData.wsUrl,
+          tenantFormData.softlabBaseUrl || "http://apoio.softlabsolucoes.com.br",
+          tenantFormData.identificacaoEntidade,
+          tenantFormData.senhaWs,
+          target
+        );
 
-    setTestingTarget("none");
+        setTestingTarget("none");
 
-    setTenantTestResult(prev => ({
-      softlabSuccess: res.softlabSuccess !== undefined ? res.softlabSuccess : prev?.softlabSuccess,
-      softlabMsg: res.softlabMsg !== undefined ? res.softlabMsg : prev?.softlabMsg,
-      autolacSuccess: res.autolacSuccess !== undefined ? res.autolacSuccess : prev?.autolacSuccess,
-      autolacMsg: res.autolacMsg !== undefined ? res.autolacMsg : prev?.autolacMsg
-    }));
+        setTenantTestResult(prev => ({
+          softlabSuccess: res.softlabSuccess !== undefined ? res.softlabSuccess : prev?.softlabSuccess,
+          softlabMsg: res.softlabMsg !== undefined ? res.softlabMsg : prev?.softlabMsg,
+          autolacSuccess: res.autolacSuccess !== undefined ? res.autolacSuccess : prev?.autolacSuccess,
+          autolacMsg: res.autolacMsg !== undefined ? res.autolacMsg : prev?.autolacMsg
+        }));
 
-    if (target === "softlab") showNotification("⚡ Diagnóstico do Softlab Apoio executado!");
-    else if (target === "autolac") showNotification("⚡ Diagnóstico do WebService Autolac executado!");
-    else showNotification("⚡ Diagnóstico Completo de Conexão executado!");
+        if (target === "softlab") showNotification("⚡ Diagnóstico do Softlab Apoio executado!");
+        else if (target === "autolac") showNotification("⚡ Diagnóstico do WebService Autolac executado!");
+        else showNotification("⚡ Diagnóstico Completo de Conexão executado!");
+      } catch (e) {
+        setTestingTarget("none");
+      }
+    }, 10);
   };
 
 
