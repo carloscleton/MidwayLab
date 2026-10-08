@@ -1844,9 +1844,11 @@ export default function MidwayLabDashboard() {
   const handleCloneTenant = (t: any) => {
     setEditingTenant(null);
     setTenantTestResult(null);
+    const baseIdent = (t.identificacaoEntidade || t.identificacao_entidade || "").trim();
+    const clonedIdent = baseIdent ? `${baseIdent}_CLONE` : "";
     setTenantFormData({
       nome: `${t.nome || "LABORATÓRIO"} (CÓPIA)`,
-      identificacaoEntidade: t.identificacaoEntidade || t.identificacao_entidade || "",
+      identificacaoEntidade: clonedIdent,
       senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
       codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
       wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
@@ -1855,7 +1857,7 @@ export default function MidwayLabDashboard() {
       softlabSenha: t.softlabSenha || t.softlab_senha || ""
     });
     setIsNewTenantModalOpen(true);
-    showNotification(`📋 Configurações de "${t.nome}" clonadas para novo cadastro! Altere o nome e salve.`);
+    showNotification(`📋 Configurações de "${t.nome}" clonadas para novo cadastro! Altere a Identificação e salve.`);
   };
 
   const handleOpenMapExam = (exam: any) => {
