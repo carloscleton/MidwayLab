@@ -487,8 +487,9 @@ export default function MidwayLabDashboard() {
           setUsersList(mappedUsers);
         }
 
-        // 3. Fetch DE-PARA Mappings
-        const dbMappings = await DeparaService.listarMapeamentos();
+        // 3. Fetch DE-PARA Mappings for the Active Tenant
+        const activeTenantObj = mappedTenants.find(t => t.nome === selectedTenant) || mappedTenants[0];
+        const dbMappings = await DeparaService.listarMapeamentos(activeTenantObj?.id);
 
         // 4. Fetch Softlab Catalog from Supabase Table catalogo_softlab_exames with Deduplication
         let dbSoftlabCatalog = await DeparaService.listarCatalogoSoftlab();
@@ -1317,6 +1318,11 @@ export default function MidwayLabDashboard() {
   // CHANGE ACTIVE TENANT & RE-FETCH DE-PARA MAPPINGS SPECIFIC TO THAT LABORATORY
   const handleSelectTenantChange = async (tenantNome: string) => {
     setSelectedTenant(tenantNome);
+    setSelectedSoftlabExam(null);
+    setSelectedAutolacExam(null);
+    setSearchSoftlab("");
+    setSearchAutolac("");
+
     const activeTenant = tenants.find(t => t.nome === tenantNome);
     const tenantId = activeTenant?.id;
 
