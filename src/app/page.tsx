@@ -25,6 +25,7 @@ import {
   ArrowDownLeft,
   X,
   Edit,
+  Copy,
   Save,
   Check,
   Layers,
@@ -1832,12 +1833,29 @@ export default function MidwayLabDashboard() {
       identificacaoEntidade: t.identificacaoEntidade || t.identificacao_entidade || "",
       senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
       codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
-      wsUrl: t.wsUrl || t.ws_url || "http://177.22.36.202:8002/",
+      wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
       softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
       softlabLogin: t.softlabLogin || t.softlab_login || "",
       softlabSenha: t.softlabSenha || t.softlab_senha || ""
     });
     setIsNewTenantModalOpen(true);
+  };
+
+  const handleCloneTenant = (t: any) => {
+    setEditingTenant(null);
+    setTenantTestResult(null);
+    setTenantFormData({
+      nome: `${t.nome || "LABORATÓRIO"} (CÓPIA)`,
+      identificacaoEntidade: t.identificacaoEntidade || t.identificacao_entidade || "",
+      senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
+      codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
+      wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
+      softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
+      softlabLogin: t.softlabLogin || t.softlab_login || "",
+      softlabSenha: t.softlabSenha || t.softlab_senha || ""
+    });
+    setIsNewTenantModalOpen(true);
+    showNotification(`📋 Configurações de "${t.nome}" clonadas para novo cadastro! Altere o nome e salve.`);
   };
 
   const handleOpenMapExam = (exam: any) => {
@@ -2341,7 +2359,7 @@ export default function MidwayLabDashboard() {
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
             <span className="text-slate-400">Softlab API:</span>
-            <span className="text-teal-300 font-semibold">1.311 Exames</span>
+            <span className="text-teal-300 font-semibold">{softlabExames.length.toLocaleString('pt-BR')} Exames</span>
           </div>
 
           <div className="h-3 w-px bg-slate-800" />
@@ -3456,13 +3474,25 @@ export default function MidwayLabDashboard() {
                               </span>
                             </td>
                             <td className="py-3.5 px-5 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditTenant(t)}
-                                className="text-xs bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ml-auto cursor-pointer"
-                              >
-                                <Edit className="w-3.5 h-3.5" /> Editar
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                {(currentUser.role === 'admin' || currentUser.email.includes("carloscleton")) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCloneTenant(t)}
+                                    className="text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-semibold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                                    title="Clonar configurações para criar um novo laboratório baseado neste"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" /> Clonar
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditTenant(t)}
+                                  className="text-xs bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Edit className="w-3.5 h-3.5" /> Editar
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -3523,13 +3553,25 @@ export default function MidwayLabDashboard() {
                       <div className="flex items-center justify-between pt-2">
                         <span className="text-xs text-slate-400">Tabela de Mapeamento: <strong className="text-teal-300">5 Exames Vinculados</strong></span>
                         
-                        <button 
-                          type="button"
-                          onClick={() => handleOpenEditTenant(t)}
-                          className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Edit className="w-3.5 h-3.5" /> Editar Configurações
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {(currentUser.role === 'admin' || currentUser.email.includes("carloscleton")) && (
+                            <button
+                              type="button"
+                              onClick={() => handleCloneTenant(t)}
+                              className="text-xs font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                              title="Clonar configurações para criar um novo laboratório"
+                            >
+                              <Copy className="w-3.5 h-3.5" /> Clonar
+                            </button>
+                          )}
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEditTenant(t)}
+                            className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Edit className="w-3.5 h-3.5" /> Editar Configurações
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
