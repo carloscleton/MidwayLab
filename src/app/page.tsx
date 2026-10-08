@@ -773,53 +773,92 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  const handleApproveRequest = async (req: typeof pendingRequests[0]) => {
-    let savedTenantId = String(Date.now());
-    try {
-      const savedTenant = await TenantService.salvarTenant({
-        nome: req.nomeLab,
-        identificacao_entidade: req.email,
-        senha_ws: "Soft@2026",
-        softlab_login: req.email,
-        softlab_senha: "Carlos@2026",
-        softlab_base_url: "http://apoio.softlabsolucoes.com.br"
-      });
-      if (savedTenant) {
-        savedTenantId = savedTenant.id;
+  const handleOpenApprovalModal = (req: typeof pendingRequests[0]) => {
+    setApprovingRequest(req);
+    const matchingTenant = tenants.find(t => 
+      t.nome.toLowerCase() === req.nomeLab.toLowerCase() || 
+      t.identificacaoEntidade.toLowerCase() === req.email.toLowerCase()
+    );
+    setApprovalFormData({
+      tenantId: matchingTenant ? matchingTenant.id : "NEW_TENANT",
+      role: "tenant"
+    });
+    setIsApprovalModalOpen(true);
+  };
+
+  const handleConfirmUserApproval = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!approvingRequest) return;
+
+    let selectedTenantId = approvalFormData.tenantId;
+    let selectedTenantNome = approvingRequest.nomeLab;
+
+    if (selectedTenantId === "NEW_TENANT") {
+      try {
+        const savedTenant = await TenantService.salvarTenant({
+          nome: approvingRequest.nomeLab,
+          identificacao_entidade: approvingRequest.email,
+          senha_ws: "Soft@2026",
+          softlab_login: approvingRequest.email,
+          softlab_senha: "Carlos@2026",
+          softlab_base_url: "http://apoio.softlabsolucoes.com.br"
+        });
+        if (savedTenant) {
+          selectedTenantId = savedTenant.id;
+          selectedTenantNome = savedTenant.nome;
+
+          setTenants(prev => [...prev, {
+            id: savedTenant.id,
+            nome: savedTenant.nome,
+            identificacaoEntidade: approvingRequest.email,
+            senhaWs: "Soft@2026",
+            codigoAgente: "1",
+            wsUrl: "http://homolog.app.lifesys.com.br:5030",
+            softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
+            softlabLogin: approvingRequest.email,
+            softlabSenha: "Carlos@2026",
+            ultimoLote: "0",
+            status: "ONLINE"
+          }]);
+        }
+      } catch (err) {
+        selectedTenantId = `tenant-${Date.now()}`;
       }
-    } catch (err) {
-      console.warn("Salvo localmente.");
+    } else {
+      const foundTenant = tenants.find(t => t.id === selectedTenantId);
+      if (foundTenant) {
+        selectedTenantNome = foundTenant.nome;
+      }
     }
 
-    const newTenant = {
-      id: savedTenantId,
-      nome: req.nomeLab,
-      identificacaoEntidade: req.email,
-      senhaWs: "Soft@2026",
-      codigoAgente: "1",
-      wsUrl: "http://177.22.36.202:8002/",
-      softlabLogin: req.email,
-      softlabSenha: "Carlos@2026",
-      ultimoLote: "0",
-      status: "ONLINE"
-    };
+    try {
+      await UserService.criarUsuarioNatito(
+        approvingRequest.nomeResponsavel,
+        approvingRequest.email,
+        "123",
+        approvalFormData.role,
+        selectedTenantId
+      );
+    } catch (err) {
+      console.warn("Erro ao salvar usuario em Supabase:", err);
+    }
 
     const newUser = {
       id: `u-${Date.now()}`,
-      nome: req.nomeResponsavel,
-      email: req.email,
+      nome: approvingRequest.nomeResponsavel,
+      email: approvingRequest.email,
       senha: "123",
-      role: "tenant" as const,
-      tenantId: newTenant.id,
-      tenantNome: newTenant.nome,
+      role: approvalFormData.role,
+      tenantId: selectedTenantId,
+      tenantNome: selectedTenantNome,
       status: "ativo" as const,
       criadoEm: new Date().toISOString().slice(0, 10)
     };
 
-    setTenants(prev => [...prev, newTenant]);
-    setUsersList(prev => [...prev, newUser]);
-    setPendingRequests(prev => prev.filter(r => r.id !== req.id));
-    showNotification(`📧 E-mail de Ativação enviado para '${req.email}' e confirmação enviada a carloscleton.nat@gmail.com! Laboratório '${req.nomeLab}' ativado com sucesso.`);
+    setUsersList(prev => [newUser, ...prev.filter(u => u.email !== approvingRequest.email)]);
+    setPendingRequests(prev => prev.filter(r => r.id !== approvingRequest.id));
+    setIsApprovalModalOpen(false);
+    showNotification(`🎉 Solicitante "${approvingRequest.nomeResponsavel}" aprovado e vinculado à empresa "${selectedTenantNome}"!`);
   };
 
 
@@ -1233,6 +1272,14 @@ export default function MidwayLabDashboard() {
   const [showSoftlabSenha, setShowSoftlabSenha] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
+
+  // APPROVAL MODAL STATE (MANDATORY TENANT SELECTION)
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [approvingRequest, setApprovingRequest] = useState<any>(null);
+  const [approvalFormData, setApprovalFormData] = useState({
+    tenantId: "NEW_TENANT",
+    role: "tenant" as "tenant" | "admin"
+  });
 
   // TEST CONNECTION STATE (TENANT MODAL)
   const [testingTarget, setTestingTarget] = useState<"none" | "softlab" | "autolac" | "both">("none");
@@ -3938,7 +3985,7 @@ export default function MidwayLabDashboard() {
                           <td className="py-3.5 px-5 text-right">
                             <button
                               type="button"
-                              onClick={() => handleApproveRequest(req)}
+                              onClick={() => handleOpenApprovalModal(req)}
                               className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-lg transition shadow-md shadow-emerald-500/20 cursor-pointer flex items-center gap-1.5 ml-auto text-xs"
                             >
                               <UserCheck className="w-3.5 h-3.5" /> Aprovar & Ativar Laboratório
@@ -4381,6 +4428,110 @@ export default function MidwayLabDashboard() {
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
                 >
                   <Check className="w-4 h-4" /> Salvar Vínculo DE-PARA
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: APPROVE ACCESS & LINK TENANT */}
+      {isApprovalModalOpen && approvingRequest && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-emerald-400" />
+                Aprovar Acesso & Vincular Empresa
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setIsApprovalModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmUserApproval} className="space-y-4 text-xs">
+              {/* DETAILS BOX */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Solicitante:</span>
+                  <span className="font-bold text-slate-100">{approvingRequest.nomeResponsavel}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>E-mail / Login:</span>
+                  <span className="font-bold text-cyan-300">{approvingRequest.email}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>CNPJ:</span>
+                  <span className="text-slate-300">{approvingRequest.cnpj}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-400 pt-1 border-t border-slate-900">
+                  <span>Laboratório Solicitado:</span>
+                  <span className="font-bold text-teal-300">{approvingRequest.nomeLab}</span>
+                </div>
+              </div>
+
+              {/* MANDATORY COMPANY SELECTION DROPDOWN */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-200 font-bold flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-teal-400" />
+                  Empresa / Laboratório Vinculado <span className="text-rose-400 font-bold">* (Obrigatório)</span>
+                </label>
+                <select
+                  required
+                  value={approvalFormData.tenantId}
+                  onChange={(e) => setApprovalFormData({ ...approvalFormData, tenantId: e.target.value })}
+                  className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3.5 py-2.5 text-slate-100 font-semibold focus:outline-none focus:border-teal-400 cursor-pointer"
+                >
+                  <option value="NEW_TENANT" className="bg-slate-900 text-teal-300 font-bold">
+                    ✨ Cadastrar Novo Laboratório: "{approvingRequest.nomeLab}"
+                  </option>
+                  <optgroup label="Empresas / Laboratórios Existentes no Sistema">
+                    {tenants.map(t => (
+                      <option key={t.id} value={t.id} className="bg-slate-900 text-slate-200">
+                        🏥 {t.nome} (ID: {t.id.slice(0, 8)}...)
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  O usuário será associado à empresa selecionada acima e suas permissões serão gravadas com este tenant_id no Supabase.
+                </p>
+              </div>
+
+              {/* PERFIL / ROLE SELECTION */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-amber-400" /> Perfil de Acesso (Role)
+                </label>
+                <select
+                  value={approvalFormData.role}
+                  onChange={(e) => setApprovalFormData({ ...approvalFormData, role: e.target.value as any })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                >
+                  <option value="tenant" className="bg-slate-900 text-slate-200">🏥 Cliente do Laboratório (Tenant User)</option>
+                  <option value="admin" className="bg-slate-900 text-teal-300 font-bold">👑 Administrador do Sistema (Super Admin)</option>
+                </select>
+              </div>
+
+              {/* ACTIONS */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsApprovalModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center gap-2 text-xs"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Confirmar Aprovação & Gravar
                 </button>
               </div>
             </form>
