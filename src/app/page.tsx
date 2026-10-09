@@ -561,8 +561,8 @@ export default function MidwayLabDashboard() {
           softlab_login: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
           softlabSenha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
           softlab_senha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
-          usarCatalogoProprio: Boolean(t.usar_catalogo_proprio),
-          usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio),
+          usarCatalogoProprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
+          usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           ultimoLote: "1",
           status: t.ativo ? "ONLINE" : "OFFLINE"
         }));
@@ -1743,6 +1743,8 @@ export default function MidwayLabDashboard() {
           softlab_login: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
           softlabSenha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
           softlab_senha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
+          usarCatalogoProprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
+          usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           ultimoLote: "1",
           status: t.ativo ? "ONLINE" : "OFFLINE"
         }));

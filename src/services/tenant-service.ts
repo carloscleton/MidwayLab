@@ -46,24 +46,28 @@ export class TenantService {
    * Salva ou atualiza um Tenant no Supabase
    */
   static async salvarTenant(tenant: Partial<ITenantRecord>): Promise<ITenantRecord | null> {
+    const isCustomCatalog = tenant.usar_catalogo_proprio !== undefined ? Boolean(tenant.usar_catalogo_proprio) : false;
+    const existingConfigs = tenant.configuracoes || {};
+
     const payload: any = {
       nome: tenant.nome,
       codigo_entidade: tenant.codigo_entidade || '1',
       identificacao_entidade: tenant.identificacao_entidade,
-      configuracoes: tenant.configuracoes || {
+      configuracoes: {
+        ...existingConfigs,
         autolac: {
-          ws_url: (tenant as any).ws_url || (tenant as any).wsUrl || 'http://homolog.app.lifesys.com.br:5030',
+          ws_url: (tenant as any).ws_url || (tenant as any).wsUrl || existingConfigs?.autolac?.ws_url || 'http://homolog.app.lifesys.com.br:5030',
           identificacao_entidade: tenant.identificacao_entidade,
-          senha_ws: tenant.senha_ws || ''
+          senha_ws: tenant.senha_ws || existingConfigs?.autolac?.senha_ws || ''
         },
         softlab: {
-          base_url: tenant.softlab_base_url || 'http://apoio.softlabsolucoes.com.br',
-          login: tenant.softlab_login || '',
-          senha: tenant.softlab_senha || ''
-        }
+          base_url: tenant.softlab_base_url || existingConfigs?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br',
+          login: tenant.softlab_login || existingConfigs?.softlab?.login || '',
+          senha: tenant.softlab_senha || existingConfigs?.softlab?.senha || ''
+        },
+        usar_catalogo_proprio: isCustomCatalog
       },
-      ativo: tenant.ativo !== undefined ? tenant.ativo : true,
-      usar_catalogo_proprio: tenant.usar_catalogo_proprio !== undefined ? tenant.usar_catalogo_proprio : false
+      ativo: tenant.ativo !== undefined ? tenant.ativo : true
     };
 
     if (tenant.id && typeof tenant.id === 'string' && tenant.id.includes('-') && tenant.id.length >= 30) {
@@ -71,20 +75,33 @@ export class TenantService {
     }
 
     try {
+      // 1. Try saving with top-level column + configuracoes JSONB
+      const fullPayload = { ...payload, usar_catalogo_proprio: isCustomCatalog };
       const { data, error } = await supabaseBrowser
+        .from('tenants')
+        .upsert(fullPayload)
+        .select('*')
+        .single();
+
+      if (!error && data) {
+        return data as ITenantRecord;
+      }
+
+      // 2. Fallback: If top-level column is missing in DB schema, save inside configuracoes JSONB
+      const { data: fallbackData, error: fallbackError } = await supabaseBrowser
         .from('tenants')
         .upsert(payload)
         .select('*')
         .single();
 
-      if (error) {
-        console.warn('[TenantService] Erro ao salvar tenant no Supabase:', error);
+      if (fallbackError) {
+        console.warn('[TenantService] Erro ao salvar tenant no Supabase:', fallbackError);
         return null;
       }
 
-      return data as ITenantRecord;
+      return fallbackData as ITenantRecord;
     } catch (err: any) {
-      console.warn('[TenantService] Conexão com Supabase indisponível (Failed to fetch/DNS):', err?.message || err);
+      console.warn('[TenantService] Conexão com Supabase indisponível:', err?.message || err);
       return null;
     }
   }
