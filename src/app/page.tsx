@@ -43,6 +43,8 @@ import {
   Download,
   Filter,
   Link,
+  Globe,
+  Sliders,
   ArrowLeftRight,
   Lock,
   Unlock,
@@ -341,7 +343,7 @@ export default function MidwayLabDashboard() {
       setIsSyncingSoftlabApi(false);
     }
   };
-  // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS EXCLUSIVELY FOR ACTIVE TENANT (OPTIMIZED O(1))
+  // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS FOR ACTIVE TENANT (GLOBAL VS CUSTOM)
   const loadSoftlabCatalogForTenant = async (tenantId?: string) => {
     if (!tenantId) {
       startTransition(() => {
@@ -350,10 +352,14 @@ export default function MidwayLabDashboard() {
       return;
     }
 
+    const activeTenantObj = tenants.find(t => t.id === tenantId || t.nome === selectedTenant);
+    const isCustomCatalog = Boolean(activeTenantObj?.usarCatalogoProprio || activeTenantObj?.usar_catalogo_proprio);
+    const catalogTenantFilter = isCustomCatalog ? tenantId : undefined;
+
     try {
       const [dbMappings, rawSoftlabCatalog] = await Promise.all([
         DeparaService.listarMapeamentos(tenantId),
-        DeparaService.listarCatalogoSoftlab(tenantId)
+        DeparaService.listarCatalogoSoftlab(catalogTenantFilter)
       ]);
 
       const dbSoftlabCatalog = rawSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
@@ -555,6 +561,8 @@ export default function MidwayLabDashboard() {
           softlab_login: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
           softlabSenha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
           softlab_senha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
+          usarCatalogoProprio: Boolean(t.usar_catalogo_proprio),
+          usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio),
           ultimoLote: "1",
           status: t.ativo ? "ONLINE" : "OFFLINE"
         }));
@@ -1322,7 +1330,8 @@ export default function MidwayLabDashboard() {
     wsUrl: "http://homolog.app.lifesys.com.br:5030",
     softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
     softlabLogin: "",
-    softlabSenha: ""
+    softlabSenha: "",
+    usarCatalogoProprio: false
   });
 
   // PASSWORD VISIBILITY TOGGLES
@@ -1654,6 +1663,7 @@ export default function MidwayLabDashboard() {
         softlab_base_url: tenantFormData.softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
         softlab_login: tenantFormData.softlabLogin,
         softlab_senha: tenantFormData.softlabSenha,
+        usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
         ativo: true
       });
     } catch (err: any) {
@@ -1678,6 +1688,8 @@ export default function MidwayLabDashboard() {
       softlab_login: tenantFormData.softlabLogin,
       softlabSenha: tenantFormData.softlabSenha,
       softlab_senha: tenantFormData.softlabSenha,
+      usarCatalogoProprio: Boolean(tenantFormData.usarCatalogoProprio),
+      usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
       ultimoLote: editingTenant?.ultimoLote || "1",
       status: "ONLINE"
     };
@@ -1943,7 +1955,8 @@ export default function MidwayLabDashboard() {
       wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
       softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
       softlabLogin: t.softlabLogin || t.softlab_login || "",
-      softlabSenha: t.softlabSenha || t.softlab_senha || ""
+      softlabSenha: t.softlabSenha || t.softlab_senha || "",
+      usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio)
     });
     setIsNewTenantModalOpen(true);
   };
@@ -1961,7 +1974,8 @@ export default function MidwayLabDashboard() {
       wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
       softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
       softlabLogin: t.softlabLogin || t.softlab_login || "",
-      softlabSenha: t.softlabSenha || t.softlab_senha || ""
+      softlabSenha: t.softlabSenha || t.softlab_senha || "",
+      usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio)
     });
     setIsNewTenantModalOpen(true);
     showNotification(`📋 Configurações de "${t.nome}" clonadas para novo cadastro! Altere a Identificação e salve.`);
@@ -2785,31 +2799,68 @@ export default function MidwayLabDashboard() {
                   />
                 </div>
 
+                {/* CATALOG STATUS BANNER (GLOBAL VS CUSTOM) */}
+                {(() => {
+                  const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+                  const isCustom = Boolean(activeTenantObj?.usarCatalogoProprio || activeTenantObj?.usar_catalogo_proprio);
+                  return isCustom ? (
+                    <div className="bg-teal-500/10 border border-teal-500/30 text-teal-300 p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-teal-400 shrink-0" />
+                      <span>
+                        <strong>Catálogo Customizado Ativo:</strong> Clique em <strong>'Listar Exames Softlab'</strong> e depois em <strong>'Salvar no Banco (Supabase)'</strong> para consultar via API e gravar a lista associada a este laboratório (<code className="text-cyan-300">tenant_id</code>).
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>
+                        <strong>Catálogo Global (Padrão):</strong> Esta empresa utiliza a tabela compartilhada. Para listar via API e salvar exames próprios com <code className="text-cyan-300">tenant_id</code>, ative <strong>"Usar Catálogo Customizado Próprio"</strong> no cadastro do laboratório.
+                      </span>
+                    </div>
+                  );
+                })()}
+
                 {/* ACTION BUTTONS: FETCH API & SAVE TO SUPABASE */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSoftlabApiSync}
-                    disabled={isSyncingSoftlabApi}
-                    className="w-full bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 font-bold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-teal-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
-                    📡 Listar Exames Softlab
-                  </button>
+                  {(() => {
+                    const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+                    const isCustom = Boolean(activeTenantObj?.usarCatalogoProprio || activeTenantObj?.usar_catalogo_proprio);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleSoftlabApiSync}
+                          disabled={!isCustom || isSyncingSoftlabApi}
+                          title={isCustom ? "Consultar exames via API Softlab Apoio" : "Botão desabilitado: empresa usando Catálogo Global padrão. Ative 'Usar Catálogo Customizado Próprio' no cadastro da empresa para habilitar."}
+                          className={`w-full font-bold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow ${
+                            !isCustom
+                              ? "opacity-40 cursor-not-allowed bg-slate-950 text-slate-500 border border-slate-800"
+                              : "bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40"
+                          }`}
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isCustom ? "text-teal-400" : "text-slate-500"} ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
+                          📡 Listar Exames Softlab
+                        </button>
 
-                  <button
-                    type="button"
-                    onClick={handleOpenSaveCatalogModal}
-                    disabled={isSavingCatalogToDb}
-                    className={`w-full font-extrabold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow ${
-                      hasUnsavedApiChanges
-                        ? "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 animate-pulse"
-                        : "bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40"
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    💾 Salvar no Banco (Supabase)
-                  </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenSaveCatalogModal}
+                          disabled={!isCustom || isSavingCatalogToDb}
+                          title={isCustom ? "Gravar exames no banco Supabase vinculando ao tenant_id desta empresa" : "Botão desabilitado: empresa usando Catálogo Global padrão. Ative 'Usar Catálogo Customizado Próprio' no cadastro da empresa para habilitar."}
+                          className={`w-full font-extrabold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs shadow ${
+                            !isCustom
+                              ? "opacity-40 cursor-not-allowed bg-slate-950 text-slate-500 border border-slate-800"
+                              : hasUnsavedApiChanges
+                              ? "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 animate-pulse cursor-pointer"
+                              : "bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40 cursor-pointer"
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          💾 Salvar no Banco (Supabase)
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
 
 
@@ -3545,7 +3596,8 @@ export default function MidwayLabDashboard() {
                       wsUrl: "http://177.22.36.202:8002/",
                       softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
                       softlabLogin: "",
-                      softlabSenha: ""
+                      softlabSenha: "",
+                      usarCatalogoProprio: false
                     });
                     setIsNewTenantModalOpen(true);
                   }}
@@ -4307,6 +4359,39 @@ export default function MidwayLabDashboard() {
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
                   />
                 </div>
+              </div>
+
+              {/* SEÇÃO 3: CONFIGURAÇÃO DE CATÁLOGO (GLOBAL VS CUSTOMIZADO) */}
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
+                  <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">3. Tipo de Catálogo de Exames Softlab</span>
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer group bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-teal-500/40 transition">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(tenantFormData.usarCatalogoProprio)}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, usarCatalogoProprio: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 accent-teal-400 cursor-pointer rounded"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-slate-100 text-xs group-hover:text-teal-300 transition block">
+                      Usar Catálogo Customizado Próprio para este Laboratório
+                    </span>
+                    <p className="text-[11px] text-slate-400 leading-normal">
+                      {tenantFormData.usarCatalogoProprio ? (
+                        <span className="text-teal-300 font-semibold">
+                          ✨ Ativo: Permite que esta empresa consulte via API e salve um catálogo exclusivo gravado com o seu <code className="text-cyan-300">tenant_id</code>.
+                        </span>
+                      ) : (
+                        <span className="text-amber-300 font-semibold">
+                          🌐 Desativado (Padrão): Esta empresa utiliza o Catálogo Global padronizado de 1.047 exames (botões de busca/gravação ficam desabilitados no mapeador).
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* DIAGNOSTIC TEST CONNECTION OUTPUT BOX */}

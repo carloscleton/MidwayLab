@@ -63,6 +63,7 @@ export interface ITenantRecord {
   softlab_base_url?: string;
   softlab_login?: string;
   softlab_senha?: string;
+  usar_catalogo_proprio?: boolean;
   ativo: boolean;
   created_at?: string;
   updated_at?: string;

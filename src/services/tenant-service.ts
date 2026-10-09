@@ -62,7 +62,8 @@ export class TenantService {
           senha: tenant.softlab_senha || ''
         }
       },
-      ativo: tenant.ativo !== undefined ? tenant.ativo : true
+      ativo: tenant.ativo !== undefined ? tenant.ativo : true,
+      usar_catalogo_proprio: tenant.usar_catalogo_proprio !== undefined ? tenant.usar_catalogo_proprio : false
     };
 
     if (tenant.id && typeof tenant.id === 'string' && tenant.id.includes('-') && tenant.id.length >= 30) {
