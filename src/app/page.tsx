@@ -1431,19 +1431,25 @@ export default function MidwayLabDashboard() {
 
   // CHANGE ACTIVE TENANT & RE-FETCH DE-PARA MAPPINGS SPECIFIC TO THAT LABORATORY
   const handleSelectTenantChange = (tenantNome: string) => {
-    setSelectedTenant(tenantNome);
-    setSelectedSoftlabExam(null);
-    setSelectedAutolacExam(null);
-    setSearchSoftlab("");
-    setSearchAutolac("");
+    startTransition(() => {
+      setSelectedTenant(tenantNome);
+      setSelectedSoftlabExam(null);
+      setSelectedAutolacExam(null);
+      setSearchSoftlab("");
+      setSearchAutolac("");
+    });
 
     const activeTenant = tenants.find(t => t.nome === tenantNome);
     const tenantId = activeTenant?.id;
 
-    showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando catálogo e mapeamentos...`);
+    if (tenantNome) {
+      showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando catálogo e mapeamentos...`);
+    }
 
-    setTimeout(async () => {
-      await loadSoftlabCatalogForTenant(tenantId);
+    setTimeout(() => {
+      startTransition(async () => {
+        await loadSoftlabCatalogForTenant(tenantId);
+      });
     }, 10);
   };
 
@@ -2518,6 +2524,28 @@ export default function MidwayLabDashboard() {
           </div>
         </div>
 
+        {/* PROMINENTLY HIGHLIGHTED ACTIVE TENANT SELECTOR IN TOP FIRST HORIZONTAL LINE */}
+        {currentUser.role === "admin" ? (
+          <div className="flex items-center gap-2 text-xs text-teal-300 bg-gradient-to-r from-slate-900 via-teal-950/40 to-slate-900 border-2 border-teal-400/80 px-4 py-1.5 rounded-xl shadow-lg shadow-teal-500/20 hover:border-teal-300 transition">
+            <Building2 className="w-4 h-4 text-teal-300 shrink-0 animate-pulse" />
+            <span className="font-extrabold text-teal-300 uppercase tracking-wider text-[11px]">Empresa Ativa:</span>
+            <select 
+              value={selectedTenant}
+              onChange={(e) => handleSelectTenantChange(e.target.value)}
+              className="bg-slate-950 text-cyan-300 font-extrabold focus:outline-none focus:border-teal-300 cursor-pointer text-xs py-1 px-2.5 rounded-lg border border-teal-400/60 shadow-inner"
+            >
+              {tenants.map(t => (
+                <option key={t.id} value={t.nome} className="bg-slate-900 text-slate-100 font-bold">{t.nome}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border-2 border-amber-500/40 px-3.5 py-1.5 rounded-xl font-bold shadow">
+            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Empresa Ativa: <strong className="text-white">{selectedTenant}</strong></span>
+          </div>
+        )}
+
         {/* User Account & Role Badge */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-3 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-xl">
@@ -2670,27 +2698,11 @@ export default function MidwayLabDashboard() {
           )}
         </nav>
 
-        {/* TENANT SELECTOR OR LOCK BADGE */}
-        {currentUser.role === "admin" ? (
-          <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
-            <Building2 className="w-3.5 h-3.5 text-teal-400" />
-            <span>Empresa Ativa:</span>
-            <select 
-              value={selectedTenant}
-              onChange={(e) => handleSelectTenantChange(e.target.value)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
-            >
-              {tenants.map(t => (
-                <option key={t.id} value={t.nome} className="bg-slate-900 text-slate-200">{t.nome}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold">
-            <Lock className="w-3.5 h-3.5 text-amber-400" />
-            <span>Laboratório: {selectedTenant}</span>
-          </div>
-        )}
+        {/* ACTIVE TENANT STATUS BADGE */}
+        <div className="flex items-center gap-2 text-[11px] font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-3 py-1 rounded-lg">
+          <Building2 className="w-3.5 h-3.5 text-teal-400" />
+          <span>Empresa: <strong className="text-white">{selectedTenant}</strong></span>
+        </div>
       </div>
 
 
