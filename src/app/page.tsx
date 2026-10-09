@@ -344,7 +344,7 @@ export default function MidwayLabDashboard() {
     }
   };
   // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS FOR ACTIVE TENANT (GLOBAL VS CUSTOM)
-  const loadSoftlabCatalogForTenant = async (tenantId?: string) => {
+  const loadSoftlabCatalogForTenant = async (tenantId?: string, targetTenantObj?: any) => {
     if (!tenantId) {
       startTransition(() => {
         setSoftlabExames([]);
@@ -352,8 +352,8 @@ export default function MidwayLabDashboard() {
       return;
     }
 
-    const activeTenantObj = tenants.find(t => t.id === tenantId || t.nome === selectedTenant);
-    const isCustomCatalog = Boolean(activeTenantObj?.usarCatalogoProprio || activeTenantObj?.usar_catalogo_proprio);
+    const tenantObj = targetTenantObj || tenants.find(t => t.id === tenantId || t.nome === selectedTenant);
+    const isCustomCatalog = Boolean(tenantObj?.usarCatalogoProprio || tenantObj?.usar_catalogo_proprio);
     const catalogTenantFilter = isCustomCatalog ? tenantId : undefined;
 
     try {
@@ -390,7 +390,7 @@ export default function MidwayLabDashboard() {
         startTransition(() => {
           setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
         });
-      } else if (dbMappings.length > 0) {
+      } else if (isCustomCatalog && dbMappings.length > 0) {
         const uniqueSoftlabMap = new Map<string, any>();
         dbMappings.forEach(m => {
           const cleanCode = m.codigo_softlab.trim().toUpperCase();
@@ -591,7 +591,7 @@ export default function MidwayLabDashboard() {
 
         // 3. Fetch DE-PARA Mappings & Softlab Catalog for the Active Tenant
         const activeTenantObj = mappedTenants.find(t => t.nome === selectedTenant) || mappedTenants[0];
-        await loadSoftlabCatalogForTenant(activeTenantObj?.id);
+        await loadSoftlabCatalogForTenant(activeTenantObj?.id, activeTenantObj);
 
         // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames with Deduplication
         const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac(activeTenantObj?.id);
@@ -1448,7 +1448,7 @@ export default function MidwayLabDashboard() {
 
     setTimeout(() => {
       startTransition(async () => {
-        await loadSoftlabCatalogForTenant(tenantId);
+        await loadSoftlabCatalogForTenant(tenantId, activeTenant);
       });
     }, 10);
   };
