@@ -4211,7 +4211,7 @@ export default function MidwayLabDashboard() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveTenant} className="space-y-4 text-xs">
+            <form id="form_tenant_edit" name="form_tenant_edit" action="javascript:void(0);" onSubmit={handleSaveTenant} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Nome do Laboratório</label>
                 <input
@@ -4508,7 +4508,7 @@ export default function MidwayLabDashboard() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveExamMapping} className="space-y-5 text-xs">
+            <form id="form_exam_mapping" name="form_exam_mapping" action="javascript:void(0);" onSubmit={handleSaveExamMapping} className="space-y-5 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Softlab Side */}
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
@@ -4610,7 +4610,7 @@ export default function MidwayLabDashboard() {
               </button>
             </div>
 
-            <form onSubmit={handleConfirmUserApproval} className="space-y-4 text-xs">
+            <form id="form_user_approval" name="form_user_approval" action="javascript:void(0);" onSubmit={handleConfirmUserApproval} className="space-y-4 text-xs">
               {/* DETAILS BOX */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono">
                 <div className="flex items-center justify-between text-slate-400">
