@@ -214,6 +214,17 @@ export default function MidwayLabDashboard() {
   });
 
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
+  // FOLDER WATCHER AUTOMÁTICO (MONITORAMENTO DE PASTAS)
+  const [watcherConfig, setWatcherConfig] = useState({
+    diretorioEntrada: "C:\\Labfacil\\Pedidos",
+    diretorioProcessados: "C:\\Labfacil\\Processados",
+    diretorioErros: "C:\\Labfacil\\Erros",
+    equipamentoDestino: "CB350",
+    ativo: false
+  });
+  const [watcherLogs, setWatcherLogs] = useState<Array<{ id: string; timestamp: string; arquivo: string; status: string; mensagem: string }>>([]);
+  const [isWatcherRunning, setIsWatcherRunning] = useState(false);
+  const [isSavingWatcherConfig, setIsSavingWatcherConfig] = useState(false);
   const [parsedLabfacilOrders, setParsedLabfacilOrders] = useState<ILabfacilPedidoParsed[]>([]);
   const [selectedTargetEquipamento, setSelectedTargetEquipamento] = useState<string>("CB350");
   const [generatedWorklists, setGeneratedWorklists] = useState<Array<{ pedido: string; arquivo: string; formato: string; nomeArquivo: string }>>([]);
@@ -4289,6 +4300,147 @@ export default function MidwayLabDashboard() {
         {/* TAB INGESTÃO DE ARQUIVOS (JSON / XML) DO LABFACIL */}
         {activeTab === "ingestao" && (
           <div className="space-y-6">
+            <div className="bg-slate-900/90 border border-teal-500/40 p-6 rounded-2xl space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <RefreshCw className={`w-5 h-5 text-teal-400 ${isWatcherRunning ? "animate-spin" : ""}`} />
+                    Monitoramento Automático de Pastas (Watcher Autônomo)
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    O sistema monitora a pasta em segundo plano e, ao detectar qualquer arquivo XML ou JSON gerado pelo Labfacil, cria os diretórios automaticamente (se não existirem), processa os pedidos e gera a carga para o equipamento.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isSavingWatcherConfig}
+                    onClick={async () => {
+                      setIsSavingWatcherConfig(true);
+                      const novaAcao = isWatcherRunning ? "parar" : "iniciar";
+                      try {
+                        const res = await fetch("/api/folder-watcher", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ acao: novaAcao, config: watcherConfig })
+                        });
+                        const data = await res.json();
+                        setIsWatcherRunning(data.isRunning);
+                        if (data.logs) setWatcherLogs(data.logs);
+                        showNotification(novaAcao === "iniciar" ? "▶️ Monitoramento automático de pasta ativado!" : "⏸️ Monitoramento pausado.");
+                      } catch (err: any) {
+                        showNotification(`Erro ao controlar monitor: ${err.message}`);
+                      } finally {
+                        setIsSavingWatcherConfig(false);
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-lg ${
+                      isWatcherRunning
+                        ? "bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20"
+                        : "bg-teal-500 hover:bg-teal-400 text-slate-950 shadow-teal-500/20"
+                    }`}
+                  >
+                    {isWatcherRunning ? "⏸️ Pausar Monitoramento" : "▶️ Ativar Leitura Automática"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/folder-watcher", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ acao: "varrer_agora", config: watcherConfig })
+                        });
+                        const data = await res.json();
+                        if (data.logs) setWatcherLogs(data.logs);
+                        showNotification(`Varredura concluída! ${data.processadosAgora || 0} arquivos processados agora.`);
+                      } catch (err: any) {
+                        showNotification(`Erro na varredura: ${err.message}`);
+                      }
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl font-semibold text-xs transition cursor-pointer"
+                  >
+                    🔄 Varrer Agora
+                  </button>
+                </div>
+              </div>
+
+              {/* CONFIGURAÇÃO DOS CAMINHOS DAS PASTAS */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+                <div>
+                  <label className="block text-slate-300 font-semibold font-sans mb-1">
+                    📁 Pasta de Entrada (Onde o Labfacil grava XML):
+                  </label>
+                  <input
+                    type="text"
+                    value={watcherConfig.diretorioEntrada}
+                    onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioEntrada: e.target.value })}
+                    placeholder="C:\Labfacil\Pedidos"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 focus:outline-none focus:border-teal-400"
+                  />
+                  <span className="text-[10px] text-slate-500 font-sans block mt-1">Cria a pasta automaticamente se não existir</span>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold font-sans mb-1">
+                    📦 Pasta de Processados (Histórico/Backup):
+                  </label>
+                  <input
+                    type="text"
+                    value={watcherConfig.diretorioProcessados}
+                    onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioProcessados: e.target.value })}
+                    placeholder="C:\Labfacil\Processados"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-cyan-300 focus:outline-none focus:border-teal-400"
+                  />
+                  <span className="text-[10px] text-slate-500 font-sans block mt-1">Arquivos já lidos são movidos para cá</span>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold font-sans mb-1">
+                    ⚠️ Pasta de Erros / Falhas:
+                  </label>
+                  <input
+                    type="text"
+                    value={watcherConfig.diretorioErros}
+                    onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioErros: e.target.value })}
+                    placeholder="C:\Labfacil\Erros"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-rose-300 focus:outline-none focus:border-teal-400"
+                  />
+                  <span className="text-[10px] text-slate-500 font-sans block mt-1">Arquivos corrompidos ou com falhas de XML</span>
+                </div>
+              </div>
+
+              {/* LOG DE ATIVIDADES DO WATCHER */}
+              {watcherLogs.length > 0 && (
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-mono">
+                  <div className="flex items-center justify-between text-slate-400 font-sans font-bold">
+                    <span>📋 Histórico de Ingestões Automáticas</span>
+                    <button
+                      type="button"
+                      onClick={() => setWatcherLogs([])}
+                      className="text-[10px] text-slate-500 hover:text-slate-300 cursor-pointer"
+                    >
+                      Limpar Logs
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 custom-scrollbar">
+                    {watcherLogs.map((log) => (
+                      <div key={log.id} className="flex items-center justify-between p-1.5 bg-slate-900/60 rounded border border-slate-800/60">
+                        <span className="text-slate-400">{log.timestamp} - <strong className="text-slate-200">{log.arquivo}</strong></span>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                          log.status === "PROCESSADO" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                        }`}>
+                          {log.mensagem}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
