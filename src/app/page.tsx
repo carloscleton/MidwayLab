@@ -593,6 +593,15 @@ export default function MidwayLabDashboard() {
       try {
         // 1. Fetch Tenants directly from Supabase DB
         const dbTenants = await TenantService.listarTenants();
+        try {
+          const dbEquipamentos = await EquipamentoService.listarEquipamentos();
+          if (dbEquipamentos && dbEquipamentos.length > 0) {
+            setEquipamentosList(dbEquipamentos);
+          }
+        } catch (e) {
+          console.warn("[Dashboard] Tabela equipamentos ainda não criada ou vazia no Supabase:", e);
+        }
+
         const mappedTenants = dbTenants.map(t => ({
           id: t.id,
           nome: t.nome,
@@ -4535,6 +4544,132 @@ export default function MidwayLabDashboard() {
         )}
 
       </main>
+
+      {/* MODAL: CADASTRAR / EDITAR EQUIPAMENTO */}
+      {isEquipamentoModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Server className="w-5 h-5 text-teal-400" />
+                {editingEquipamento ? "Editar Equipamento" : "Cadastrar Novo Equipamento"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEquipamentoModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              action="javascript:void(0);"
+              onSubmit={async () => {
+                const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+                const saved = await EquipamentoService.salvarEquipamento({
+                  ...equipamentoForm,
+                  tenant_id: activeTenantObj?.id || "11111111-1111-1111-1111-111111111111"
+                });
+
+                if (saved) {
+                  setEquipamentosList(prev => {
+                    const idx = prev.findIndex(item => item.id === saved.id);
+                    if (idx >= 0) {
+                      const updated = [...prev];
+                      updated[idx] = saved;
+                      return updated;
+                    }
+                    return [...prev, saved];
+                  });
+                  showNotification(`Equipamento ${saved.nome} salvo com sucesso!`);
+                }
+                setIsEquipamentoModalOpen(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nome do Equipamento / Bancada</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex.: Bioquímica Central CB350"
+                  value={equipamentoForm.nome || ""}
+                  onChange={(e) => setEquipamentoForm({ ...equipamentoForm, nome: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Modelo do Analisador</label>
+                  <select
+                    value={equipamentoForm.modelo || "CB350"}
+                    onChange={(e) => {
+                      const mod = e.target.value;
+                      const fab = mod.includes("YUMIZEN") ? "Horiba" : "Cormay";
+                      setEquipamentoForm({ ...equipamentoForm, modelo: mod, fabricante: fab });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+                  >
+                    <option value="CB350">CB350 (Bioquímica)</option>
+                    <option value="YUMIZEN">YUMIZEN (Hematologia)</option>
+                    <option value="GENERICO">Outro Modelo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Fabricante</label>
+                  <input
+                    type="text"
+                    value={equipamentoForm.fabricante || ""}
+                    onChange={(e) => setEquipamentoForm({ ...equipamentoForm, fabricante: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Diretório de Carga (Pasta Compartilhada)</label>
+                <input
+                  type="text"
+                  placeholder="C:\Equipamentos\Carga"
+                  value={equipamentoForm.diretorio_carga || ""}
+                  onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_carga: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Diretório de Resultados do Equipamento</label>
+                <input
+                  type="text"
+                  placeholder="C:\Equipamentos\Resultados"
+                  value={equipamentoForm.diretorio_resultados || ""}
+                  onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_resultados: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEquipamentoModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+                >
+                  Salvar Equipamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: CREATE / EDIT TENANT */}
       {isNewTenantModalOpen && (
