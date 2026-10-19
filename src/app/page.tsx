@@ -62,7 +62,8 @@ import {
   Eye,
   EyeOff,
   Info,
-  Printer
+  Printer,
+  Folder
 } from "lucide-react";
 
 export interface ILabfacilExamItem {
@@ -224,6 +225,9 @@ export default function MidwayLabDashboard() {
   });
   const [watcherLogs, setWatcherLogs] = useState<Array<{ id: string; timestamp: string; arquivo: string; status: string; mensagem: string }>>([]);
   const [isWatcherRunning, setIsWatcherRunning] = useState(false);
+  const [localDirHandle, setLocalDirHandle] = useState<any>(null);
+  const [processedFileNames, setProcessedFileNames] = useState<Set<string>>(new Set());
+
   const [isSavingWatcherConfig, setIsSavingWatcherConfig] = useState(false);
   const [parsedLabfacilOrders, setParsedLabfacilOrders] = useState<ILabfacilPedidoParsed[]>([]);
   const [selectedTargetEquipamento, setSelectedTargetEquipamento] = useState<string>("CB350");
@@ -1500,6 +1504,82 @@ export default function MidwayLabDashboard() {
   const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
   const [logFilterDirection, setLogFilterDirection] = useState<"TODOS" | "IDA" | "VOLTA">("TODOS");
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
+
+  // VARREDURA NATIVA NO NAVEGADOR VIA FILE SYSTEM ACCESS API
+  const scanLocalDirectory = async (dirHandle: any) => {
+    if (!dirHandle) return;
+    try {
+      let foundAny = false;
+      // @ts-ignore
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === "file") {
+          const lower = entry.name.toLowerCase();
+          if ((lower.endsWith(".xml") || lower.endsWith(".json")) && !processedFileNames.has(entry.name)) {
+            foundAny = true;
+            const file = await entry.getFile();
+            const text = await file.text();
+            
+            try {
+              const orders = LabfacilParserService.parseFile(text, file.name);
+              setParsedLabfacilOrders(prev => [...orders, ...prev]);
+
+              // Mapeamentos
+              const mapMapeamentos = new Map<string, string>();
+              labfacilExames.forEach(ex => {
+                if (ex.autolacMapped) {
+                  mapMapeamentos.set(ex.codigo, ex.autolacMapped);
+                }
+              });
+
+              const generated = orders.map(order => {
+                const result = LabfacilParserService.gerarCargaEquipamento(order, selectedTargetEquipamento, mapMapeamentos);
+                return {
+                  pedido: order.numeroPedido,
+                  arquivo: result.conteudoArquivo,
+                  formato: result.formato,
+                  nomeArquivo: result.nomeArquivoSugerido
+                };
+              });
+
+              setGeneratedWorklists(prev => [...generated, ...prev]);
+
+              // Registrar log no Watcher
+              setWatcherLogs(prev => [
+                {
+                  id: `log-${Date.now()}`,
+                  timestamp: new Date().toLocaleTimeString("pt-BR"),
+                  arquivo: file.name,
+                  status: "PROCESSADO",
+                  mensagem: `Lido com sucesso (${orders.length} pedidos, ${orders[0]?.exames?.length || 0} exames)`
+                },
+                ...prev
+              ]);
+
+              setProcessedFileNames(prev => new Set(prev).add(entry.name));
+              showNotification(`⚡ Novo arquivo detectado na pasta: ${file.name}! Pedidos carregados automaticamente.`);
+            } catch (err: any) {
+              console.warn("Erro ao processar arquivo da pasta:", err);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn("Erro ao varrer pasta local:", e);
+    }
+  };
+
+  // LOOP DE MONITORAMENTO DA PASTA NO NAVEGADOR
+  useEffect(() => {
+    let interval: any = null;
+    if (isWatcherRunning && localDirHandle) {
+      interval = setInterval(() => {
+        scanLocalDirectory(localDirHandle);
+      }, 3000); // Checa a cada 3 segundos
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isWatcherRunning, localDirHandle, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
   // CARREGAR EQUIPAMENTOS VINCULADOS EXCLUSIVAMENTE À EMPRESA (TENANT) ATIVA
   const loadEquipamentosForTenant = async (tenantId?: string) => {
@@ -4312,58 +4392,70 @@ export default function MidwayLabDashboard() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* SELECIONAR PASTA NATIVA DO WINDOWS */}
                   <button
                     type="button"
-                    disabled={isSavingWatcherConfig}
                     onClick={async () => {
-                      setIsSavingWatcherConfig(true);
-                      const novaAcao = isWatcherRunning ? "parar" : "iniciar";
                       try {
-                        const res = await fetch("/api/folder-watcher", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ acao: novaAcao, config: watcherConfig })
-                        });
-                        const data = await res.json();
-                        setIsWatcherRunning(data.isRunning);
-                        if (data.logs) setWatcherLogs(data.logs);
-                        showNotification(novaAcao === "iniciar" ? "▶️ Monitoramento automático de pasta ativado!" : "⏸️ Monitoramento pausado.");
+                        // @ts-ignore
+                        if (window.showDirectoryPicker) {
+                          // @ts-ignore
+                          const handle = await window.showDirectoryPicker();
+                          setLocalDirHandle(handle);
+                          setWatcherConfig(prev => ({ ...prev, diretorioEntrada: handle.name || "Pasta Selecionada" }));
+                          setIsWatcherRunning(true);
+                          await scanLocalDirectory(handle);
+                          showNotification(`📁 Pasta "${handle.name}" conectada! Monitoramento automático ativado.`);
+                        } else {
+                          // Fallback tradicional
+                          setIsWatcherRunning(!isWatcherRunning);
+                        }
                       } catch (err: any) {
-                        showNotification(`Erro ao controlar monitor: ${err.message}`);
-                      } finally {
-                        setIsSavingWatcherConfig(false);
+                        if (err.name !== "AbortError") {
+                          showNotification(`Erro ao abrir pasta: ${err.message}`);
+                        }
                       }
+                    }}
+                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-teal-500/20"
+                  >
+                    <Folder className="w-4 h-4" /> 📁 Selecionar Pasta Local (C:\Labfacil\Pedidos)
+                  </button>
+
+                  {/* TOGGLE LIGAR / DESLIGAR */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const novoEstado = !isWatcherRunning;
+                      setIsWatcherRunning(novoEstado);
+                      if (novoEstado && localDirHandle) {
+                        scanLocalDirectory(localDirHandle);
+                      }
+                      showNotification(novoEstado ? "▶️ Monitoramento automático ligado!" : "⏸️ Monitoramento automático desligado.");
                     }}
                     className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-lg ${
                       isWatcherRunning
-                        ? "bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20"
-                        : "bg-teal-500 hover:bg-teal-400 text-slate-950 shadow-teal-500/20"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                        : "bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700"
                     }`}
                   >
-                    {isWatcherRunning ? "⏸️ Pausar Monitoramento" : "▶️ Ativar Leitura Automática"}
+                    <span className={`w-2 h-2 rounded-full ${isWatcherRunning ? "bg-emerald-400 animate-ping" : "bg-slate-500"}`} />
+                    {isWatcherRunning ? "🟢 Monitor LIGADO (Ativo)" : "⚪ Monitor DESLIGADO"}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch("/api/folder-watcher", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ acao: "varrer_agora", config: watcherConfig })
-                        });
-                        const data = await res.json();
-                        if (data.logs) setWatcherLogs(data.logs);
-                        showNotification(`Varredura concluída! ${data.processadosAgora || 0} arquivos processados agora.`);
-                      } catch (err: any) {
-                        showNotification(`Erro na varredura: ${err.message}`);
-                      }
-                    }}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl font-semibold text-xs transition cursor-pointer"
-                  >
-                    🔄 Varrer Agora
-                  </button>
+                  {/* VARREDURA MANUAL */}
+                  {localDirHandle && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        scanLocalDirectory(localDirHandle);
+                        showNotification("🔄 Varredura na pasta executada!");
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl font-semibold text-xs transition cursor-pointer"
+                    >
+                      🔄 Varrer Agora
+                    </button>
+                  )}
                 </div>
               </div>
 
