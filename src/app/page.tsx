@@ -4137,6 +4137,262 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
+        {/* TAB EQUIPAMENTOS (CADASTRO POR EMPRESA - CB350, YUMIZEN) */}
+        {activeTab === "equipamentos" && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <Server className="w-6 h-6 text-cyan-400" /> Cadastro & Gestão de Equipamentos por Empresa
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Gerencie os analisadores laboratoriais vinculados a <strong>{selectedTenant}</strong> (ex.: CB350 Bioquímica, YUMIZEN Hematologia)
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEquipamento(null);
+                  setEquipamentoForm({
+                    nome: "",
+                    modelo: "CB350",
+                    fabricante: "Cormay",
+                    tipo_comunicacao: "ARQUIVO_COMPARTILHADO",
+                    diretorio_carga: "C:\\Equipamentos\\Carga",
+                    diretorio_resultados: "C:\\Equipamentos\\Resultados",
+                    ativo: true
+                  });
+                  setIsEquipamentoModalOpen(true);
+                }}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer self-start md:self-auto"
+              >
+                <Plus className="w-4 h-4" /> Cadastrar Novo Equipamento
+              </button>
+            </div>
+
+            {/* LISTA DE EQUIPAMENTOS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {equipamentosList.map((eq) => (
+                <div key={eq.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 hover:border-teal-500/40 transition">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <h3 className="font-bold text-slate-100 text-sm">{eq.nome}</h3>
+                      </div>
+                      <span className="text-[11px] text-teal-400 font-mono font-bold mt-0.5 block">
+                        Modelo: {eq.modelo} ({eq.fabricante || "Fabricante Padrão"})
+                      </span>
+                    </div>
+                    <span className="bg-slate-950 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded">
+                      {eq.tipo_comunicacao}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono">
+                    <div className="text-slate-400">
+                      Pasta de Carga: <span className="text-slate-200">{eq.diretorio_carga || "Não definida"}</span>
+                    </div>
+                    <div className="text-slate-400">
+                      Pasta Resultados: <span className="text-slate-200">{eq.diretorio_resultados || "Não definida"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                    <span className="text-[11px] text-slate-500">Status: <strong className="text-emerald-400">ONLINE</strong></span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingEquipamento(eq);
+                          setEquipamentoForm({ ...eq });
+                          setIsEquipamentoModalOpen(true);
+                        }}
+                        className="text-xs text-slate-400 hover:text-teal-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition cursor-pointer"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (confirm(`Deseja realmente remover o equipamento ${eq.nome}?`)) {
+                            if (eq.id) await EquipamentoService.removerEquipamento(eq.id);
+                            setEquipamentosList(prev => prev.filter(item => item.id !== eq.id));
+                            showNotification(`Equipamento ${eq.nome} removido.`);
+                          }
+                        }}
+                        className="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 transition cursor-pointer"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB INGESTÃO DE ARQUIVOS (JSON / XML) DO LABFACIL */}
+        {activeTab === "ingestao" && (
+          <div className="space-y-6">
+            <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <Upload className="w-6 h-6 text-emerald-400" /> Leitor e Ingestão de Arquivos Labfacil (JSON / XML)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Faça o upload do arquivo JSON ou XML exportado pelo <strong>Labfacil</strong> contendo a lista de clientes e exames para gerar automaticamente a carga de trabalho do equipamento (CB350, YUMIZEN).
+                </p>
+              </div>
+
+              {/* SELEÇÃO DO ARQUIVO E EQUIPAMENTO ALVO */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Equipamento Alvo para Mapeamento:</label>
+                  <select
+                    value={selectedTargetEquipamento}
+                    onChange={(e) => setSelectedTargetEquipamento(e.target.value)}
+                    className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-slate-100 text-xs font-semibold focus:outline-none"
+                  >
+                    <option value="CB350">🔬 Cormay CB350 (Bioquímica)</option>
+                    <option value="YUMIZEN">🩸 Horiba Yumizen (Hematologia - ASTM)</option>
+                    <option value="GENERICO">⚙️ Outro Analisador (Carga JSON)</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Selecionar Arquivo JSON ou XML do Labfacil:</label>
+                  <input
+                    type="file"
+                    accept=".json,.xml"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const content = event.target?.result as string;
+                        if (!content) return;
+                        try {
+                          const orders = LabfacilParserService.parseFile(content, file.name);
+                          setParsedLabfacilOrders(orders);
+
+                          // Mapeamento e geração da carga de trabalho
+                          const mapMapeamentos = new Map<string, string>();
+                          labfacilExames.forEach(ex => {
+                            if (ex.autolacMapped) {
+                              mapMapeamentos.set(ex.codigo, ex.autolacMapped);
+                            }
+                          });
+
+                          const generated = orders.map(order => {
+                            const result = LabfacilParserService.gerarCargaEquipamento(order, selectedTargetEquipamento, mapMapeamentos);
+                            return {
+                              pedido: order.numeroPedido,
+                              arquivo: result.conteudoArquivo,
+                              formato: result.formato,
+                              nomeArquivo: result.nomeArquivoSugerido
+                            };
+                          });
+
+                          setGeneratedWorklists(generated);
+                          setIngestionStatus(`✅ Sucesso! ${orders.length} pedidos e clientes lidos do arquivo ${file.name}`);
+                          showNotification(`Arquivo ${file.name} processado! ${orders.length} pedidos carregados.`);
+                        } catch (err: any) {
+                          setIngestionStatus(`❌ Erro ao ler arquivo: ${err.message}`);
+                        }
+                      };
+                      reader.readAsText(file);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 text-xs file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-teal-500 file:text-slate-950 hover:file:bg-teal-400 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {ingestionStatus && (
+                <div className="bg-slate-950 border border-teal-500/30 p-3 rounded-xl text-xs font-mono text-teal-300">
+                  {ingestionStatus}
+                </div>
+              )}
+            </div>
+
+            {/* PEDIDOS E CLIENTES LIDOS */}
+            {parsedLabfacilOrders.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-100 flex items-center justify-between">
+                  <span>Ordens e Exames Identificados ({parsedLabfacilOrders.length} pedidos)</span>
+                  <span className="text-xs text-teal-400 font-mono">Destino: {selectedTargetEquipamento}</span>
+                </h3>
+
+                <div className="space-y-3">
+                  {parsedLabfacilOrders.map((order, idx) => {
+                    const generatedItem = generatedWorklists.find(g => g.pedido === order.numeroPedido);
+                    return (
+                      <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                          <div className="flex items-center gap-3">
+                            <span className="bg-teal-500/10 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-xs font-mono font-bold">
+                              Pedido: {order.numeroPedido}
+                            </span>
+                            <span className="font-bold text-slate-200 text-sm">
+                              Cliente: {order.cliente.nome} {order.cliente.cpf ? `(${order.cliente.cpf})` : ""}
+                            </span>
+                          </div>
+
+                          {generatedItem && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const blob = new Blob([generatedItem.arquivo], { type: "text/plain;charset=utf-8" });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = generatedItem.nomeArquivo;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                                showNotification(`Download do arquivo para o equipamento iniciado: ${generatedItem.nomeArquivo}`);
+                              }}
+                              className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto transition"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Baixar Carga ({generatedItem.formato})
+                            </button>
+                          )}
+                        </div>
+
+                        {/* LISTA DE EXAMES DO PEDIDO */}
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-slate-400 font-semibold">Relação de Exames Solicitados pelo Labfacil:</span>
+                          <div className="flex flex-wrap gap-2">
+                            {order.exames.map((ex, exIdx) => (
+                              <span key={exIdx} className="bg-slate-950 border border-slate-800 text-slate-300 px-2.5 py-1 rounded-lg text-xs font-mono flex items-center gap-1.5">
+                                <span className="font-bold text-teal-400">{ex.codigo}</span>
+                                {ex.descricao && <span className="text-slate-400">({ex.descricao})</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* WORKLIST PREVIEW */}
+                        {generatedItem && (
+                          <details className="text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <summary className="text-slate-400 cursor-pointer font-mono hover:text-teal-300">
+                              Ver conteúdo gerado para o equipamento ({generatedItem.nomeArquivo})
+                            </summary>
+                            <pre className="mt-2 text-slate-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap">
+                              {generatedItem.arquivo}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB SECURITY & USER MANAGEMENT */}
         {activeTab === "security" && (
           <div className="space-y-6">
