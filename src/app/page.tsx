@@ -5,6 +5,9 @@ import { supabaseBrowser } from "../lib/supabase-client";
 import { UserService } from "../services/user-service";
 import { TenantService } from "../services/tenant-service";
 import { DeparaService } from "../services/depara-service";
+import { EquipamentoService } from "../services/equipamento-service";
+import { LabfacilParserService, ILabfacilPedidoParsed } from "../services/labfacil-parser-service";
+import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
   Activity,
@@ -62,7 +65,7 @@ import {
   Printer
 } from "lucide-react";
 
-export interface ISoftlabExamItem {
+export interface ILabfacilExamItem {
   codigo: string;
   descricao: string;
   abreviacao: string;
@@ -88,11 +91,11 @@ interface IUserItem {
 export default function MidwayLabDashboard() {
   // FILE IMPORT & API SYNC STATE
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importTarget, setImportTarget] = useState<"depara" | "softlab" | "autolac">("depara");
+  const [importTarget, setImportTarget] = useState<"depara" | "labfacil" | "autolac">("depara");
   const [parsedImportItems, setParsedImportItems] = useState<any[]>([]);
   const [importFileName, setImportFileName] = useState("");
   const [shouldClearBeforeImport, setShouldClearBeforeImport] = useState(false);
-  const [isSyncingSoftlabApi, setIsSyncingSoftlabApi] = useState(false);
+  const [isSyncingLabfacilApi, setIsSyncingLabfacilApi] = useState(false);
 
 
   // USER AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC)
@@ -115,7 +118,7 @@ export default function MidwayLabDashboard() {
       senha: "123",
       role: "tenant",
       tenantId: "1",
-      tenantNome: "LAB. ARES - SOFTLAB (San Mathews)",
+      tenantNome: "LAB. ARES - LABFACIL (San Mathews)",
       status: "ativo",
       criadoEm: "2026-09-23"
     },
@@ -168,8 +171,54 @@ export default function MidwayLabDashboard() {
     }
   ]);
 
-  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers">("depara");
-  const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - SOFTLAB (San Mathews)");
+  // EQUIPAMENTOS (CB350, YUMIZEN) STATE
+  const [equipamentosList, setEquipamentosList] = useState<IEquipamentoRecord[]>([
+    {
+      id: "eq-1",
+      tenant_id: "11111111-1111-1111-1111-111111111111",
+      nome: "Bioquímica Central CB350",
+      modelo: "CB350",
+      codigo_identificador: "CB350-01",
+      fabricante: "Cormay",
+      tipo_comunicacao: "ARQUIVO_COMPARTILHADO",
+      diretorio_carga: "C:\\Equipamentos\\CB350\\Carga",
+      diretorio_resultados: "C:\\Equipamentos\\CB350\\Resultados",
+      ativo: true
+    },
+    {
+      id: "eq-2",
+      tenant_id: "11111111-1111-1111-1111-111111111111",
+      nome: "Hematologia Bancada Yumizen",
+      modelo: "YUMIZEN",
+      codigo_identificador: "YUMIZEN-01",
+      fabricante: "Horiba",
+      tipo_comunicacao: "ARQUIVO_COMPARTILHADO",
+      diretorio_carga: "C:\\Equipamentos\\Yumizen\\Carga",
+      diretorio_resultados: "C:\\Equipamentos\\Yumizen\\Resultados",
+      ativo: true
+    }
+  ]);
+  const [selectedEquipamentoId, setSelectedEquipamentoId] = useState<string>("eq-1");
+  const [isEquipamentoModalOpen, setIsEquipamentoModalOpen] = useState(false);
+  const [editingEquipamento, setEditingEquipamento] = useState<IEquipamentoRecord | null>(null);
+  const [equipamentoForm, setEquipamentoForm] = useState<Partial<IEquipamentoRecord>>({
+    nome: "",
+    modelo: "CB350",
+    fabricante: "Cormay",
+    tipo_comunicacao: "ARQUIVO_COMPARTILHADO",
+    diretorio_carga: "C:\\Equipamentos\\Carga",
+    diretorio_resultados: "C:\\Equipamentos\\Resultados",
+    ativo: true
+  });
+
+  // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
+  const [parsedLabfacilOrders, setParsedLabfacilOrders] = useState<ILabfacilPedidoParsed[]>([]);
+  const [selectedTargetEquipamento, setSelectedTargetEquipamento] = useState<string>("CB350");
+  const [generatedWorklists, setGeneratedWorklists] = useState<Array<{ pedido: string; arquivo: string; formato: string; nomeArquivo: string }>>([]);
+  const [ingestionStatus, setIngestionStatus] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers" | "equipamentos" | "ingestao">("depara");
+  const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
 
   // HANDLE FILE SELECTION & PARSING (CSV / JSON)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,8 +272,8 @@ export default function MidwayLabDashboard() {
         tenant_id: "11111111-1111-1111-1111-111111111111",
         codigo_autolac: item.codigo_autolac || item.autolac || item.codigoautolac || item.autolac_code || "AUT_EX",
         descricao_autolac: item.descricao_autolac || item.nome_autolac || item.descricao || "",
-        codigo_softlab: item.codigo_softlab || item.softlab || item.codigosoftlab || item.softlab_code || "SOFT_EX",
-        descricao_softlab: item.descricao_softlab || item.nome_softlab || item.descricao || "",
+        codigo_labfacil: item.codigo_labfacil || item.labfacil || item.codigolabfacil || item.labfacil_code || "SOFT_EX",
+        descricao_labfacil: item.descricao_labfacil || item.nome_labfacil || item.descricao || "",
         tipo_resultado: item.tipo_resultado || item.tipo || "PDF"
       }));
 
@@ -234,8 +283,8 @@ export default function MidwayLabDashboard() {
         console.warn("Mapeamentos mantidos localmente.");
       }
 
-      setSoftlabExames(prev => prev.map(item => {
-        const found = recordsToSave.find(r => r.codigo_softlab === item.codigo);
+      setLabfacilExames(prev => prev.map(item => {
+        const found = recordsToSave.find(r => r.codigo_labfacil === item.codigo);
         if (found) {
           return { ...item, autolacMapped: found.codigo_autolac };
         }
@@ -243,21 +292,21 @@ export default function MidwayLabDashboard() {
       }));
 
       showNotification(`🎉 Importação Concluída: ${recordsToSave.length} mapeamentos DE-PARA salvos no Supabase!`);
-    } else if (importTarget === "softlab") {
+    } else if (importTarget === "labfacil") {
       if (shouldClearBeforeImport) {
-        await DeparaService.limparCatalogoSoftlab();
+        await DeparaService.limparCatalogoLabfacil();
       }
 
       const newItems = parsedImportItems.map(item => ({
-        codigo: (item.codigo || item.codigo_softlab || item.code || `SOFT_${Date.now().toString().slice(-4)}`).toUpperCase(),
-        descricao: (item.descricao || item.nome || "EXAME IMPORTADO SOFTLAB").toUpperCase(),
+        codigo: (item.codigo || item.codigo_labfacil || item.code || `SOFT_${Date.now().toString().slice(-4)}`).toUpperCase(),
+        descricao: (item.descricao || item.nome || "EXAME IMPORTADO LABFACIL").toUpperCase(),
         abreviacao: (item.abreviacao || item.sigla || item.codigo || "").toUpperCase(),
         autolacMapped: item.codigo_autolac || item.autolac || "",
         tipo: item.tipo || "PDF"
       }));
 
       try {
-        await DeparaService.salvarCatalogoSoftlab(newItems.map(i => ({
+        await DeparaService.salvarCatalogoLabfacil(newItems.map(i => ({
           codigo: i.codigo,
           descricao: i.descricao,
           abreviacao: i.abreviacao,
@@ -267,8 +316,8 @@ export default function MidwayLabDashboard() {
         console.warn("Catálogo salvo localmente.");
       }
 
-      setSoftlabExames(shouldClearBeforeImport ? newItems : prev => [...newItems, ...prev]);
-      showNotification(`📥 Catálogo Softlab Atualizado: ${newItems.length} exames salvos no Supabase!`);
+      setLabfacilExames(shouldClearBeforeImport ? newItems : prev => [...newItems, ...prev]);
+      showNotification(`📥 Catálogo Labfacil Atualizado: ${newItems.length} exames salvos no Supabase!`);
     } else if (importTarget === "autolac") {
 
       const newItems = parsedImportItems.map(item => ({
@@ -292,20 +341,20 @@ export default function MidwayLabDashboard() {
     setImportFileName("");
   };
 
-  // 1-CLICK DIRECT SOFTLAB API SYNC & SUPABASE CATALOG CACHE
-  const handleSoftlabApiSync = async () => {
-    setIsSyncingSoftlabApi(true);
-    showNotification("🔄 Conectando à API REST do Softlab Apoio para buscar o catálogo completo e real de exames...");
+  // 1-CLICK DIRECT LABFACIL API SYNC & SUPABASE CATALOG CACHE
+  const handleLabfacilApiSync = async () => {
+    setIsSyncingLabfacilApi(true);
+    showNotification("🔄 Conectando à API REST do Labfacil Apoio para buscar o catálogo completo e real de exames...");
 
     try {
       const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
-      const res = await fetch('/api/softlab-catalog', {
+      const res = await fetch('/api/labfacil-catalog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          softlabLogin: activeTenantObj?.softlabLogin || "yorod23826@gicont.com",
-          softlabSenha: activeTenantObj?.softlabSenha || "Smt@2026",
-          softlabBaseUrl: activeTenantObj?.wsUrl || "http://apoio.softlabsolucoes.com.br"
+          labfacilLogin: activeTenantObj?.labfacilLogin || "yorod23826@gicont.com",
+          labfacilSenha: activeTenantObj?.labfacilSenha || "Smt@2026",
+          labfacilBaseUrl: activeTenantObj?.wsUrl || "http://apoio.labfacilsolucoes.com.br"
         })
       });
 
@@ -327,27 +376,27 @@ export default function MidwayLabDashboard() {
             }
           });
           const cleanList = Array.from(uniqueMap.values());
-          setSoftlabExames(cleanList);
+          setLabfacilExames(cleanList);
           setHasUnsavedApiChanges(true);
-          showNotification(`✨ ${cleanList.length} Exames únicos do catálogo da API Softlab Apoio listados com sucesso! Clique em 'Salvar no Banco (Supabase)' para gravar.`);
+          showNotification(`✨ ${cleanList.length} Exames únicos do catálogo da API Labfacil Apoio listados com sucesso! Clique em 'Salvar no Banco (Supabase)' para gravar.`);
         } else {
-          showNotification("⚠️ Não foi possível obter exames da API Softlab.");
+          showNotification("⚠️ Não foi possível obter exames da API Labfacil.");
         }
       } else {
-        showNotification("⚠️ Erro na resposta do servidor Softlab.");
+        showNotification("⚠️ Erro na resposta do servidor Labfacil.");
       }
     } catch (apiErr: any) {
-      console.warn("[Softlab Catalog Fetch] Erro ao consultar rota de catálogo:", apiErr);
-      showNotification("❌ Falha na conexão com a API do Softlab.");
+      console.warn("[Labfacil Catalog Fetch] Erro ao consultar rota de catálogo:", apiErr);
+      showNotification("❌ Falha na conexão com a API do Labfacil.");
     } finally {
-      setIsSyncingSoftlabApi(false);
+      setIsSyncingLabfacilApi(false);
     }
   };
-  // HELPER: LOAD SOFTLAB CATALOG & MAPPINGS FOR ACTIVE TENANT (GLOBAL VS CUSTOM)
-  const loadSoftlabCatalogForTenant = async (tenantId?: string, targetTenantObj?: any) => {
+  // HELPER: LOAD LABFACIL CATALOG & MAPPINGS FOR ACTIVE TENANT (GLOBAL VS CUSTOM)
+  const loadLabfacilCatalogForTenant = async (tenantId?: string, targetTenantObj?: any) => {
     if (!tenantId) {
       startTransition(() => {
-        setSoftlabExames([]);
+        setLabfacilExames([]);
       });
       return;
     }
@@ -357,28 +406,28 @@ export default function MidwayLabDashboard() {
     const catalogTenantFilter = isCustomCatalog ? tenantId : undefined;
 
     try {
-      const [dbMappings, rawSoftlabCatalog] = await Promise.all([
+      const [dbMappings, rawLabfacilCatalog] = await Promise.all([
         DeparaService.listarMapeamentos(tenantId),
-        DeparaService.listarCatalogoSoftlab(catalogTenantFilter)
+        DeparaService.listarCatalogoLabfacil(catalogTenantFilter)
       ]);
 
-      const dbSoftlabCatalog = rawSoftlabCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
+      const dbLabfacilCatalog = rawLabfacilCatalog.filter(item => !/_\d{4}$/.test(item.codigo));
 
       // Build O(1) Hash Map for instant mapping lookups
       const mappingsMap = new Map<string, any>();
       dbMappings.forEach(m => {
-        if (m.codigo_softlab) {
-          mappingsMap.set(m.codigo_softlab.trim().toUpperCase(), m);
+        if (m.codigo_labfacil) {
+          mappingsMap.set(m.codigo_labfacil.trim().toUpperCase(), m);
         }
       });
 
-      if (dbSoftlabCatalog.length > 0) {
-        const uniqueSoftlabMap = new Map<string, any>();
-        dbSoftlabCatalog.forEach(item => {
+      if (dbLabfacilCatalog.length > 0) {
+        const uniqueLabfacilMap = new Map<string, any>();
+        dbLabfacilCatalog.forEach(item => {
           const cleanCode = item.codigo.trim().toUpperCase();
-          if (!uniqueSoftlabMap.has(cleanCode)) {
+          if (!uniqueLabfacilMap.has(cleanCode)) {
             const foundMapping = mappingsMap.get(cleanCode);
-            uniqueSoftlabMap.set(cleanCode, {
+            uniqueLabfacilMap.set(cleanCode, {
               codigo: item.codigo,
               descricao: item.descricao,
               abreviacao: item.abreviacao || item.codigo,
@@ -388,34 +437,34 @@ export default function MidwayLabDashboard() {
           }
         });
         startTransition(() => {
-          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+          setLabfacilExames(Array.from(uniqueLabfacilMap.values()));
         });
       } else if (isCustomCatalog && dbMappings.length > 0) {
-        const uniqueSoftlabMap = new Map<string, any>();
+        const uniqueLabfacilMap = new Map<string, any>();
         dbMappings.forEach(m => {
-          const cleanCode = m.codigo_softlab.trim().toUpperCase();
-          if (!uniqueSoftlabMap.has(cleanCode)) {
-            uniqueSoftlabMap.set(cleanCode, {
-              codigo: m.codigo_softlab,
-              descricao: m.descricao_softlab || m.codigo_softlab,
-              abreviacao: m.codigo_softlab,
+          const cleanCode = m.codigo_labfacil.trim().toUpperCase();
+          if (!uniqueLabfacilMap.has(cleanCode)) {
+            uniqueLabfacilMap.set(cleanCode, {
+              codigo: m.codigo_labfacil,
+              descricao: m.descricao_labfacil || m.codigo_labfacil,
+              abreviacao: m.codigo_labfacil,
               autolacMapped: m.codigo_autolac,
               tipo: m.tipo_resultado || "PDF"
             });
           }
         });
         startTransition(() => {
-          setSoftlabExames(Array.from(uniqueSoftlabMap.values()));
+          setLabfacilExames(Array.from(uniqueLabfacilMap.values()));
         });
       } else {
         startTransition(() => {
-          setSoftlabExames([]);
+          setLabfacilExames([]);
         });
       }
     } catch (e) {
       console.error("[DeparaService] Erro ao carregar catálogo para a empresa:", e);
       startTransition(() => {
-        setSoftlabExames([]);
+        setLabfacilExames([]);
       });
     }
   };
@@ -440,7 +489,7 @@ export default function MidwayLabDashboard() {
 
     try {
       const uniqueRecordsMap = new Map<string, any>();
-      softlabExames.forEach(e => {
+      labfacilExames.forEach(e => {
         const cleanCode = e.codigo.trim().toUpperCase();
         if (!uniqueRecordsMap.has(cleanCode)) {
           uniqueRecordsMap.set(cleanCode, {
@@ -454,7 +503,7 @@ export default function MidwayLabDashboard() {
       });
       const recordsToSave = Array.from(uniqueRecordsMap.values());
 
-      await DeparaService.limparECadastrarLimpoSoftlab(recordsToSave, targetTenantId);
+      await DeparaService.limparECadastrarLimpoLabfacil(recordsToSave, targetTenantId);
 
       const autolacRecordsWithTenant = autolacCatalog.map(a => ({
         ...a,
@@ -476,11 +525,11 @@ export default function MidwayLabDashboard() {
   // 3. FORCE PURGE OLD FAKE DUPLICATES FROM SUPABASE
   const handlePurgeDatabaseCatalog = async () => {
     setIsSavingCatalogToDb(true);
-    showNotification("🧹 Limpando todos os exames repetidos/fakes da tabela catalogo_softlab_exames no Supabase...");
+    showNotification("🧹 Limpando todos os exames repetidos/fakes da tabela catalogo_labfacil_exames no Supabase...");
 
     try {
-      await DeparaService.limparCatalogoSoftlab();
-      showNotification("🧹 Tabela catalogo_softlab_exames zerada no Supabase! Clique em 'Salvar no Banco' para regravar.");
+      await DeparaService.limparCatalogoLabfacil();
+      showNotification("🧹 Tabela catalogo_labfacil_exames zerada no Supabase! Clique em 'Salvar no Banco' para regravar.");
     } catch {
       showNotification("⚠️ Erro ao limpar tabela no Supabase.");
     } finally {
@@ -489,10 +538,10 @@ export default function MidwayLabDashboard() {
   };
 
   // 4. BLOCK / UNBLOCK EXAM HANDLER
-  const handleToggleBlockExam = (codigoSoftlab: string) => {
-    setSoftlabExames(prev =>
+  const handleToggleBlockExam = (codigoLabfacil: string) => {
+    setLabfacilExames(prev =>
       prev.map(e => {
-        if (e.codigo === codigoSoftlab) {
+        if (e.codigo === codigoLabfacil) {
           const isNowBlocked = !e.blocked;
           showNotification(
             isNowBlocked
@@ -507,26 +556,26 @@ export default function MidwayLabDashboard() {
   };
 
   // 5. DELETE EXAM / REMOVE MAPPING HANDLER
-  const handleRemoveExamMapping = async (codigoSoftlab: string) => {
-    const examObj = softlabExames.find(e => e.codigo === codigoSoftlab);
+  const handleRemoveExamMapping = async (codigoLabfacil: string) => {
+    const examObj = labfacilExames.find(e => e.codigo === codigoLabfacil);
     if (!examObj) return;
 
     if (confirm(`Tem certeza que deseja apagar o vínculo DE-PARA do exame '${examObj.codigo}' (${examObj.descricao})?`)) {
       const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
       if (activeTenantObj) {
-        await DeparaService.removerMapeamento(activeTenantObj.id, codigoSoftlab);
+        await DeparaService.removerMapeamento(activeTenantObj.id, codigoLabfacil);
       }
 
-      setSoftlabExames(prev =>
+      setLabfacilExames(prev =>
         prev.map(e => {
-          if (e.codigo === codigoSoftlab) {
+          if (e.codigo === codigoLabfacil) {
             return { ...e, autolacMapped: "" };
           }
           return e;
         })
       );
 
-      showNotification(`🗑️ Vínculo DE-PARA do exame '${codigoSoftlab}' foi apagado do banco Supabase com sucesso!`);
+      showNotification(`🗑️ Vínculo DE-PARA do exame '${codigoLabfacil}' foi apagado do banco Supabase com sucesso!`);
     }
   };
 
@@ -555,12 +604,12 @@ export default function MidwayLabDashboard() {
           codigo_entidade: t.codigo_entidade || "1",
           wsUrl: t.ws_url || (t.configuracoes?.autolac?.ws_url) || "http://homolog.app.lifesys.com.br:5030",
           ws_url: t.ws_url || (t.configuracoes?.autolac?.ws_url) || "http://homolog.app.lifesys.com.br:5030",
-          softlabBaseUrl: t.softlab_base_url || (t.configuracoes?.softlab?.base_url) || "http://apoio.softlabsolucoes.com.br",
-          softlab_base_url: t.softlab_base_url || (t.configuracoes?.softlab?.base_url) || "http://apoio.softlabsolucoes.com.br",
-          softlabLogin: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
-          softlab_login: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
-          softlabSenha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
-          softlab_senha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
+          labfacilBaseUrl: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.labfacilsolucoes.com.br",
+          labfacil_base_url: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.labfacilsolucoes.com.br",
+          labfacilLogin: t.labfacil_login || (t.configuracoes?.labfacil?.login) || "",
+          labfacil_login: t.labfacil_login || (t.configuracoes?.labfacil?.login) || "",
+          labfacilSenha: t.labfacil_senha || (t.configuracoes?.labfacil?.senha) || "",
+          labfacil_senha: t.labfacil_senha || (t.configuracoes?.labfacil?.senha) || "",
           usarCatalogoProprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           ultimoLote: "1",
@@ -589,9 +638,9 @@ export default function MidwayLabDashboard() {
           setUsersList(mappedUsers);
         }
 
-        // 3. Fetch DE-PARA Mappings & Softlab Catalog for the Active Tenant
+        // 3. Fetch DE-PARA Mappings & Labfacil Catalog for the Active Tenant
         const activeTenantObj = mappedTenants.find(t => t.nome === selectedTenant) || mappedTenants[0];
-        await loadSoftlabCatalogForTenant(activeTenantObj?.id, activeTenantObj);
+        await loadLabfacilCatalogForTenant(activeTenantObj?.id, activeTenantObj);
 
         // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames with Deduplication
         const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac(activeTenantObj?.id);
@@ -671,7 +720,7 @@ export default function MidwayLabDashboard() {
         setLogs(prev => [
           {
             id: `LOG-${Date.now().toString().slice(-4)}`,
-            tipo: "IDA (Autolac ➔ Softlab)",
+            tipo: "IDA (Autolac ➔ Labfacil)",
             protocolo: newRecord.protocolo_autolac || "PROTO-LIVE",
             paciente: newRecord.paciente_nome || "PACIENTE SUPABASE REALTIME",
             exames: "GLICOSE, HEMOGRAMA",
@@ -849,9 +898,9 @@ export default function MidwayLabDashboard() {
           nome: approvingRequest.nomeLab,
           identificacao_entidade: approvingRequest.email,
           senha_ws: "Soft@2026",
-          softlab_login: approvingRequest.email,
-          softlab_senha: "Carlos@2026",
-          softlab_base_url: "http://apoio.softlabsolucoes.com.br"
+          labfacil_login: approvingRequest.email,
+          labfacil_senha: "Carlos@2026",
+          labfacil_base_url: "http://apoio.labfacilsolucoes.com.br"
         });
         if (savedTenant) {
           selectedTenantId = savedTenant.id;
@@ -864,9 +913,9 @@ export default function MidwayLabDashboard() {
             senhaWs: "Soft@2026",
             codigoAgente: "1",
             wsUrl: "http://homolog.app.lifesys.com.br:5030",
-            softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-            softlabLogin: approvingRequest.email,
-            softlabSenha: "Carlos@2026",
+            labfacilBaseUrl: "http://apoio.labfacilsolucoes.com.br",
+            labfacilLogin: approvingRequest.email,
+            labfacilSenha: "Carlos@2026",
             ultimoLote: "0",
             status: "ONLINE"
           }]);
@@ -937,15 +986,15 @@ export default function MidwayLabDashboard() {
   };
 
 
-  // DUAL SEARCH BARS STATE (SOFTLAB & AUTOLAC)
-  const [searchSoftlab, setSearchSoftlab] = useState("");
+  // DUAL SEARCH BARS STATE (LABFACIL & AUTOLAC)
+  const [searchLabfacil, setSearchLabfacil] = useState("");
   const [searchAutolac, setSearchAutolac] = useState("");
 
   // DE-PARA Status Filter (Default to "pendentes" so unmapped exams display first)
   const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("pendentes");
 
   // Selection state for Dual Matcher
-  const [selectedSoftlabExam, setSelectedSoftlabExam] = useState<any | null>(null);
+  const [selectedLabfacilExam, setSelectedLabfacilExam] = useState<any | null>(null);
   const [selectedAutolacExam, setSelectedAutolacExam] = useState<any | null>(null);
 
   // Modals state
@@ -1000,19 +1049,19 @@ export default function MidwayLabDashboard() {
 
   const handleConfirmCancelAmostra = async (e: React.FormEvent) => {
     e.preventDefault();
-    showNotification(`🗑️ Amostra '${cancelForm.codigoAmostra}' cancelada com sucesso no Softlab Apoio!`);
+    showNotification(`🗑️ Amostra '${cancelForm.codigoAmostra}' cancelada com sucesso no Labfacil Apoio!`);
     setActiveWorkflowModal(null);
   };
 
   const handleConfirmAjusteColeta = async (e: React.FormEvent) => {
     e.preventDefault();
-    showNotification(`📅 Data/Hora de Coleta atualizada para ${coletaForm.data} às ${coletaForm.hora} no Softlab Apoio!`);
+    showNotification(`📅 Data/Hora de Coleta atualizada para ${coletaForm.data} às ${coletaForm.hora} no Labfacil Apoio!`);
     setActiveWorkflowModal(null);
   };
 
   const handleConfirmAdicaoExames = async (e: React.FormEvent) => {
     e.preventDefault();
-    showNotification(`➕ ${lote12Form.novosExames.length} exames adicionados com sucesso ao atendimento '${lote12Form.protocolo}' no Softlab Apoio (Lote 1.2)!`);
+    showNotification(`➕ ${lote12Form.novosExames.length} exames adicionados com sucesso ao atendimento '${lote12Form.protocolo}' no Labfacil Apoio (Lote 1.2)!`);
     setActiveWorkflowModal(null);
   };
 
@@ -1092,7 +1141,7 @@ export default function MidwayLabDashboard() {
   ]);
   const [selectedWindowsPrinter, setSelectedWindowsPrinter] = useState<string>("Zebra ZD220 / GC420t (Térmica Etiqueta 5x3)");
   const [printerPort, setPrinterPort] = useState<string>("USB001 (Porta Térmica Local)");
-  const [labelSize, setLabelSize] = useState<string>("50mm x 30mm (5x3cm - Padrão Softlab Apoio)");
+  const [labelSize, setLabelSize] = useState<string>("50mm x 30mm (5x3cm - Padrão Labfacil Apoio)");
   const [isDetectingPrinters, setIsDetectingPrinters] = useState<boolean>(false);
 
   // Toast notification state
@@ -1171,8 +1220,8 @@ export default function MidwayLabDashboard() {
     { codigo: "GASO", nome: "Gasometria Arterial" }
   ]);
 
-  // Softlab Exam Catalog (Left Side - Full Catalog)
-  const [softlabExames, setSoftlabExames] = useState<ISoftlabExamItem[]>([
+  // Labfacil Exam Catalog (Left Side - Full Catalog)
+  const [labfacilExames, setLabfacilExames] = useState<ILabfacilExamItem[]>([
     { codigo: "T3_SOFT", descricao: "TRIODOTIRONINA T3 DOSAGEM", abreviacao: "T3 DOSAGEM", autolacMapped: "T3", tipo: "PDF", blocked: false },
     { codigo: "TSH01", descricao: "HORMONIO TIREOESTIMULANTE TSH ULTRA SENSIVEL", abreviacao: "TSH ULTRA", autolacMapped: "TSH", tipo: "PDF", blocked: false },
     { codigo: "T4LIVRE", descricao: "TIROXINA LIVRE T4 LIVRE", abreviacao: "T4 LIVRE", autolacMapped: "T4L", tipo: "PDF", blocked: false },
@@ -1233,7 +1282,7 @@ export default function MidwayLabDashboard() {
   ]);
 
 
-  // EXAM PRE-ANALYTICAL DETAILS MODAL STATE (SOFTLAB API GET /api/TipoDeExame/{codigo})
+  // EXAM PRE-ANALYTICAL DETAILS MODAL STATE (LABFACIL API GET /api/TipoDeExame/{codigo})
   const [examDetailsModal, setExamDetailsModal] = useState<any | null>(null);
 
   const handleOpenExamDetails = (exam: any) => {
@@ -1297,8 +1346,8 @@ export default function MidwayLabDashboard() {
     { id: "REC-103", protocolo: "PROTO-8825", paciente: "GABRIEL LIMA", exame: "GLI_JEJ", motivo: "Jejum Inadequado", dataSolicitacao: "22/09/2026 12:20", status: "PENDENTE" }
   ]);
 
-  // SOFTLAB ENDPOINTS SPECIFICATION LIST
-  const softlabEndpointsList = [
+  // LABFACIL ENDPOINTS SPECIFICATION LIST
+  const labfacilEndpointsList = [
     {
       group: "Autenticação",
       method: "POST",
@@ -1328,15 +1377,15 @@ export default function MidwayLabDashboard() {
     senhaWs: "YXJlY2RpYWg=",
     codigoAgente: "1",
     wsUrl: "http://homolog.app.lifesys.com.br:5030",
-    softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-    softlabLogin: "",
-    softlabSenha: "",
+    labfacilBaseUrl: "http://apoio.labfacilsolucoes.com.br",
+    labfacilLogin: "",
+    labfacilSenha: "",
     usarCatalogoProprio: false
   });
 
   // PASSWORD VISIBILITY TOGGLES
   const [showSenhaWs, setShowSenhaWs] = useState(false);
-  const [showSoftlabSenha, setShowSoftlabSenha] = useState(false);
+  const [showLabfacilSenha, setShowLabfacilSenha] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
 
@@ -1349,24 +1398,24 @@ export default function MidwayLabDashboard() {
   });
 
   // TEST CONNECTION STATE (TENANT MODAL)
-  const [testingTarget, setTestingTarget] = useState<"none" | "softlab" | "autolac" | "both">("none");
+  const [testingTarget, setTestingTarget] = useState<"none" | "labfacil" | "autolac" | "both">("none");
   const [tenantTestResult, setTenantTestResult] = useState<{
-    softlabSuccess?: boolean;
-    softlabMsg?: string;
+    labfacilSuccess?: boolean;
+    labfacilMsg?: string;
     autolacSuccess?: boolean;
     autolacMsg?: string;
   } | null>(null);
 
-  const handleTestTenantConnection = (target: "softlab" | "autolac" | "both" = "both") => {
+  const handleTestTenantConnection = (target: "labfacil" | "autolac" | "both" = "both") => {
     setTestingTarget(target);
 
     setTimeout(async () => {
       try {
         const res = await TenantService.testarConexaoTenant(
-          tenantFormData.softlabLogin,
-          tenantFormData.softlabSenha,
+          tenantFormData.labfacilLogin,
+          tenantFormData.labfacilSenha,
           tenantFormData.wsUrl,
-          tenantFormData.softlabBaseUrl || "http://apoio.softlabsolucoes.com.br",
+          tenantFormData.labfacilBaseUrl || "http://apoio.labfacilsolucoes.com.br",
           tenantFormData.identificacaoEntidade,
           tenantFormData.senhaWs,
           target
@@ -1375,13 +1424,13 @@ export default function MidwayLabDashboard() {
         setTestingTarget("none");
 
         setTenantTestResult(prev => ({
-          softlabSuccess: res.softlabSuccess !== undefined ? res.softlabSuccess : prev?.softlabSuccess,
-          softlabMsg: res.softlabMsg !== undefined ? res.softlabMsg : prev?.softlabMsg,
+          labfacilSuccess: res.labfacilSuccess !== undefined ? res.labfacilSuccess : prev?.labfacilSuccess,
+          labfacilMsg: res.labfacilMsg !== undefined ? res.labfacilMsg : prev?.labfacilMsg,
           autolacSuccess: res.autolacSuccess !== undefined ? res.autolacSuccess : prev?.autolacSuccess,
           autolacMsg: res.autolacMsg !== undefined ? res.autolacMsg : prev?.autolacMsg
         }));
 
-        if (target === "softlab") showNotification("⚡ Diagnóstico do Softlab Apoio executado!");
+        if (target === "labfacil") showNotification("⚡ Diagnóstico do Labfacil Apoio executado!");
         else if (target === "autolac") showNotification("⚡ Diagnóstico do WebService Autolac executado!");
         else showNotification("⚡ Diagnóstico Completo de Conexão executado!");
       } catch (e) {
@@ -1405,7 +1454,7 @@ export default function MidwayLabDashboard() {
   const [logs, setLogs] = useState([
     {
       id: "LOG-904",
-      tipo: "IDA (Autolac ➔ Softlab)",
+      tipo: "IDA (Autolac ➔ Labfacil)",
       protocolo: "PROTO-8842",
       paciente: "MARIA OLIVEIRA SILVA",
       exames: "T3, TSH",
@@ -1415,7 +1464,7 @@ export default function MidwayLabDashboard() {
     },
     {
       id: "LOG-903",
-      tipo: "VOLTA (Softlab ➔ Autolac)",
+      tipo: "VOLTA (Labfacil ➔ Autolac)",
       protocolo: "PROTO-8840",
       paciente: "JOAO PEDRO SANTOS",
       exames: "HEMOGRAMA",
@@ -1433,9 +1482,9 @@ export default function MidwayLabDashboard() {
   const handleSelectTenantChange = (tenantNome: string) => {
     startTransition(() => {
       setSelectedTenant(tenantNome);
-      setSelectedSoftlabExam(null);
+      setSelectedLabfacilExam(null);
       setSelectedAutolacExam(null);
-      setSearchSoftlab("");
+      setSearchLabfacil("");
       setSearchAutolac("");
     });
 
@@ -1448,7 +1497,7 @@ export default function MidwayLabDashboard() {
 
     setTimeout(() => {
       startTransition(async () => {
-        await loadSoftlabCatalogForTenant(tenantId, activeTenant);
+        await loadLabfacilCatalogForTenant(tenantId, activeTenant);
       });
     }, 10);
   };
@@ -1464,14 +1513,14 @@ export default function MidwayLabDashboard() {
   };
 
   // HELPER: CALCULATE ACCENT-INSENSITIVE STRING SIMILARITY (0 TO 100)
-  const calculateExamSimilarity = (softlabExam: any, autolacExam: any): number => {
-    if (!softlabExam || !autolacExam) return 0;
-    const softCode = normalizeText(softlabExam.codigo);
-    const softDesc = normalizeText(softlabExam.descricao);
+  const calculateExamSimilarity = (labfacilExam: any, autolacExam: any): number => {
+    if (!labfacilExam || !autolacExam) return 0;
+    const softCode = normalizeText(labfacilExam.codigo);
+    const softDesc = normalizeText(labfacilExam.descricao);
     const autCode = normalizeText(autolacExam.codigo);
     const autNome = normalizeText(autolacExam.nome);
 
-    if (softCode === autCode || normalizeText(softlabExam.autolacMapped) === autCode) return 100;
+    if (softCode === autCode || normalizeText(labfacilExam.autolacMapped) === autCode) return 100;
     if (softDesc === autNome) return 98;
     if (softCode.includes(autCode) || autCode.includes(softCode)) return 90;
     if (softDesc.includes(autNome) || autNome.includes(softDesc)) return 85;
@@ -1486,9 +1535,9 @@ export default function MidwayLabDashboard() {
     return 0;
   };
 
-  // SMART SELECTION HANDLER FOR SOFTLAB EXAM PANEL
-  const handleSelectSoftlabExam = (exam: any) => {
-    setSelectedSoftlabExam(exam);
+  // SMART SELECTION HANDLER FOR LABFACIL EXAM PANEL
+  const handleSelectLabfacilExam = (exam: any) => {
+    setSelectedLabfacilExam(exam);
 
     const rankedAutolac = autolacCatalog
       .map(autItem => ({
@@ -1508,33 +1557,33 @@ export default function MidwayLabDashboard() {
   const handleSelectAutolacExam = (exam: any) => {
     setSelectedAutolacExam(exam);
 
-    const rankedSoftlab = softlabExames
+    const rankedLabfacil = labfacilExames
       .map(softItem => ({
         ...softItem,
         similarity: calculateExamSimilarity(softItem, exam)
       }))
       .sort((a, b) => b.similarity - a.similarity);
 
-    if (rankedSoftlab.length > 0 && rankedSoftlab[0].similarity >= 30) {
-      setSelectedSoftlabExam(rankedSoftlab[0]);
+    if (rankedLabfacil.length > 0 && rankedLabfacil[0].similarity >= 30) {
+      setSelectedLabfacilExam(rankedLabfacil[0]);
     } else {
-      setSelectedSoftlabExam(null);
+      setSelectedLabfacilExam(null);
     }
   };
 
-  // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (SOFTLAB ↔ AUTOLAC)
+  // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (LABFACIL ↔ AUTOLAC)
   const handleLinkSelectedPair = async () => {
-    if (!selectedSoftlabExam || !selectedAutolacExam) {
-      alert("Por favor, selecione um exame no painel do Softlab e um exame no painel do Autolac!");
+    if (!selectedLabfacilExam || !selectedAutolacExam) {
+      alert("Por favor, selecione um exame no painel do Labfacil e um exame no painel do Autolac!");
       return;
     }
 
     const activeTenant = tenants.find(t => t.nome === selectedTenant) || tenants[0];
     const tenantId = activeTenant?.id || "11111111-1111-1111-1111-111111111111";
-    const softlabCode = selectedSoftlabExam.codigo;
+    const labfacilCode = selectedLabfacilExam.codigo;
     const autolacCode = selectedAutolacExam.codigo;
 
-    setSoftlabExames(prev => prev.map(item => item.codigo === softlabCode ? {
+    setLabfacilExames(prev => prev.map(item => item.codigo === labfacilCode ? {
       ...item,
       autolacMapped: autolacCode
     } : item));
@@ -1544,26 +1593,26 @@ export default function MidwayLabDashboard() {
         tenant_id: tenantId,
         codigo_autolac: autolacCode,
         descricao_autolac: selectedAutolacExam.nome || autolacCode,
-        codigo_softlab: softlabCode,
-        descricao_softlab: selectedSoftlabExam.descricao || softlabCode,
-        tipo_resultado: selectedSoftlabExam.tipo || 'PDF'
+        codigo_labfacil: labfacilCode,
+        descricao_labfacil: selectedLabfacilExam.descricao || labfacilCode,
+        tipo_resultado: selectedLabfacilExam.tipo || 'PDF'
       });
-      showNotification(`⚡ Vínculo criado com sucesso: ${softlabCode} (Softlab) ↔ ${autolacCode} (Autolac)!`);
+      showNotification(`⚡ Vínculo criado com sucesso: ${labfacilCode} (Labfacil) ↔ ${autolacCode} (Autolac)!`);
     } catch (err: any) {
       console.warn("Mapeamento salvo localmente:", err.message);
-      showNotification(`⚡ Vínculo associado com sucesso: ${softlabCode} ↔ ${autolacCode}!`);
+      showNotification(`⚡ Vínculo associado com sucesso: ${labfacilCode} ↔ ${autolacCode}!`);
     }
 
     // Clear search inputs upon linking
-    setSearchSoftlab("");
+    setSearchLabfacil("");
     setSearchAutolac("");
 
-    // Auto-advance to next unmapped Softlab exam!
-    const unmappedList = softlabExames.filter(e => !e.autolacMapped && e.codigo !== softlabCode);
+    // Auto-advance to next unmapped Labfacil exam!
+    const unmappedList = labfacilExames.filter(e => !e.autolacMapped && e.codigo !== labfacilCode);
     if (unmappedList.length > 0) {
-      handleSelectSoftlabExam(unmappedList[0]);
+      handleSelectLabfacilExam(unmappedList[0]);
     } else {
-      setSelectedSoftlabExam(null);
+      setSelectedLabfacilExam(null);
       setSelectedAutolacExam(null);
     }
   };
@@ -1575,7 +1624,7 @@ export default function MidwayLabDashboard() {
     const tenantId = activeTenant?.id || "11111111-1111-1111-1111-111111111111";
     const recordsToSave: any[] = [];
 
-    setSoftlabExames(prev => prev.map(item => {
+    setLabfacilExames(prev => prev.map(item => {
       if (!item.autolacMapped) {
         const match = autolacCatalog.find(a => 
           item.codigo.toLowerCase().includes(a.codigo.toLowerCase()) ||
@@ -1587,8 +1636,8 @@ export default function MidwayLabDashboard() {
             tenant_id: tenantId,
             codigo_autolac: match.codigo,
             descricao_autolac: match.nome,
-            codigo_softlab: item.codigo,
-            descricao_softlab: item.descricao,
+            codigo_labfacil: item.codigo,
+            descricao_labfacil: item.descricao,
             tipo_resultado: item.tipo || 'PDF'
           });
           return { ...item, autolacMapped: match.codigo };
@@ -1610,8 +1659,8 @@ export default function MidwayLabDashboard() {
 
   // DYNAMIC FEATURE 3: EXPORT DE-PARA TO CSV
   const handleExportCsv = () => {
-    const csvHeader = "codigo_softlab,descricao_softlab,codigo_autolac,tipo_resultado\n";
-    const csvRows = softlabExames.map(e => `${e.codigo},"${e.descricao}",${e.autolacMapped || ''},${e.tipo}`).join('\n');
+    const csvHeader = "codigo_labfacil,descricao_labfacil,codigo_autolac,tipo_resultado\n";
+    const csvRows = labfacilExames.map(e => `${e.codigo},"${e.descricao}",${e.autolacMapped || ''},${e.tipo}`).join('\n');
     const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1621,7 +1670,7 @@ export default function MidwayLabDashboard() {
     showNotification("Arquivo CSV do mapeamento DE-PARA exportado com sucesso!");
   };
 
-  // ACTION: Test Softlab Endpoint Live
+  // ACTION: Test Labfacil Endpoint Live
   const handleTestEndpoint = (ep: any) => {
     setActiveEndpointModal(ep);
     setApiConsoleResponse(`[MidwayLab Client] Executando ${ep.method} ${ep.path}...\nStatus: 200 OK (Simulação Conectada com Sucesso)\nResposta:\n${ep.exampleResponse}`);
@@ -1635,7 +1684,7 @@ export default function MidwayLabDashboard() {
       const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
       const newLog = {
         id: `LOG-${Math.floor(905 + Math.random() * 50)}`,
-        tipo: Math.random() > 0.5 ? "IDA (Autolac ➔ Softlab)" : "VOLTA (Softlab ➔ Autolac)",
+        tipo: Math.random() > 0.5 ? "IDA (Autolac ➔ Labfacil)" : "VOLTA (Labfacil ➔ Autolac)",
         protocolo: `PROTO-${Math.floor(8843 + Math.random() * 100)}`,
         paciente: "CARLOS EDUARDO SILVA",
         exames: "T3, HEMOGRAMA",
@@ -1666,9 +1715,9 @@ export default function MidwayLabDashboard() {
         identificacao_entidade: tenantFormData.identificacaoEntidade,
         senha_ws: tenantFormData.senhaWs,
         codigo_entidade: tenantFormData.codigoAgente || '1',
-        softlab_base_url: tenantFormData.softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
-        softlab_login: tenantFormData.softlabLogin,
-        softlab_senha: tenantFormData.softlabSenha,
+        labfacil_base_url: tenantFormData.labfacilBaseUrl || 'http://apoio.labfacilsolucoes.com.br',
+        labfacil_login: tenantFormData.labfacilLogin,
+        labfacil_senha: tenantFormData.labfacilSenha,
         usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
         ativo: true
       });
@@ -1688,12 +1737,12 @@ export default function MidwayLabDashboard() {
       codigo_entidade: tenantFormData.codigoAgente || "1",
       wsUrl: tenantFormData.wsUrl,
       ws_url: tenantFormData.wsUrl,
-      softlabBaseUrl: tenantFormData.softlabBaseUrl,
-      softlab_base_url: tenantFormData.softlabBaseUrl,
-      softlabLogin: tenantFormData.softlabLogin,
-      softlab_login: tenantFormData.softlabLogin,
-      softlabSenha: tenantFormData.softlabSenha,
-      softlab_senha: tenantFormData.softlabSenha,
+      labfacilBaseUrl: tenantFormData.labfacilBaseUrl,
+      labfacil_base_url: tenantFormData.labfacilBaseUrl,
+      labfacilLogin: tenantFormData.labfacilLogin,
+      labfacil_login: tenantFormData.labfacilLogin,
+      labfacilSenha: tenantFormData.labfacilSenha,
+      labfacil_senha: tenantFormData.labfacilSenha,
       usarCatalogoProprio: Boolean(tenantFormData.usarCatalogoProprio),
       usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
       ultimoLote: editingTenant?.ultimoLote || "1",
@@ -1743,12 +1792,12 @@ export default function MidwayLabDashboard() {
           codigo_entidade: t.codigo_entidade || "1",
           wsUrl: t.ws_url || (t.configuracoes?.autolac?.ws_url) || "http://homolog.app.lifesys.com.br:5030",
           ws_url: t.ws_url || (t.configuracoes?.autolac?.ws_url) || "http://homolog.app.lifesys.com.br:5030",
-          softlabBaseUrl: t.softlab_base_url || (t.configuracoes?.softlab?.base_url) || "http://apoio.softlabsolucoes.com.br",
-          softlab_base_url: t.softlab_base_url || (t.configuracoes?.softlab?.base_url) || "http://apoio.softlabsolucoes.com.br",
-          softlabLogin: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
-          softlab_login: t.softlab_login || (t.configuracoes?.softlab?.login) || "",
-          softlabSenha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
-          softlab_senha: t.softlab_senha || (t.configuracoes?.softlab?.senha) || "",
+          labfacilBaseUrl: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.labfacilsolucoes.com.br",
+          labfacil_base_url: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.labfacilsolucoes.com.br",
+          labfacilLogin: t.labfacil_login || (t.configuracoes?.labfacil?.login) || "",
+          labfacil_login: t.labfacil_login || (t.configuracoes?.labfacil?.login) || "",
+          labfacilSenha: t.labfacil_senha || (t.configuracoes?.labfacil?.senha) || "",
+          labfacil_senha: t.labfacil_senha || (t.configuracoes?.labfacil?.senha) || "",
           usarCatalogoProprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           ultimoLote: "1",
@@ -1768,13 +1817,13 @@ export default function MidwayLabDashboard() {
   const handleConfirmRecoleta = (recId: string) => {
     setRecoletasList(prev => prev.filter(r => r.id !== recId));
     setStats(prev => ({ ...prev, recoletasPendentes: Math.max(0, prev.recoletasPendentes - 1) }));
-    showNotification(`Recoleta #${recId} confirmada! Nova amostra agendada no Softlab.`);
+    showNotification(`Recoleta #${recId} confirmada! Nova amostra agendada no Labfacil.`);
   };
 
   // ACTION 4: Execute Cancel Sample
   const handleCancelSample = (e: React.FormEvent) => {
     e.preventDefault();
-    showNotification(`Amostra "${cancelData.idAmostra}" do protocolo "${cancelData.protocolo}" cancelada no Softlab Apoio!`);
+    showNotification(`Amostra "${cancelData.idAmostra}" do protocolo "${cancelData.protocolo}" cancelada no Labfacil Apoio!`);
     setActiveWorkflowModal(null);
   };
 
@@ -1926,7 +1975,7 @@ export default function MidwayLabDashboard() {
         </head>
         <body>
           <div class="label-header">
-            <span>MIDWAY / SOFTLAB</span>
+            <span>MIDWAY / LABFACIL</span>
             <span>${data.apoiado || "SAN MATHEWS"}</span>
             <span>${new Date().toLocaleDateString('pt-BR')}</span>
           </div>
@@ -1961,9 +2010,9 @@ export default function MidwayLabDashboard() {
       senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
       codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
       wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
-      softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
-      softlabLogin: t.softlabLogin || t.softlab_login || "",
-      softlabSenha: t.softlabSenha || t.softlab_senha || "",
+      labfacilBaseUrl: t.labfacilBaseUrl || t.labfacil_base_url || "http://apoio.labfacilsolucoes.com.br",
+      labfacilLogin: t.labfacilLogin || t.labfacil_login || "",
+      labfacilSenha: t.labfacilSenha || t.labfacil_senha || "",
       usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio)
     });
     setIsNewTenantModalOpen(true);
@@ -1980,9 +2029,9 @@ export default function MidwayLabDashboard() {
       senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
       codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
       wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
-      softlabBaseUrl: t.softlabBaseUrl || t.softlab_base_url || "http://apoio.softlabsolucoes.com.br",
-      softlabLogin: t.softlabLogin || t.softlab_login || "",
-      softlabSenha: t.softlabSenha || t.softlab_senha || "",
+      labfacilBaseUrl: t.labfacilBaseUrl || t.labfacil_base_url || "http://apoio.labfacilsolucoes.com.br",
+      labfacilLogin: t.labfacilLogin || t.labfacil_login || "",
+      labfacilSenha: t.labfacilSenha || t.labfacil_senha || "",
       usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio)
     });
     setIsNewTenantModalOpen(true);
@@ -2009,7 +2058,7 @@ export default function MidwayLabDashboard() {
     const tenantId = activeTenant?.id || "11111111-1111-1111-1111-111111111111";
     const autolacCode = mapFormData.codigoAutolac.toUpperCase();
 
-    setSoftlabExames(prev => prev.map(item => item.codigo === mappingExamModal.codigo ? {
+    setLabfacilExames(prev => prev.map(item => item.codigo === mappingExamModal.codigo ? {
       ...item,
       autolacMapped: autolacCode,
       tipo: mapFormData.tipoResultado
@@ -2020,8 +2069,8 @@ export default function MidwayLabDashboard() {
         tenant_id: tenantId,
         codigo_autolac: autolacCode,
         descricao_autolac: autolacCode,
-        codigo_softlab: mappingExamModal.codigo,
-        descricao_softlab: mappingExamModal.descricao || mappingExamModal.codigo,
+        codigo_labfacil: mappingExamModal.codigo,
+        descricao_labfacil: mappingExamModal.descricao || mappingExamModal.codigo,
         tipo_resultado: mapFormData.tipoResultado
       });
       showNotification(`🎉 Mapeamento de "${mappingExamModal.codigo}" ↔ "${autolacCode}" salvo no Supabase com sucesso!`);
@@ -2032,10 +2081,10 @@ export default function MidwayLabDashboard() {
     setMappingExamModal(null);
   };
 
-  // Filtered Softlab List with Accent-Insensitive Search & Bidirectional Smart Similarity Ranking
-  const filteredSoftlabExames = softlabExames
+  // Filtered Labfacil List with Accent-Insensitive Search & Bidirectional Smart Similarity Ranking
+  const filteredLabfacilExames = labfacilExames
     .filter(e => {
-      const searchClean = normalizeText(searchSoftlab);
+      const searchClean = normalizeText(searchLabfacil);
       const matchesSearch =
         normalizeText(e.codigo).includes(searchClean) || 
         normalizeText(e.descricao).includes(searchClean) ||
@@ -2058,9 +2107,9 @@ export default function MidwayLabDashboard() {
     });
 
   // Filtered Autolac List with Accent-Insensitive Search & Smart Similarity Ranking
-  // Excludes Autolac exams that are already linked to a Softlab exam
+  // Excludes Autolac exams that are already linked to a Labfacil exam
   const alreadyMappedAutolacCodes = new Set(
-    softlabExames.filter(e => Boolean(e.autolacMapped)).map(e => e.autolacMapped.toUpperCase())
+    labfacilExames.filter(e => Boolean(e.autolacMapped)).map(e => e.autolacMapped.toUpperCase())
   );
 
   const filteredAutolacCatalog = autolacCatalog
@@ -2076,10 +2125,10 @@ export default function MidwayLabDashboard() {
     })
     .map(a => ({
       ...a,
-      similarity: selectedSoftlabExam ? calculateExamSimilarity(selectedSoftlabExam, a) : 0
+      similarity: selectedLabfacilExam ? calculateExamSimilarity(selectedLabfacilExam, a) : 0
     }))
     .sort((a, b) => {
-      if (selectedSoftlabExam) {
+      if (selectedLabfacilExam) {
         return b.similarity - a.similarity;
       }
       return a.codigo.localeCompare(b.codigo);
@@ -2113,7 +2162,7 @@ export default function MidwayLabDashboard() {
                 <h1 className="text-xl font-black tracking-tight text-white flex items-center justify-center gap-2">
                   MidwayLab <span className="text-[10px] bg-blue-500/20 text-cyan-300 border border-cyan-400/40 px-2 py-0.5 rounded-full font-bold">Orquestrador SaaS</span>
                 </h1>
-                <p className="text-xs text-blue-200/70 mt-0.5">Plataforma de Integração Autolac ↔ Softlab Apoio</p>
+                <p className="text-xs text-blue-200/70 mt-0.5">Plataforma de Integração Autolac ↔ Labfacil Apoio</p>
               </div>
             </div>
 
@@ -2491,7 +2540,7 @@ export default function MidwayLabDashboard() {
               <h1 className="font-bold text-lg tracking-tight flex items-center gap-2">
                 MidwayLab <span className="text-xs bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded-full font-medium">SaaS Multi-Tenant</span>
               </h1>
-              <p className="text-xs text-slate-400">Broker de Integração Autolac ↔ Softlab Apoio</p>
+              <p className="text-xs text-slate-400">Broker de Integração Autolac ↔ Labfacil Apoio</p>
             </div>
           </div>
         </div>
@@ -2511,8 +2560,8 @@ export default function MidwayLabDashboard() {
 
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-            <span className="text-slate-400">Softlab API:</span>
-            <span className="text-teal-300 font-semibold">{softlabExames.length.toLocaleString('pt-BR')} Exames</span>
+            <span className="text-slate-400">Labfacil API:</span>
+            <span className="text-teal-300 font-semibold">{labfacilExames.length.toLocaleString('pt-BR')} Exames</span>
           </div>
 
           <div className="h-3 w-px bg-slate-800" />
@@ -2618,6 +2667,32 @@ export default function MidwayLabDashboard() {
             <GitCompare className="w-4 h-4 text-teal-400" /> Mapeador DE-PARA Exames
           </button>
 
+                    {/* TAB: EQUIPAMENTOS (CB350, YUMIZEN) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("equipamentos")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+              activeTab === "equipamentos"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <Server className="w-4 h-4 text-cyan-400" /> Equipamentos ({equipamentosList.length})
+          </button>
+
+          {/* TAB: INGESTÃO ARQUIVOS LABFACIL */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("ingestao")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+              activeTab === "ingestao"
+                ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <Upload className="w-4 h-4 text-emerald-400" /> Ingestão Labfacil (JSON/XML)
+          </button>
+
           {/* TAB 2: OPERAÇÕES (Visible to All) */}
           <button
             type="button"
@@ -2628,7 +2703,7 @@ export default function MidwayLabDashboard() {
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
-            <SlidersHorizontal className="w-4 h-4 text-amber-400" /> Central de Operações Softlab
+            <SlidersHorizontal className="w-4 h-4 text-amber-400" /> Central de Operações Labfacil
           </button>
 
           {/* TAB 3: LOGS (Visible to All) */}
@@ -2680,7 +2755,7 @@ export default function MidwayLabDashboard() {
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                 }`}
               >
-                <Code2 className="w-4 h-4 text-indigo-400" /> Endpoints Softlab API ({softlabEndpointsList.length})
+                <Code2 className="w-4 h-4 text-indigo-400" /> Endpoints Labfacil API ({labfacilEndpointsList.length})
               </button>
 
               <button
@@ -2715,10 +2790,10 @@ export default function MidwayLabDashboard() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico DE-PARA (Softlab Apoio ↔ Autolac)
+                  <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico DE-PARA (Labfacil Apoio ↔ Autolac)
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                  Pesquise lado a lado nos catálogos do Softlab ({softlabExames.length} exames) e do Autolac ({autolacCatalog.length} exames) para relacionar exames instantaneamente com 1 clique!
+                  Pesquise lado a lado nos catálogos do Labfacil ({labfacilExames.length} exames) e do Autolac ({autolacCatalog.length} exames) para relacionar exames instantaneamente com 1 clique!
                 </p>
               </div>
 
@@ -2726,7 +2801,7 @@ export default function MidwayLabDashboard() {
                 {/* BUTTON 1: NOVO MAPEAMENTO */}
                 <button
                   type="button"
-                  onClick={() => handleOpenMapExam(softlabExames[0])}
+                  onClick={() => handleOpenMapExam(labfacilExames[0])}
                   className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-extrabold bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 cursor-pointer whitespace-nowrap text-center"
                 >
                   <Plus className="w-4 h-4 text-slate-950" /> Novo Mapeamento
@@ -2738,7 +2813,7 @@ export default function MidwayLabDashboard() {
                   onClick={() => setIsMappedExamsModalOpen(true)}
                   className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-emerald-500/10 cursor-pointer whitespace-nowrap text-center"
                 >
-                  <Eye className="w-4 h-4 text-emerald-400" /> Ver Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
+                  <Eye className="w-4 h-4 text-emerald-400" /> Ver Mapeados ({labfacilExames.filter(e => Boolean(e.autolacMapped)).length})
                 </button>
 
                 {/* BUTTON 3: IMPORTAR PLANILHA DE-PARA */}
@@ -2750,14 +2825,14 @@ export default function MidwayLabDashboard() {
                   <Upload className="w-4 h-4 text-teal-400" /> Importar Planilha
                 </button>
 
-                {/* BUTTON 4: SINCRONIZAR API SOFTLAB */}
+                {/* BUTTON 4: SINCRONIZAR API LABFACIL */}
                 <button
                   type="button"
-                  onClick={handleSoftlabApiSync}
-                  disabled={isSyncingSoftlabApi}
+                  onClick={handleLabfacilApiSync}
+                  disabled={isSyncingLabfacilApi}
                   className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-cyan-500/10 cursor-pointer whitespace-nowrap text-center"
                 >
-                  <RefreshCw className={`w-4 h-4 text-cyan-400 ${isSyncingSoftlabApi ? "animate-spin" : ""}`} /> Sincronizar API
+                  <RefreshCw className={`w-4 h-4 text-cyan-400 ${isSyncingLabfacilApi ? "animate-spin" : ""}`} /> Sincronizar API
                 </button>
 
                 {/* BUTTON 5: AUTO-MAPEAR */}
@@ -2782,22 +2857,22 @@ export default function MidwayLabDashboard() {
 
             {/* DUAL SEARCH BARS LADO A LADO */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* SOFTLAB SEARCH COLUMN */}
+              {/* LABFACIL SEARCH COLUMN */}
               <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-teal-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <CheckCircle2 className="w-4 h-4 text-teal-400" /> Catálogo Softlab Apoio ({softlabExames.length} Exames)
+                    <CheckCircle2 className="w-4 h-4 text-teal-400" /> Catálogo Labfacil Apoio ({labfacilExames.length} Exames)
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => { setImportTarget("softlab"); setIsImportModalOpen(true); }}
+                      onClick={() => { setImportTarget("labfacil"); setIsImportModalOpen(true); }}
                       className="text-[10px] font-bold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer"
                     >
                       <Upload className="w-3 h-3" /> Importar CSV/JSON
                     </button>
                     <span className="text-[11px] font-mono bg-teal-500/10 text-teal-300 px-2 py-0.5 rounded border border-teal-500/20">
-                      {filteredSoftlabExames.length} Encontrados
+                      {filteredLabfacilExames.length} Encontrados
                     </span>
                   </div>
                 </div>
@@ -2806,9 +2881,9 @@ export default function MidwayLabDashboard() {
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
                     type="text"
-                    placeholder="🔍 Pesquisar código/exame no Softlab..."
-                    value={searchSoftlab}
-                    onChange={(e) => setSearchSoftlab(e.target.value)}
+                    placeholder="🔍 Pesquisar código/exame no Labfacil..."
+                    value={searchLabfacil}
+                    onChange={(e) => setSearchLabfacil(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500/50"
                   />
                 </div>
@@ -2821,7 +2896,7 @@ export default function MidwayLabDashboard() {
                     <div className="bg-teal-500/10 border border-teal-500/30 text-teal-300 p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-teal-400 shrink-0" />
                       <span>
-                        <strong>Catálogo Customizado Ativo:</strong> Clique em <strong>'Listar Exames Softlab'</strong> e depois em <strong>'Salvar no Banco (Supabase)'</strong> para consultar via API e gravar a lista associada a este laboratório (<code className="text-cyan-300">tenant_id</code>).
+                        <strong>Catálogo Customizado Ativo:</strong> Clique em <strong>'Listar Exames Labfacil'</strong> e depois em <strong>'Salvar no Banco (Supabase)'</strong> para consultar via API e gravar a lista associada a este laboratório (<code className="text-cyan-300">tenant_id</code>).
                       </span>
                     </div>
                   ) : (
@@ -2843,17 +2918,17 @@ export default function MidwayLabDashboard() {
                       <>
                         <button
                           type="button"
-                          onClick={handleSoftlabApiSync}
-                          disabled={!isCustom || isSyncingSoftlabApi}
-                          title={isCustom ? "Consultar exames via API Softlab Apoio" : "Botão desabilitado: empresa usando Catálogo Global padrão. Ative 'Usar Catálogo Customizado Próprio' no cadastro da empresa para habilitar."}
+                          onClick={handleLabfacilApiSync}
+                          disabled={!isCustom || isSyncingLabfacilApi}
+                          title={isCustom ? "Consultar exames via API Labfacil Apoio" : "Botão desabilitado: empresa usando Catálogo Global padrão. Ative 'Usar Catálogo Customizado Próprio' no cadastro da empresa para habilitar."}
                           className={`w-full font-bold px-3 py-2 rounded-xl transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow ${
                             !isCustom
                               ? "opacity-40 cursor-not-allowed bg-slate-950 text-slate-500 border border-slate-800"
                               : "bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40"
                           }`}
                         >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isCustom ? "text-teal-400" : "text-slate-500"} ${isSyncingSoftlabApi ? "animate-spin" : ""}`} />
-                          📡 Listar Exames Softlab
+                          <RefreshCw className={`w-3.5 h-3.5 ${isCustom ? "text-teal-400" : "text-slate-500"} ${isSyncingLabfacilApi ? "animate-spin" : ""}`} />
+                          📡 Listar Exames Labfacil
                         </button>
 
                         <button
@@ -2915,22 +2990,22 @@ export default function MidwayLabDashboard() {
 
             {/* DUAL MATCHING SPLIT VIEW PANEL */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* LEFT PANEL: SOFTLAB LIST (BIDIRECTIONAL SMART RANKED) */}
+              {/* LEFT PANEL: LABFACIL LIST (BIDIRECTIONAL SMART RANKED) */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] text-slate-400 font-semibold">1. Selecione um exame do Softlab Apoio:</p>
+                  <p className="text-[11px] text-slate-400 font-semibold">1. Selecione um exame do Labfacil Apoio:</p>
                   {selectedAutolacExam && (
                     <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                       ✨ Ordenado por Similaridade
                     </span>
                   )}
                 </div>
-                {filteredSoftlabExames.map((item) => {
-                  const isSelected = selectedSoftlabExam?.codigo === item.codigo;
+                {filteredLabfacilExames.map((item) => {
+                  const isSelected = selectedLabfacilExam?.codigo === item.codigo;
                   return (
                     <div
                       key={item.codigo}
-                      onClick={() => handleSelectSoftlabExam(item)}
+                      onClick={() => handleSelectLabfacilExam(item)}
                       className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
                         isSelected
                           ? "bg-teal-500/20 border-teal-500 text-teal-200 font-bold shadow-lg shadow-teal-500/10"
@@ -2971,7 +3046,7 @@ export default function MidwayLabDashboard() {
                             handleOpenExamDetails(item);
                           }}
                           className="text-[10px] text-teal-300 hover:text-teal-100 bg-teal-500/20 hover:bg-teal-500/40 px-2 py-0.5 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer font-bold"
-                          title="Ver Ficha Pré-Analítica (Softlab API)"
+                          title="Ver Ficha Pré-Analítica (Labfacil API)"
                         >
                           <Info className="w-3 h-3" /> Detalhes
                         </button>
@@ -2995,7 +3070,7 @@ export default function MidwayLabDashboard() {
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] text-slate-400 font-semibold">2. Selecione o exame correspondente no Autolac:</p>
-                  {selectedSoftlabExam && (
+                  {selectedLabfacilExam && (
                     <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                       ✨ Ordenado por Similaridade
                     </span>
@@ -3016,7 +3091,7 @@ export default function MidwayLabDashboard() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-cyan-300">{item.codigo}</span>
-                          {selectedSoftlabExam && item.similarity > 0 && (
+                          {selectedLabfacilExam && item.similarity > 0 && (
                             <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
                               ✨ Match {item.similarity}%
                             </span>
@@ -3026,7 +3101,7 @@ export default function MidwayLabDashboard() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {selectedSoftlabExam && isSelected && (
+                        {selectedLabfacilExam && isSelected && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -3048,12 +3123,12 @@ export default function MidwayLabDashboard() {
             </div>
 
             {/* QUICK LINK ACTION BAR */}
-            {(selectedSoftlabExam || selectedAutolacExam) && (
+            {(selectedLabfacilExam || selectedAutolacExam) && (
               <div className="bg-gradient-to-r from-slate-900 via-teal-950/60 to-slate-900 border border-teal-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
                 <div className="flex items-center gap-3 text-xs">
                   <ArrowLeftRight className="w-5 h-5 text-teal-400" />
                   <span>
-                    Vincular: <strong className="text-teal-300 font-mono">{selectedSoftlabExam ? selectedSoftlabExam.codigo : "Selecione no Softlab"}</strong>
+                    Vincular: <strong className="text-teal-300 font-mono">{selectedLabfacilExam ? selectedLabfacilExam.codigo : "Selecione no Labfacil"}</strong>
                     {" ↔ "}
                     <strong className="text-cyan-300 font-mono">{selectedAutolacExam ? selectedAutolacExam.codigo : "Selecione no Autolac"}</strong>
                   </span>
@@ -3062,7 +3137,7 @@ export default function MidwayLabDashboard() {
                 <button
                   type="button"
                   onClick={handleLinkSelectedPair}
-                  disabled={!selectedSoftlabExam || !selectedAutolacExam}
+                  disabled={!selectedLabfacilExam || !selectedAutolacExam}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-teal-500/30 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   <Link className="w-4 h-4" /> Confirmar Vínculo DE-PARA
@@ -3088,7 +3163,7 @@ export default function MidwayLabDashboard() {
                         deparaFilter === "mapeados" ? "bg-emerald-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Somente Mapeados ({softlabExames.filter(e => Boolean(e.autolacMapped)).length})
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Somente Mapeados ({labfacilExames.filter(e => Boolean(e.autolacMapped)).length})
                     </button>
                     <button
                       type="button"
@@ -3097,7 +3172,7 @@ export default function MidwayLabDashboard() {
                         deparaFilter === "pendentes" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      <AlertCircle className="w-3.5 h-3.5" /> Pendentes ({softlabExames.filter(e => !e.autolacMapped).length})
+                      <AlertCircle className="w-3.5 h-3.5" /> Pendentes ({labfacilExames.filter(e => !e.autolacMapped).length})
                     </button>
                     <button
                       type="button"
@@ -3106,7 +3181,7 @@ export default function MidwayLabDashboard() {
                         deparaFilter === "todos" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      Todos ({softlabExames.length})
+                      Todos ({labfacilExames.length})
                     </button>
                   </div>
                 </div>
@@ -3116,8 +3191,8 @@ export default function MidwayLabDashboard() {
                 <table className="w-full text-left text-sm text-slate-300">
                   <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
                     <tr>
-                      <th className="py-3.5 px-5">Código Softlab</th>
-                      <th className="py-3.5 px-5">Descrição do Exame (Softlab Apoio)</th>
+                      <th className="py-3.5 px-5">Código Labfacil</th>
+                      <th className="py-3.5 px-5">Descrição do Exame (Labfacil Apoio)</th>
                       <th className="py-3.5 px-5">Código Autolac (Vinculado)</th>
                       <th className="py-3.5 px-5">Tipo de Resultado</th>
                       <th className="py-3.5 px-5">Status Mapeamento</th>
@@ -3125,7 +3200,7 @@ export default function MidwayLabDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {filteredSoftlabExames
+                    {filteredLabfacilExames
                       .filter((exam) => {
                         if (deparaFilter === "mapeados") return Boolean(exam.autolacMapped);
                         if (deparaFilter === "pendentes") return !exam.autolacMapped;
@@ -3210,7 +3285,7 @@ export default function MidwayLabDashboard() {
                           </td>
                         </tr>
                       ))}
-                    {filteredSoftlabExames.filter((exam) => deparaFilter === "mapeados" ? Boolean(exam.autolacMapped) : deparaFilter === "pendentes" ? !exam.autolacMapped : true).length === 0 && (
+                    {filteredLabfacilExames.filter((exam) => deparaFilter === "mapeados" ? Boolean(exam.autolacMapped) : deparaFilter === "pendentes" ? !exam.autolacMapped : true).length === 0 && (
                       <tr>
                         <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
                           Nenhum exame encontrado para este filtro no momento.
@@ -3234,7 +3309,7 @@ export default function MidwayLabDashboard() {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pedidos de Ida (Autolac ➔ Softlab)</p>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pedidos de Ida (Autolac ➔ Labfacil)</p>
                     <h3 className="text-3xl font-extrabold mt-2 text-slate-100">{stats.pedidosIda}</h3>
                     <p className="text-xs text-teal-400 mt-2 flex items-center gap-1 font-semibold group-hover:underline">
                       <ArrowUpRight className="w-3.5 h-3.5" /> Ver Logs de Ida ➔
@@ -3252,7 +3327,7 @@ export default function MidwayLabDashboard() {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Laudos de Volta (Softlab ➔ Autolac)</p>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Laudos de Volta (Labfacil ➔ Autolac)</p>
                     <h3 className="text-3xl font-extrabold mt-2 text-slate-100">{stats.laudosVolta}</h3>
                     <p className="text-xs text-cyan-400 mt-2 flex items-center gap-1 font-semibold group-hover:underline">
                       <ArrowDownLeft className="w-3.5 h-3.5" /> Ver Logs de Volta ↙
@@ -3459,7 +3534,7 @@ export default function MidwayLabDashboard() {
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                <SlidersHorizontal className="w-5 h-5 text-amber-400" /> Central de Operações Softlab Apoio
+                <SlidersHorizontal className="w-5 h-5 text-amber-400" /> Central de Operações Labfacil Apoio
               </h2>
               <p className="text-xs text-slate-400">Orquestração completa dos fluxos de Recoletas, Impressão EPL, Cancelamento, Ajuste de Coleta e Adição de Exames (Lote 1.2)</p>
             </div>
@@ -3468,7 +3543,7 @@ export default function MidwayLabDashboard() {
               <div onClick={() => setActiveWorkflowModal("epl")} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-teal-500/50 transition cursor-pointer space-y-2 group">
                 <div className="p-3 bg-teal-500/10 text-teal-400 rounded-xl w-fit group-hover:scale-110 transition"><Tag className="w-6 h-6" /></div>
                 <h3 className="font-bold text-slate-100 text-sm">Etiquetas EPL (5x3cm)</h3>
-                <p className="text-xs text-slate-400">Obter comandos ZPL/EPL dos tubos gerados pelo Softlab Apoio.</p>
+                <p className="text-xs text-slate-400">Obter comandos ZPL/EPL dos tubos gerados pelo Labfacil Apoio.</p>
               </div>
 
               <div onClick={() => setActiveWorkflowModal("cancel")} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-rose-500/50 transition cursor-pointer space-y-2 group">
@@ -3560,7 +3635,7 @@ export default function MidwayLabDashboard() {
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-teal-400" /> Cadastro de Laboratórios Clientes (Tenants)
                 </h2>
-                <p className="text-xs text-slate-400">Configure os parâmetros do Fácil 2024 / Autolac e credenciais do Softlab para cada cliente</p>
+                <p className="text-xs text-slate-400">Configure os parâmetros do Fácil 2024 / Autolac e credenciais do Labfacil para cada cliente</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -3608,9 +3683,9 @@ export default function MidwayLabDashboard() {
                       senhaWs: "Soft@2026",
                       codigoAgente: "1",
                       wsUrl: "http://177.22.36.202:8002/",
-                      softlabBaseUrl: "http://apoio.softlabsolucoes.com.br",
-                      softlabLogin: "",
-                      softlabSenha: "",
+                      labfacilBaseUrl: "http://apoio.labfacilsolucoes.com.br",
+                      labfacilLogin: "",
+                      labfacilSenha: "",
                       usarCatalogoProprio: false
                     });
                     setIsNewTenantModalOpen(true);
@@ -3632,7 +3707,7 @@ export default function MidwayLabDashboard() {
                         <th className="py-3.5 px-5">Laboratório Tenant</th>
                         <th className="py-3.5 px-5">Identificação / E-mail</th>
                         <th className="py-3.5 px-5">URL Autolac WS</th>
-                        <th className="py-3.5 px-5">Login Softlab Apoio</th>
+                        <th className="py-3.5 px-5">Login Labfacil Apoio</th>
                         <th className="py-3.5 px-5">Agente / Lote</th>
                         <th className="py-3.5 px-5 text-center">Status</th>
                         <th className="py-3.5 px-5 text-right">Ação</th>
@@ -3659,7 +3734,7 @@ export default function MidwayLabDashboard() {
                               {t.wsUrl}
                             </td>
                             <td className="py-3.5 px-5 font-mono text-xs text-slate-300">
-                              {t.softlabLogin}
+                              {t.labfacilLogin}
                             </td>
                             <td className="py-3.5 px-5 font-mono text-xs">
                               <span className="text-teal-400 font-bold">Agente: {t.codigoAgente}</span>
@@ -3732,8 +3807,8 @@ export default function MidwayLabDashboard() {
                         </div>
 
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Login API Softlab Apoio</span>
-                          <span className="font-mono text-slate-200 font-medium break-all">{t.softlabLogin}</span>
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Login API Labfacil Apoio</span>
+                          <span className="font-mono text-slate-200 font-medium break-all">{t.labfacilLogin}</span>
                         </div>
 
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
@@ -3785,9 +3860,9 @@ export default function MidwayLabDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <Code2 className="w-5 h-5 text-teal-400" /> Catálogo Completo de Endpoints da API do Softlab Apoio
+                  <Code2 className="w-5 h-5 text-teal-400" /> Catálogo Completo de Endpoints da API do Labfacil Apoio
                 </h2>
-                <p className="text-xs text-slate-400">Todos os 24 métodos REST extraídos da documentação Swagger (http://apoio.softlabsolucoes.com.br/swagger)</p>
+                <p className="text-xs text-slate-400">Todos os 24 métodos REST extraídos da documentação Swagger (http://apoio.labfacilsolucoes.com.br/swagger)</p>
               </div>
 
               <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-teal-300 font-mono font-bold">
@@ -3796,7 +3871,7 @@ export default function MidwayLabDashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {softlabEndpointsList.map((ep, idx) => (
+              {labfacilEndpointsList.map((ep, idx) => (
                 <div key={idx} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3 hover:border-teal-500/40 transition">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -4049,7 +4124,7 @@ export default function MidwayLabDashboard() {
                         </div>
 
                         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                          <span className="text-cyan-400 font-bold block mb-2">REST JSON Softlab Apoio:</span>
+                          <span className="text-cyan-400 font-bold block mb-2">REST JSON Labfacil Apoio:</span>
                           <pre className="text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap">
                             {`{\n  "codigoLis": "${log.protocolo}",\n  "paciente": "${log.paciente}",\n  "status": "PROCESSADO_SUCESSO",\n  "exames": ["${log.exames}"]\n}`}
                           </pre>
@@ -4305,71 +4380,71 @@ export default function MidwayLabDashboard() {
                 </div>
               </div>
 
-              {/* SEÇÃO 2: INTEGRACAO SOFTLAB APOIO */}
+              {/* SEÇÃO 2: INTEGRACAO LABFACIL APOIO */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 gap-2">
                   <div className="flex items-center gap-2">
                     <Database className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Softlab Apoio</span>
+                    <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Labfacil Apoio</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleTestTenantConnection("softlab")}
+                    onClick={() => handleTestTenantConnection("labfacil")}
                     disabled={testingTarget !== "none"}
                     className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50 shrink-0"
-                    title="Testar especificamente a API Softlab Apoio"
+                    title="Testar especificamente a API Labfacil Apoio"
                   >
                     <Zap className="w-3 h-3 text-teal-400 fill-current" />
-                    {testingTarget === "softlab" ? "Testando Softlab..." : "Testar Conexão Softlab"}
+                    {testingTarget === "labfacil" ? "Testando Labfacil..." : "Testar Conexão Labfacil"}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Login API Softlab Apoio</label>
+                    <label className="block text-slate-400 font-semibold mb-1">Login API Labfacil Apoio</label>
                     <input
                       type="email"
                       required
                       autoComplete="username"
                       placeholder="Ex.: yorod23826@qicont.com"
-                      value={tenantFormData.softlabLogin}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, softlabLogin: e.target.value })}
+                      value={tenantFormData.labfacilLogin}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilLogin: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Senha API Softlab Apoio</label>
+                    <label className="block text-slate-400 font-semibold mb-1">Senha API Labfacil Apoio</label>
                     <div className="relative">
                       <input
-                        type={showSoftlabSenha ? "text" : "password"}
+                        type={showLabfacilSenha ? "text" : "password"}
                         required
                         autoComplete="current-password"
                         placeholder="Ex.: Smt@2026"
-                        value={tenantFormData.softlabSenha}
-                        onChange={(e) => setTenantFormData({ ...tenantFormData, softlabSenha: e.target.value })}
+                        value={tenantFormData.labfacilSenha}
+                        onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilSenha: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
                       />
                       <button
                         type="button"
-                        onClick={() => setShowSoftlabSenha(!showSoftlabSenha)}
+                        onClick={() => setShowLabfacilSenha(!showLabfacilSenha)}
                         className="absolute right-3 top-2 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                        title={showSoftlabSenha ? "Ocultar Senha" : "Exibir Senha"}
+                        title={showLabfacilSenha ? "Ocultar Senha" : "Exibir Senha"}
                       >
-                        {showSoftlabSenha ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
+                        {showLabfacilSenha ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">URL Base da API Softlab Apoio</label>
+                  <label className="block text-slate-400 font-semibold mb-1">URL Base da API Labfacil Apoio</label>
                   <input
                     type="text"
                     required
-                    placeholder="http://apoio.softlabsolucoes.com.br"
-                    value={tenantFormData.softlabBaseUrl}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, softlabBaseUrl: e.target.value })}
+                    placeholder="http://apoio.labfacilsolucoes.com.br"
+                    value={tenantFormData.labfacilBaseUrl}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilBaseUrl: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
                   />
                 </div>
@@ -4379,7 +4454,7 @@ export default function MidwayLabDashboard() {
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
                   <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">3. Tipo de Catálogo de Exames Softlab</span>
+                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">3. Tipo de Catálogo de Exames Labfacil</span>
                 </div>
 
                 <label className="flex items-start gap-3 cursor-pointer group bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-teal-500/40 transition">
@@ -4413,18 +4488,18 @@ export default function MidwayLabDashboard() {
                 <div className="bg-slate-950 border border-teal-500/30 p-3.5 rounded-xl font-mono text-xs text-teal-300 animate-pulse flex items-center gap-3">
                   <RefreshCw className="w-4 h-4 text-teal-400 animate-spin shrink-0" />
                   <span>
-                    {testingTarget === "softlab" && "Testando autenticação da API Softlab Apoio..."}
+                    {testingTarget === "labfacil" && "Testando autenticação da API Labfacil Apoio..."}
                     {testingTarget === "autolac" && "Testando conectividade do WebService Autolac..."}
-                    {testingTarget === "both" && "Testando autenticação API Softlab e conectividade WebService Autolac..."}
+                    {testingTarget === "both" && "Testando autenticação API Labfacil e conectividade WebService Autolac..."}
                   </span>
                 </div>
               )}
 
-              {tenantTestResult && (tenantTestResult.softlabMsg || tenantTestResult.autolacMsg) && (
+              {tenantTestResult && (tenantTestResult.labfacilMsg || tenantTestResult.autolacMsg) && (
                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs font-mono">
                   <div className="flex items-center justify-between text-slate-400 font-bold border-b border-slate-900 pb-1.5">
                     <span>⚡ Relatório Diagnóstico de Conexão</span>
-                    {tenantTestResult.softlabSuccess !== false && tenantTestResult.autolacSuccess !== false ? (
+                    {tenantTestResult.labfacilSuccess !== false && tenantTestResult.autolacSuccess !== false ? (
                       <span className="text-emerald-400 flex items-center gap-1">✓ Teste Concluído</span>
                     ) : (
                       <span className="text-rose-400 flex items-center gap-1">⚠️ Teste Concluído (Com Erros)</span>
@@ -4447,18 +4522,18 @@ export default function MidwayLabDashboard() {
                     </div>
                   )}
 
-                  {tenantTestResult.softlabMsg && (
+                  {tenantTestResult.labfacilMsg && (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-slate-300 flex items-center gap-1.5 shrink-0">
-                        {tenantTestResult.softlabSuccess ? (
+                        {tenantTestResult.labfacilSuccess ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         ) : (
                           <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                         )}
-                        Softlab Apoio API REST:
+                        Labfacil Apoio API REST:
                       </span>
-                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] text-right ${tenantTestResult.softlabSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
-                        {tenantTestResult.softlabMsg}
+                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] text-right ${tenantTestResult.labfacilSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
+                        {tenantTestResult.labfacilMsg}
                       </span>
                     </div>
                   )}
@@ -4509,7 +4584,7 @@ export default function MidwayLabDashboard() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <GitCompare className="w-5 h-5 text-teal-400" />
-                Vincular Exame Autolac ↔ Softlab Apoio
+                Vincular Exame Autolac ↔ Labfacil Apoio
               </h3>
               <button 
                 type="button"
@@ -4522,13 +4597,13 @@ export default function MidwayLabDashboard() {
 
             <form id="form_exam_mapping" name="form_exam_mapping" action="javascript:void(0);" onSubmit={handleSaveExamMapping} className="space-y-5 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Softlab Side */}
+                {/* Labfacil Side */}
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
                   <span className="text-[10px] text-teal-400 uppercase tracking-wider font-bold block flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" /> Exame do Softlab Apoio (Apoio)
+                    <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" /> Exame do Labfacil Apoio (Apoio)
                   </span>
                   <p className="font-bold text-slate-100 text-base">{mappingExamModal.descricao}</p>
-                  <p className="font-mono text-cyan-300 font-bold">Código Softlab: {mappingExamModal.codigo}</p>
+                  <p className="font-mono text-cyan-300 font-bold">Código Labfacil: {mappingExamModal.codigo}</p>
                   <p className="text-slate-400 text-[11px] italic">Abreviação: {mappingExamModal.abreviacao}</p>
                 </div>
 
@@ -4730,8 +4805,8 @@ export default function MidwayLabDashboard() {
               {/* DETAILS SUMMARY BOX */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span>Exames Softlab Apoio:</span>
-                  <span className="font-bold text-teal-300">{softlabExames.length} exames</span>
+                  <span>Exames Labfacil Apoio:</span>
+                  <span className="font-bold text-teal-300">{labfacilExames.length} exames</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-400">
                   <span>Exames Autolac WS:</span>
@@ -4790,7 +4865,7 @@ export default function MidwayLabDashboard() {
         </div>
       )}
 
-      {/* MODAL 3: TEST SOFTLAB ENDPOINT MODAL */}
+      {/* MODAL 3: TEST LABFACIL ENDPOINT MODAL */}
       {activeEndpointModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
@@ -4861,7 +4936,7 @@ export default function MidwayLabDashboard() {
                   <Eye className="w-4 h-4 text-teal-400" /> Pré-visualização da Etiqueta Física (50mm x 30mm)
                 </span>
                 <span className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold">
-                  Tubo Softlab Apoio
+                  Tubo Labfacil Apoio
                 </span>
               </div>
 
@@ -4870,7 +4945,7 @@ export default function MidwayLabDashboard() {
                 <div className="w-[330px] h-[200px] bg-white text-black p-3.5 rounded-lg shadow-2xl border-2 border-slate-300 font-sans flex flex-col justify-between select-none relative overflow-hidden">
                   {/* Header da Etiqueta */}
                   <div className="flex justify-between items-center border-b border-slate-900/40 pb-1">
-                    <span className="text-[10px] font-black tracking-tight uppercase text-slate-900">MIDWAY / SOFTLAB</span>
+                    <span className="text-[10px] font-black tracking-tight uppercase text-slate-900">MIDWAY / LABFACIL</span>
                     <span className="text-[9px] font-bold text-teal-800 bg-teal-100 px-1 rounded uppercase">{selectedLabelData?.apoiado || "LAB. SAN MATHEWS"}</span>
                     <span className="text-[9px] font-mono text-slate-700 font-bold">{new Date().toLocaleDateString('pt-BR')}</span>
                   </div>
@@ -4907,7 +4982,7 @@ export default function MidwayLabDashboard() {
                   {/* Exames */}
                   <div className="flex justify-between items-center border-t border-slate-900/40 pt-1 text-[9px] font-bold text-slate-900">
                     <span className="truncate">EXAMES: {selectedLabelData?.exames || "T3 / TSH / GLICOSE"}</span>
-                    <span className="font-mono text-[8px] bg-slate-200 px-1 rounded">SOFTLAB 5X3</span>
+                    <span className="font-mono text-[8px] bg-slate-200 px-1 rounded">LABFACIL 5X3</span>
                   </div>
                 </div>
               </div>
@@ -4978,7 +5053,7 @@ P1`}
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-5 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Trash2 className="w-5 h-5 text-rose-400" /> Cancelamento de Amostra no Softlab Apoio
+                <Trash2 className="w-5 h-5 text-rose-400" /> Cancelamento de Amostra no Labfacil Apoio
               </h3>
               <button type="button" onClick={() => setActiveWorkflowModal(null)} className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -4987,7 +5062,7 @@ P1`}
 
             <form onSubmit={handleConfirmCancelAmostra} className="space-y-4 text-xs">
               <div className="space-y-1">
-                <label className="text-slate-300 font-semibold">Protocolo / LIS Softlab</label>
+                <label className="text-slate-300 font-semibold">Protocolo / LIS Labfacil</label>
                 <input
                   type="text"
                   value={cancelForm.protocolo}
@@ -5070,7 +5145,7 @@ P1`}
 
             <form onSubmit={handleConfirmAjusteColeta} className="space-y-4 text-xs">
               <div className="space-y-1">
-                <label className="text-slate-300 font-semibold">Protocolo / Pedido Softlab</label>
+                <label className="text-slate-300 font-semibold">Protocolo / Pedido Labfacil</label>
                 <input
                   type="text"
                   value={coletaForm.protocolo}
@@ -5162,7 +5237,7 @@ P1`}
               <div className="space-y-2">
                 <label className="text-slate-300 font-semibold block">Selecione os Exames Adicionais (Sem alterar tubos já colhidos)</label>
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto space-y-2">
-                  {softlabExames.slice(0, 10).map((exam) => {
+                  {labfacilExames.slice(0, 10).map((exam) => {
                     const isSelected = lote12Form.novosExames.includes(exam.codigo);
                     return (
                       <label key={exam.codigo} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 hover:bg-slate-800/60 cursor-pointer border border-slate-800/80">
@@ -5198,7 +5273,7 @@ P1`}
                   className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500"
                 />
                 <label htmlFor="gerarTubo" className="text-indigo-200 text-xs font-semibold cursor-pointer">
-                  Gerar novo tubo/amostra e etiqueta EPL no Softlab Apoio se necessário
+                  Gerar novo tubo/amostra e etiqueta EPL no Labfacil Apoio se necessário
                 </label>
               </div>
 
@@ -5388,7 +5463,7 @@ P1`}
                   Central de Exames Mapeados (DE-PARA)
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Exames do Softlab Apoio que possuem código correspondente vinculado ao Autolac para o laboratório <strong className="text-teal-300">{selectedTenant}</strong>
+                  Exames do Labfacil Apoio que possuem código correspondente vinculado ao Autolac para o laboratório <strong className="text-teal-300">{selectedTenant}</strong>
                 </p>
               </div>
               <button
@@ -5405,9 +5480,9 @@ P1`}
               <div className="flex items-center gap-3">
                 <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>{softlabExames.filter(e => Boolean(e.autolacMapped)).length} Exames Mapeados</span>
+                  <span>{labfacilExames.filter(e => Boolean(e.autolacMapped)).length} Exames Mapeados</span>
                 </div>
-                <span className="text-xs text-slate-400">de {softlabExames.length} exames no catálogo total</span>
+                <span className="text-xs text-slate-400">de {labfacilExames.length} exames no catálogo total</span>
               </div>
 
               <div className="relative w-full sm:w-72">
@@ -5427,16 +5502,16 @@ P1`}
               <table className="w-full text-left text-sm text-slate-300">
                 <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider sticky top-0 border-b border-slate-800 z-10">
                   <tr>
-                    <th className="py-3 px-4 whitespace-nowrap">Cód. Softlab</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Cód. Labfacil</th>
                     <th className="py-3 px-4 whitespace-nowrap">Cód. Autolac</th>
-                    <th className="py-3 px-4">Descrição do Exame (Softlab Apoio)</th>
+                    <th className="py-3 px-4">Descrição do Exame (Labfacil Apoio)</th>
                     <th className="py-3 px-4 whitespace-nowrap">Tipo</th>
                     <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
                     <th className="py-3 px-4 text-right whitespace-nowrap">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                  {softlabExames
+                  {labfacilExames
                     .filter(e => Boolean(e.autolacMapped))
                     .filter(e => {
                       const searchClean = normalizeText(searchMappedModal);
@@ -5448,7 +5523,7 @@ P1`}
                     })
                     .map((exam) => (
                       <tr key={exam.codigo} className="hover:bg-slate-800/40 transition">
-                        {/* 1. CÓDIGO SOFTLAB */}
+                        {/* 1. CÓDIGO LABFACIL */}
                         <td className="py-3 px-4 font-mono text-xs font-bold text-teal-300 whitespace-nowrap">
                           {exam.codigo}
                         </td>
@@ -5527,7 +5602,7 @@ P1`}
                         </td>
                       </tr>
                     ))}
-                  {softlabExames.filter(e => Boolean(e.autolacMapped)).length === 0 && (
+                  {labfacilExames.filter(e => Boolean(e.autolacMapped)).length === 0 && (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
                         Nenhum exame mapeado no momento. Vincule os exames no painel DE-PARA!
@@ -5625,7 +5700,7 @@ P1`}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 flex flex-col">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Terminal className="w-4 h-4 text-cyan-400" /> REST JSON Softlab Apoio
+                    <Terminal className="w-4 h-4 text-cyan-400" /> REST JSON Labfacil Apoio
                   </span>
                   <button
                     type="button"
@@ -5675,7 +5750,7 @@ P1`}
                   Laudo de Diagnóstico Médico - {selectedPdfLog.protocolo}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Paciente: <strong className="text-slate-200">{selectedPdfLog.paciente}</strong> | Apoio: <strong className="text-teal-300">Softlab Apoio</strong> | Status: <span className="text-emerald-400 font-bold">ENTREGUE AO AUTOLAC</span>
+                  Paciente: <strong className="text-slate-200">{selectedPdfLog.paciente}</strong> | Apoio: <strong className="text-teal-300">Labfacil Apoio</strong> | Status: <span className="text-emerald-400 font-bold">ENTREGUE AO AUTOLAC</span>
                 </p>
               </div>
               <button
@@ -5693,7 +5768,7 @@ P1`}
                 {/* LAUDO HEADER */}
                 <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
                   <div>
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">SOFTLAB SOLUÇÕES EM SAÚDE & APOIO</h2>
+                    <h2 className="text-base font-black text-slate-900 tracking-tight">LABFACIL SOLUÇÕES EM SAÚDE & APOIO</h2>
                     <p className="text-[10px] text-slate-600 font-semibold">Laboratório Central de Diagnósticos e Apoio Laboratorial</p>
                   </div>
                   <div className="text-right text-[10px] font-mono text-slate-700">
@@ -6026,7 +6101,7 @@ P1`}
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Upload className="w-5 h-5 text-teal-400" />
                 {importTarget === "depara" ? "Importar Planilha de DE-PARA em Lote (CSV / JSON)" :
-                 importTarget === "softlab" ? "Importar Catálogo do Softlab (CSV / JSON)" :
+                 importTarget === "labfacil" ? "Importar Catálogo do Labfacil (CSV / JSON)" :
                  "Importar Catálogo do Autolac (CSV / JSON)"}
               </h3>
               <button
@@ -6041,7 +6116,7 @@ P1`}
             <div className="space-y-4 text-xs">
               <p className="text-slate-300">
                 {importTarget === "depara"
-                  ? "Selecione um arquivo .csv ou .json contendo as colunas 'codigo_autolac' e 'codigo_softlab' para importar o mapeamento em lote diretamente para o Supabase."
+                  ? "Selecione um arquivo .csv ou .json contendo as colunas 'codigo_autolac' e 'codigo_labfacil' para importar o mapeamento em lote diretamente para o Supabase."
                   : "Selecione um arquivo .csv ou .json com a lista de exames para carregar no catálogo."}
               </p>
 
@@ -6068,7 +6143,7 @@ P1`}
               </div>
 
               {/* CLEAR CATALOG OPTION CHECKBOX */}
-              {importTarget === "softlab" && (
+              {importTarget === "labfacil" && (
                 <label className="flex items-center gap-2 text-slate-300 text-xs cursor-pointer bg-slate-950 p-3 rounded-xl border border-slate-800 hover:border-amber-500/40 transition">
                   <input
                     type="checkbox"
@@ -6092,7 +6167,7 @@ P1`}
                     {parsedImportItems.slice(0, 10).map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-900 text-slate-300">
                         <span className="truncate text-teal-300 font-bold">
-                          {importTarget === "depara" ? `${item.codigo_autolac || item.autolac || 'AUT'} ↔ ${item.codigo_softlab || item.softlab || 'SOFT'}` : (item.codigo || item.code || item.codigo_softlab || item.codigo_autolac || 'ITEM')}
+                          {importTarget === "depara" ? `${item.codigo_autolac || item.autolac || 'AUT'} ↔ ${item.codigo_labfacil || item.labfacil || 'SOFT'}` : (item.codigo || item.code || item.codigo_labfacil || item.codigo_autolac || 'ITEM')}
                         </span>
                         <span className="truncate text-slate-400 max-w-[200px]">
                           {item.descricao || item.nome || item.descricao_autolac || "Item Lido"}
@@ -6128,14 +6203,14 @@ P1`}
         </div>
       )}
 
-      {/* MODAL 4: DETALHES PRÉ-ANALÍTICOS DO EXAME (SOFTLAB API GET /api/TipoDeExame/{codigo}) */}
+      {/* MODAL 4: DETALHES PRÉ-ANALÍTICOS DO EXAME (LABFACIL API GET /api/TipoDeExame/{codigo}) */}
       {examDetailsModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <span className="text-[10px] text-teal-400 font-mono font-bold uppercase tracking-wider block">
-                  API SOFTLAB APOIO • GET /api/TipoDeExame/{examDetailsModal.codigo}
+                  API LABFACIL APOIO • GET /api/TipoDeExame/{examDetailsModal.codigo}
                 </span>
                 <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                   <Info className="w-5 h-5 text-teal-400" />
@@ -6186,7 +6261,7 @@ P1`}
             </div>
 
             <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between font-mono text-[11px]">
-              <span className="text-slate-400">Código no Softlab: <strong className="text-teal-300">{examDetailsModal.codigo}</strong></span>
+              <span className="text-slate-400">Código no Labfacil: <strong className="text-teal-300">{examDetailsModal.codigo}</strong></span>
               <span className="text-slate-400">Formato Laudo: <strong className="text-cyan-300">{examDetailsModal.tipo}</strong></span>
               <span className="text-slate-400">Mapeado Autolac: <strong className="text-amber-300">{examDetailsModal.autolacMapped || 'Pendente'}</strong></span>
             </div>
@@ -6233,7 +6308,7 @@ P1`}
 
       {/* Footer */}
       <footer className="border-t border-slate-800 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
-        MidwayLab SaaS v1.0 • Sistema Multiempresas de Integração Autolac ↔ Softlab Apoio • Hospedado na Vercel com Banco Supabase
+        MidwayLab SaaS v1.0 • Sistema Multiempresas de Integração Autolac ↔ Labfacil Apoio • Hospedado na Vercel com Banco Supabase
       </footer>
     </div>
   );

@@ -18,8 +18,8 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({
     status: 'ONLINE',
-    system: 'MidwayLab SaaS Engine',
-    version: '1.0.0',
+    system: 'MidwayLab SaaS Engine - Labfacil & Equipamentos',
+    version: '2.0.0',
     timestamp: new Date().toISOString(),
   });
 });
@@ -28,14 +28,14 @@ app.get('/health', (req, res) => {
 app.use('/api/v1/autolac/ws', autolacWsRouter);
 app.use('/ProcessaApoioApoiado', autolacWsRouter);
 
-// Inicia o Poller de Resultados do Softlab em segundo plano (a cada 60s)
+// Inicia o Poller de Resultados do Labfacil em segundo plano (a cada 60s)
 ResultPollerWorker.startScheduler(60000);
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`====================================================`);
-    console.log(`  🚀 MidwayLab SaaS Engine Rodando na Porta ${PORT}`);
-    console.log(`  - Endpoint SOAP Autolac: http://localhost:${PORT}/`);
+    console.log(`  🚀 MidwayLab Engine - Integração Labfacil & Equipamentos`);
+    console.log(`  - Porta: ${PORT}`);
     console.log(`  - Health Check: http://localhost:${PORT}/health`);
     console.log(`====================================================`);
   });

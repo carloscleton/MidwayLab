@@ -31,18 +31,18 @@ autolacWsRouter.post('*', async (req: Request, res: Response) => {
       return res.send(errorXml);
     }
 
-    // 2. Mapeamento de Exames (Autolac -> Softlab)
+    // 2. Mapeamento de Exames (Autolac -> Labfacil)
     const examesAutolac = Array.isArray(solicitacao.exame) ? solicitacao.exame : solicitacao.exame ? [solicitacao.exame] : [];
-    const examesSoftlab: string[] = [];
+    const examesLabfacil: string[] = [];
 
     for (const ex of examesAutolac) {
       const codAutolac = ex.codExameLabApoio || ex.idExame || 'EXAME';
       const resolved = await DeparaService.resolveExame(tenant.id, codAutolac);
-      examesSoftlab.push(resolved.codigoSoftlab);
+      examesLabfacil.push(resolved.codigoDestino);
     }
 
-    // 3. Monta Payload para Softlab Apoio REST API
-    const softlabPayload = {
+    // 3. Monta Payload para Labfacil REST API
+    const labfacilPayload = {
       codigoLis: `${local}_${protocolo}`,
       atendimento: cabecalho.atendimento || protocolo,
       paciente: {
@@ -51,55 +51,57 @@ autolacWsRouter.post('*', async (req: Request, res: Response) => {
         sexo: paciente.sexo || 'M',
         cpf: paciente.cpf || '',
       },
-      exames: examesSoftlab,
+      exames: examesLabfacil,
     };
 
-    // 4. Envia para Softlab Apoio
-    const softlabClient = TenantService.createSoftlabClient(tenant);
-    let softlabResult: any = null;
+    // 4. Envia para Labfacil
+    const labfacilClient = TenantService.createLabfacilClient(tenant);
+    let labfacilResult: any = null;
     let recipientes: any[] = [];
 
     try {
-      softlabResult = await softlabClient.criarPedido(softlabPayload);
-      // Busca recipientes/etiquetas do Softlab
-      const amostras = await softlabClient.getAmostras(`${local}_${protocolo}`);
+      labfacilResult = await labfacilClient.criarPedido(labfacilPayload);
+      // Busca recipientes/etiquetas do Labfacil
+      const amostras = await labfacilClient.getAmostras(`${local}_${protocolo}`);
       if (amostras && Array.isArray(amostras.amostras)) {
         recipientes = amostras.amostras.map((a: any) => ({
           codBarras: a.codigoBarras || a.idAmostra || `BAR_${protocolo}`,
-          codEtiqueta: a.etiquetaEpl || a.descricaoTubo || 'ETIQUETA_SOFTLAB',
+          codEtiqueta: a.etiquetaEpl || a.descricaoTubo || 'ETIQUETA_LABFACIL',
         }));
       }
-    } catch (e: any) {
-      console.warn('[AutolacWS] Softlab API retorno simulado ou aviso:', e.message);
+    } catch (apiErr: any) {
+      console.warn('[AutolacWS] Falha ao enviar para Labfacil (usando mock de contingência):', apiErr.message);
       recipientes = [
-        { codBarras: `BAR_${protocolo}_1`, codEtiqueta: 'ETIQUETA_SOFTLAB_01' }
+        { codBarras: `BAR_${protocolo}`, codEtiqueta: 'ETIQUETA_LABFACIL_CONTINGENCIA' }
       ];
     }
 
-    // 5. Registra Pedido no Supabase
+    // 5. Salva no banco Supabase
     await supabase.from('pedidos').insert({
       tenant_id: tenant.id,
       codigo_lote_autolac: parsedXml.codigoLote || 'LOTE_01',
       local_autolac: local,
       protocolo_autolac: protocolo,
       numero_solicitacao: solicitacao.numero || protocolo,
+      codigo_pedido_labfacil: `${local}_${protocolo}`,
       codigo_pedido_softlab: `${local}_${protocolo}`,
       paciente_nome: paciente.nome || 'PACIENTE TESTE',
       paciente_cpf: paciente.cpf || '',
-      status: 'ENVIADO_SOFTLAB',
+      status: 'ENVIADO_LABFACIL',
       payload_autolac_xml: rawBody,
-      payload_softlab_json: JSON.stringify(softlabPayload),
+      payload_labfacil_json: JSON.stringify(labfacilPayload),
+      payload_softlab_json: JSON.stringify(labfacilPayload),
     });
 
-    // 6. Responde SOAP para o Autolac com as Etiquetas Padrão Softlab
+    // 6. Retorna resposta SOAP ao cliente
     const responseXml = AutolacSoapService.buildEtiquetasResponse(local, protocolo, recipientes);
     res.set('Content-Type', 'text/xml');
     return res.send(responseXml);
 
   } catch (error: any) {
-    console.error('[AutolacWS] Erro geral na rota SOAP:', error);
-    const errorXml = AutolacSoapService.buildErroResponse(`Erro interno no MidwayLab: ${error.message}`);
+    console.error('[AutolacWS] Erro geral ao processar SOAP:', error);
+    const errorXml = AutolacSoapService.buildErroResponse(error.message || 'Erro interno no servidor');
     res.set('Content-Type', 'text/xml');
-    return res.send(errorXml);
+    return res.status(500).send(errorXml);
   }
 });

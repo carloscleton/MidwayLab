@@ -1,4 +1,4 @@
--- Script DDL de Criação de Tabelas para o Supabase (Projeto MidwayLab)
+-- Script DDL de Criação de Tabelas para o Supabase (MidwayLab - Integração Labfacil & Equipamentos)
 
 -- 1. Habilitar extensão UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -8,125 +8,136 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nome VARCHAR(255) NOT NULL,
     codigo_entidade VARCHAR(50),
-    identificacao_entidade VARCHAR(255) UNIQUE NOT NULL, -- Login de acesso ao WS do Autolac
-    senha_ws VARCHAR(255) NOT NULL,                    -- Senha de acesso ao WS do Autolac
-    softlab_base_url VARCHAR(255) NOT NULL DEFAULT 'http://apoio.softlabsolucoes.com.br',
-    softlab_login VARCHAR(255) NOT NULL,               -- Credencial API Softlab
-    softlab_senha VARCHAR(255) NOT NULL,               -- Credencial API Softlab
+    identificacao_entidade VARCHAR(255) UNIQUE NOT NULL,
+    senha_ws VARCHAR(255) NOT NULL,
+    labfacil_base_url VARCHAR(255) NOT NULL DEFAULT 'http://apoio.softlabsolucoes.com.br',
+    labfacil_login VARCHAR(255) NOT NULL,
+    labfacil_senha VARCHAR(255) NOT NULL,
+    softlab_base_url VARCHAR(255),
+    softlab_login VARCHAR(255),
+    softlab_senha VARCHAR(255),
+    configuracoes JSONB,
+    usar_catalogo_proprio BOOLEAN DEFAULT false,
     ativo BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Index para busca rápida do Tenant no recebimento da requisição SOAP do Autolac
 CREATE INDEX IF NOT EXISTS idx_tenants_identificacao ON public.tenants(identificacao_entidade);
 
--- 3. Tabela DE-PARA de Exames (por Tenant)
+-- 3. Tabela de Equipamentos por Empresa (Tenant)
+-- Exemplos: CB350 (Bioquímica), YUMIZEN (Hematologia)
+CREATE TABLE IF NOT EXISTS public.equipamentos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    nome VARCHAR(255) NOT NULL,
+    modelo VARCHAR(100) NOT NULL, -- 'CB350', 'YUMIZEN', 'HORIBA_YUMIZEN', etc.
+    codigo_identificador VARCHAR(100),
+    fabricante VARCHAR(100),
+    tipo_comunicacao VARCHAR(50) DEFAULT 'ARQUIVO_COMPARTILHADO', -- 'SERIAL', 'TCP_IP', 'ARQUIVO_COMPARTILHADO', 'API'
+    ip_host VARCHAR(100),
+    porta INTEGER,
+    diretorio_carga VARCHAR(255) DEFAULT 'C:\Equipamentos\Carga',
+    diretorio_resultados VARCHAR(255) DEFAULT 'C:\Equipamentos\Resultados',
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT uq_tenant_equipamento UNIQUE (tenant_id, nome)
+);
+
+CREATE INDEX IF NOT EXISTS idx_equipamentos_tenant ON public.equipamentos(tenant_id);
+
+-- 4. Tabela DE-PARA de Exames (por Tenant e opcionalmente por Equipamento)
 CREATE TABLE IF NOT EXISTS public.depara_exames (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    codigo_autolac VARCHAR(100) NOT NULL,              -- Ex: "T3"
-    descricao_autolac VARCHAR(255),
-    codigo_softlab VARCHAR(100) NOT NULL,              -- Ex: "T3_SOFT"
+    equipamento_id UUID REFERENCES public.equipamentos(id) ON DELETE CASCADE,
+    codigo_labfacil VARCHAR(100) NOT NULL,              -- Ex: "GLI", "HEM"
+    descricao_labfacil VARCHAR(255),
+    codigo_softlab VARCHAR(100),                        -- Compatibilidade
     descricao_softlab VARCHAR(255),
-    tipo_resultado VARCHAR(50) DEFAULT 'PDF',          -- 'ESTRUTURADO' ou 'PDF'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT uq_depara_exame_tenant UNIQUE (tenant_id, codigo_autolac)
+    codigo_equipamento VARCHAR(100),                    -- Ex: "GLUCOSE" no CB350, "CBC" no YUMIZEN
+    canal_equipamento VARCHAR(50),                      -- Canal/rack no analisador
+    codigo_autolac VARCHAR(100),
+    descricao_autolac VARCHAR(255),
+    tipo_resultado VARCHAR(50) DEFAULT 'PADRAO',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Tabela DE-PARA de Convênios e Planos (por Tenant)
-CREATE TABLE IF NOT EXISTS public.depara_convenios (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    codigo_convenio_autolac VARCHAR(100) NOT NULL,
-    codigo_plano_autolac VARCHAR(100),
-    codigo_convenio_softlab VARCHAR(100) NOT NULL,
-    codigo_plano_softlab VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT uq_depara_convenio_tenant UNIQUE (tenant_id, codigo_convenio_autolac, codigo_plano_autolac)
-);
-
--- 5. Tabela Transacional de Pedidos (Log de Envio - Ida)
+-- 5. Tabela Transacional de Pedidos / Cargas de Trabalho
 CREATE TABLE IF NOT EXISTS public.pedidos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    codigo_lote_autolac VARCHAR(100),
-    local_autolac VARCHAR(100) NOT NULL,
-    protocolo_autolac VARCHAR(100) NOT NULL,
+    equipamento_id UUID REFERENCES public.equipamentos(id) ON DELETE SET NULL,
     numero_solicitacao VARCHAR(100),
+    codigo_pedido_labfacil VARCHAR(100),
     codigo_pedido_softlab VARCHAR(100),
     paciente_nome VARCHAR(255),
     paciente_cpf VARCHAR(20),
-    status VARCHAR(50) NOT NULL DEFAULT 'ENVIADO_SOFTLAB', -- 'ENVIADO_SOFTLAB', 'ERRO', 'CONCLUIDO'
+    paciente_sexo VARCHAR(10),
+    origem_arquivo VARCHAR(50) DEFAULT 'LABFACIL_JSON', -- 'LABFACIL_JSON', 'LABFACIL_XML', 'AUTOLAC_SOAP'
+    arquivo_nome VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'PROCESSADO',
     mensagem_erro TEXT,
-    payload_autolac_xml TEXT,
+    payload_labfacil_json TEXT,
     payload_softlab_json TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT uq_pedido_protocolo UNIQUE (tenant_id, local_autolac, protocolo_autolac)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 6. Tabela de Laudos / Resultados (Log de Retorno - Volta)
+-- 6. Tabela de Laudos / Resultados do Equipamento
 CREATE TABLE IF NOT EXISTS public.laudos_historico (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    equipamento_id UUID REFERENCES public.equipamentos(id) ON DELETE SET NULL,
     pedido_id UUID REFERENCES public.pedidos(id) ON DELETE SET NULL,
-    local_autolac VARCHAR(100),
-    protocolo_autolac VARCHAR(100),
+    codigo_exame_labfacil VARCHAR(100),
     codigo_exame_softlab VARCHAR(100),
-    codigo_exame_autolac VARCHAR(100),
-    formato_laudo VARCHAR(50),                         -- 'PDF', 'HTML', 'RTF', 'ESTRUTURADO'
-    status_envio_autolac VARCHAR(50) DEFAULT 'PENDENTE',-- 'PENDENTE', 'ENTREGUE', 'ERRO'
+    codigo_exame_equipamento VARCHAR(100),
+    valor_resultado TEXT,
+    unidade_medida VARCHAR(50),
+    valor_referencia TEXT,
+    formato_laudo VARCHAR(50) DEFAULT 'ESTRUTURADO',
+    status_envio_labfacil VARCHAR(50) DEFAULT 'PENDENTE',
     data_hora_liberacao TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7. Tabela de Usuários do Sistema (SuperAdmin e Clientes)
+-- 7. Tabela de Usuários do Sistema
 CREATE TABLE IF NOT EXISTS public.usuarios (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nome VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     senha VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'tenant',         -- 'admin' ou 'tenant'
+    role VARCHAR(50) NOT NULL DEFAULT 'tenant',
     tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
-    status VARCHAR(50) NOT NULL DEFAULT 'ativo',       -- 'ativo', 'pendente', 'bloqueado'
+    status VARCHAR(50) NOT NULL DEFAULT 'ativo',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 8. Tabela de Solicitações de Acesso (Self-Service)
-CREATE TABLE IF NOT EXISTS public.solicitacoes_acesso (
+-- 8. Tabela de Catálogo de Exames do Labfacil (Cache)
+CREATE TABLE IF NOT EXISTS public.catalogo_labfacil_exames (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nome_lab VARCHAR(255) NOT NULL,
-    nome_responsavel VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    cnpj VARCHAR(50) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'PENDENTE',    -- 'PENDENTE', 'APROVADO', 'REJEITADO'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 9. Tabela de Catálogo de Exames do Softlab (Cache no Supabase)
-CREATE TABLE IF NOT EXISTS public.catalogo_softlab_exames (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    codigo VARCHAR(100) UNIQUE NOT NULL,
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    codigo VARCHAR(100) NOT NULL,
     descricao VARCHAR(255) NOT NULL,
     abreviacao VARCHAR(100),
-    tipo_resultado VARCHAR(50) DEFAULT 'PDF',
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    tipo_resultado VARCHAR(50) DEFAULT 'PADRAO',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT uq_catalogo_labfacil_tenant UNIQUE (tenant_id, codigo)
 );
-
--- 10. Tabela de Catálogo de Exames do Autolac (Cache no Supabase)
-CREATE TABLE IF NOT EXISTS public.catalogo_autolac_exames (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    codigo VARCHAR(100) UNIQUE NOT NULL,
-    nome VARCHAR(255) NOT NULL,
-    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE
-);
-
 
 -- SEED DATA INICIAL
-INSERT INTO public.tenants (id, nome, codigo_entidade, identificacao_entidade, senha_ws, softlab_base_url, softlab_login, softlab_senha)
-VALUES ('11111111-1111-1111-1111-111111111111', 'LAB. ARES - SOFTLAB (San Mathews)', '1', 'yorod23826@gcont.com', 'Soft@2026', 'http://apoio.softlabsolucoes.com.br', 'carloscleton@gmail.com', 'Carlos@2026')
+INSERT INTO public.tenants (id, nome, codigo_entidade, identificacao_entidade, senha_ws, labfacil_base_url, labfacil_login, labfacil_senha)
+VALUES ('11111111-1111-1111-1111-111111111111', 'LAB. ARES - LABFACIL (San Mathews)', '1', 'yorod23826@gcont.com', 'Soft@2026', 'http://apoio.softlabsolucoes.com.br', 'carloscleton@gmail.com', 'Carlos@2026')
 ON CONFLICT (identificacao_entidade) DO NOTHING;
+
+-- Equipamentos Seed para o Tenant de demonstração (CB350 e YUMIZEN)
+INSERT INTO public.equipamentos (id, tenant_id, nome, modelo, fabricante, tipo_comunicacao)
+VALUES 
+  ('22222222-2222-2222-2222-222222222221', '11111111-1111-1111-1111-111111111111', 'Bioquímica Central CB350', 'CB350', 'Cormay', 'ARQUIVO_COMPARTILHADO'),
+  ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Hematologia Bancada Yumizen', 'YUMIZEN', 'Horiba', 'ARQUIVO_COMPARTILHADO')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO public.usuarios (nome, email, senha, role, tenant_id, status)
 VALUES ('Carlos Cleton', 'carloscleton.nat@gmail.com', 'admin', 'admin', NULL, 'ativo')
@@ -135,85 +146,3 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO public.usuarios (nome, email, senha, role, tenant_id, status)
 VALUES ('Atendimento San Mathews', 'atendimento@sanmathews.com.br', '123', 'tenant', '11111111-1111-1111-1111-111111111111', 'ativo')
 ON CONFLICT (email) DO NOTHING;
-
--- =========================================================================
--- CRIAÇÃO DOS USUÁRIOS NO PAINEL DE AUTHENTICATION DO SUPABASE (auth.users)
--- =========================================================================
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- 1. Inserir SuperAdmin Carlos Cleton no Supabase Auth NATIVO (auth.users)
-DO $$
-BEGIN
-   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'carloscleton.nat@gmail.com') THEN
-      INSERT INTO auth.users (
-        instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-        raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at
-      )
-      VALUES (
-        '00000000-0000-0000-0000-000000000000',
-        'a0000000-0000-0000-0000-000000000001',
-        'authenticated', 'authenticated',
-        'carloscleton.nat@gmail.com',
-        crypt('admin', gen_salt('bf')),
-        now(),
-        '{"provider":"email","providers":["email"]}',
-        '{"nome":"Carlos Cleton","role":"admin"}',
-        false, now(), now()
-      );
-   END IF;
-END $$;
-
-DO $$
-BEGIN
-   IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = 'a0000000-0000-0000-0000-000000000001') THEN
-      INSERT INTO auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-      VALUES (
-        'a0000000-0000-0000-0000-000000000001',
-        'a0000000-0000-0000-0000-000000000001',
-        'a0000000-0000-0000-0000-000000000001',
-        '{"sub":"a0000000-0000-0000-0000-000000000001","email":"carloscleton.nat@gmail.com"}',
-        'email', now(), now(), now()
-      );
-   END IF;
-END $$;
-
--- 2. Inserir Cliente San Mathews no Supabase Auth NATIVO (auth.users)
-DO $$
-BEGIN
-   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'atendimento@sanmathews.com.br') THEN
-      INSERT INTO auth.users (
-        instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-        raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at
-      )
-      VALUES (
-        '00000000-0000-0000-0000-000000000000',
-        'a0000000-0000-0000-0000-000000000002',
-        'authenticated', 'authenticated',
-        'atendimento@sanmathews.com.br',
-        crypt('123', gen_salt('bf')),
-        now(),
-        '{"provider":"email","providers":["email"]}',
-        '{"nome":"Atendimento San Mathews","role":"tenant","tenant_id":"11111111-1111-1111-1111-111111111111"}',
-        false, now(), now()
-      );
-   END IF;
-END $$;
-
-DO $$
-BEGIN
-   IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = 'a0000000-0000-0000-0000-000000000002') THEN
-      INSERT INTO auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-      VALUES (
-        'a0000000-0000-0000-0000-000000000002',
-        'a0000000-0000-0000-0000-000000000002',
-        'a0000000-0000-0000-0000-000000000002',
-        '{"sub":"a0000000-0000-0000-0000-000000000002","email":"atendimento@sanmathews.com.br"}',
-        'email', now(), now(), now()
-      );
-   END IF;
-END $$;
-
-
-
-

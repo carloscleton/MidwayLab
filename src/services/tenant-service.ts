@@ -1,11 +1,11 @@
 import axios from 'axios';
 import { supabase, ITenantRecord } from '../db/supabase';
 import { supabaseBrowser } from '../lib/supabase-client';
-import { SoftlabClient } from '../clients/softlab-client';
+import { LabfacilClient } from '../clients/labfacil-client';
 
 export class TenantService {
   /**
-   * Busca a empresa/tenant no Supabase pelo login enviado pelo Autolac (Identificação da entidade)
+   * Busca a empresa/tenant no Supabase pelo login enviado (Identificação da entidade)
    */
   static async getTenantByIdentificacao(identificacaoEntidade: string): Promise<ITenantRecord | null> {
     const { data, error } = await supabase
@@ -49,6 +49,10 @@ export class TenantService {
     const isCustomCatalog = tenant.usar_catalogo_proprio !== undefined ? Boolean(tenant.usar_catalogo_proprio) : false;
     const existingConfigs = tenant.configuracoes || {};
 
+    const baseUrl = tenant.labfacil_base_url || tenant.softlab_base_url || existingConfigs?.labfacil?.base_url || existingConfigs?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
+    const login = tenant.labfacil_login || tenant.softlab_login || existingConfigs?.labfacil?.login || existingConfigs?.softlab?.login || '';
+    const senha = tenant.labfacil_senha || tenant.softlab_senha || existingConfigs?.labfacil?.senha || existingConfigs?.softlab?.senha || '';
+
     const payload: any = {
       nome: tenant.nome,
       codigo_entidade: tenant.codigo_entidade || '1',
@@ -60,10 +64,15 @@ export class TenantService {
           identificacao_entidade: tenant.identificacao_entidade,
           senha_ws: tenant.senha_ws || existingConfigs?.autolac?.senha_ws || ''
         },
+        labfacil: {
+          base_url: baseUrl,
+          login: login,
+          senha: senha
+        },
         softlab: {
-          base_url: tenant.softlab_base_url || existingConfigs?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br',
-          login: tenant.softlab_login || existingConfigs?.softlab?.login || '',
-          senha: tenant.softlab_senha || existingConfigs?.softlab?.senha || ''
+          base_url: baseUrl,
+          login: login,
+          senha: senha
         },
         usar_catalogo_proprio: isCustomCatalog
       },
@@ -75,8 +84,17 @@ export class TenantService {
     }
 
     try {
-      // 1. Try saving with top-level column + configuracoes JSONB
-      const fullPayload = { ...payload, usar_catalogo_proprio: isCustomCatalog };
+      const fullPayload = {
+        ...payload,
+        labfacil_base_url: baseUrl,
+        labfacil_login: login,
+        labfacil_senha: senha,
+        softlab_base_url: baseUrl,
+        softlab_login: login,
+        softlab_senha: senha,
+        usar_catalogo_proprio: isCustomCatalog
+      };
+      
       const { data, error } = await supabaseBrowser
         .from('tenants')
         .upsert(fullPayload)
@@ -87,7 +105,6 @@ export class TenantService {
         return data as ITenantRecord;
       }
 
-      // 2. Fallback: If top-level column is missing in DB schema, save inside configuracoes JSONB
       const { data: fallbackData, error: fallbackError } = await supabaseBrowser
         .from('tenants')
         .upsert(payload)
@@ -107,27 +124,34 @@ export class TenantService {
   }
 
   /**
-   * Instancia um cliente Softlab parametrizado com as credenciais daquele Tenant
+   * Instancia um cliente Labfacil parametrizado com as credenciais daquele Tenant
    */
-  static createSoftlabClient(tenant: ITenantRecord): SoftlabClient {
-    const baseUrl = tenant.softlab_base_url || tenant.configuracoes?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
-    const login = tenant.softlab_login || tenant.configuracoes?.softlab?.login || '';
-    const senha = tenant.softlab_senha || tenant.configuracoes?.softlab?.senha || '';
-    return new SoftlabClient(baseUrl, login, senha);
+  static createLabfacilClient(tenant: ITenantRecord): LabfacilClient {
+    const baseUrl = tenant.labfacil_base_url || tenant.softlab_base_url || tenant.configuracoes?.labfacil?.base_url || tenant.configuracoes?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
+    const login = tenant.labfacil_login || tenant.softlab_login || tenant.configuracoes?.labfacil?.login || tenant.configuracoes?.softlab?.login || '';
+    const senha = tenant.labfacil_senha || tenant.softlab_senha || tenant.configuracoes?.labfacil?.senha || tenant.configuracoes?.softlab?.senha || '';
+    return new LabfacilClient(baseUrl, login, senha);
+  }
+
+  // Alias para retrocompatibilidade
+  static createSoftlabClient(tenant: ITenantRecord): LabfacilClient {
+    return this.createLabfacilClient(tenant);
   }
 
   /**
-   * Valida em TEMPO REAL e INDIVIDUALMENTE as credenciais da API Softlab Apoio e a conectividade do WebService Autolac via Rota Server-Side
+   * Valida em TEMPO REAL e INDIVIDUALMENTE as credenciais da API Labfacil e conectividade
    */
   static async testarConexaoTenant(
-    softlabLogin: string,
-    softlabSenha: string,
+    labfacilLogin: string,
+    labfacilSenha: string,
     wsUrl: string,
-    softlabBaseUrl?: string,
+    labfacilBaseUrl?: string,
     identificacaoEntidade?: string,
     senhaWs?: string,
-    targetService: 'softlab' | 'autolac' | 'both' = 'both'
+    targetService: 'labfacil' | 'softlab' | 'autolac' | 'both' = 'both'
   ): Promise<{
+    labfacilSuccess?: boolean;
+    labfacilMsg?: string;
     softlabSuccess?: boolean;
     softlabMsg?: string;
     autolacSuccess?: boolean;
@@ -138,23 +162,33 @@ export class TenantService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          softlabLogin,
-          softlabSenha,
-          softlabBaseUrl: softlabBaseUrl || 'http://apoio.softlabsolucoes.com.br',
+          labfacilLogin,
+          labfacilSenha,
+          labfacilBaseUrl: labfacilBaseUrl || 'http://apoio.softlabsolucoes.com.br',
+          softlabLogin: labfacilLogin,
+          softlabSenha: labfacilSenha,
+          softlabBaseUrl: labfacilBaseUrl,
           wsUrl,
           identificacaoEntidade,
           senhaWs,
-          targetService
+          targetService: targetService === 'softlab' ? 'labfacil' : targetService
         })
       });
 
       if (response.ok) {
-        return await response.json();
+        const json = await response.json();
+        return {
+          ...json,
+          labfacilSuccess: json.labfacilSuccess ?? json.softlabSuccess,
+          labfacilMsg: json.labfacilMsg ?? json.softlabMsg,
+        };
       }
       throw new Error(`Servidor respondeu com status ${response.status}`);
     } catch (err: any) {
       console.error('[TenantService] Erro ao testar conexão via API route:', err);
       return {
+        labfacilSuccess: false,
+        labfacilMsg: `Erro ao executar teste individual: ${err.message}`,
         softlabSuccess: false,
         softlabMsg: `Erro ao executar teste individual: ${err.message}`,
         autolacSuccess: false,
@@ -163,4 +197,3 @@ export class TenantService {
     }
   }
 }
-

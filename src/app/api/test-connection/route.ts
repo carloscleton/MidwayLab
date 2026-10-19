@@ -4,57 +4,72 @@ import axios from 'axios';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { softlabLogin, softlabSenha, softlabBaseUrl, wsUrl, identificacaoEntidade, senhaWs, targetService } = body;
+    const {
+      labfacilLogin,
+      labfacilSenha,
+      labfacilBaseUrl,
+      softlabLogin,
+      softlabSenha,
+      softlabBaseUrl,
+      wsUrl,
+      identificacaoEntidade,
+      senhaWs,
+      targetService
+    } = body;
 
-    const runSoftlab = !targetService || targetService === 'both' || targetService === 'softlab';
+    const loginLabfacil = labfacilLogin || softlabLogin;
+    const senhaLabfacil = labfacilSenha || softlabSenha;
+    const baseUrlLabfacil = labfacilBaseUrl || softlabBaseUrl;
+
+    const runLabfacil = !targetService || targetService === 'both' || targetService === 'labfacil' || targetService === 'softlab';
     const runAutolac = !targetService || targetService === 'both' || targetService === 'autolac';
 
-    let softlabSuccess: boolean | undefined = undefined;
-    let softlabMsg: string | undefined = undefined;
+    let labfacilSuccess: boolean | undefined = undefined;
+    let labfacilMsg: string | undefined = undefined;
     let autolacSuccess: boolean | undefined = undefined;
     let autolacMsg: string | undefined = undefined;
 
     // -------------------------------------------------------------------------
-    // 1. TESTE INDIVIDUAL DA API REST DO SOFTLAB APOIO
+    // 1. TESTE INDIVIDUAL DA API REST DO LABFACIL
     // -------------------------------------------------------------------------
-    if (runSoftlab) {
-      const targetSoftlabUrl = (softlabBaseUrl && softlabBaseUrl.startsWith('http'))
-        ? softlabBaseUrl.replace(/\/$/, '')
+    if (runLabfacil) {
+      const targetLabfacilUrl = (baseUrlLabfacil && baseUrlLabfacil.startsWith('http'))
+        ? baseUrlLabfacil.replace(/\/$/, '')
         : 'http://apoio.softlabsolucoes.com.br';
 
-      if (!softlabLogin || !softlabSenha) {
-        softlabSuccess = false;
-        softlabMsg = "Informe o Login e a Senha da API Softlab Apoio.";
+      if (!loginLabfacil || !senhaLabfacil) {
+        labfacilSuccess = false;
+        labfacilMsg = "Informe o Login e a Senha da API Labfacil.";
       } else {
         try {
-          console.log(`[TestConnection API] Testando Softlab REST em ${targetSoftlabUrl}/api/Autenticacao/autenticar com login '${softlabLogin}'...`);
-          const softlabResponse = await axios.post(
-            `${targetSoftlabUrl}/api/Autenticacao/autenticar`,
-            { login: softlabLogin, senha: softlabSenha },
+          console.log(`[TestConnection API] Testando Labfacil REST em ${targetLabfacilUrl}/api/Autenticacao/autenticar com login '${loginLabfacil}'...`);
+          const labfacilResponse = await axios.post(
+            `${targetLabfacilUrl}/api/Autenticacao/autenticar`,
+            { login: loginLabfacil, senha: senhaLabfacil },
             { timeout: 8000 }
           );
 
-          if (softlabResponse.data && (softlabResponse.data.token || softlabResponse.data.minutosAteExpirar)) {
-            softlabSuccess = true;
-            softlabMsg = `✓ Softlab API 200 OK - Credenciais autenticadas com sucesso no servidor (${targetSoftlabUrl})!`;
+          if (labfacilResponse.data && (labfacilResponse.data.token || labfacilResponse.data.minutosAteExpirar)) {
+            labfacilSuccess = true;
+            labfacilMsg = `✓ Labfacil API 200 OK - Credenciais autenticadas com sucesso no servidor (${targetLabfacilUrl})!`;
           } else {
-            softlabSuccess = false;
-            softlabMsg = `Softlab respondeu, mas não retornou um Token válido (${targetSoftlabUrl}).`;
+            labfacilSuccess = false;
+            labfacilMsg = `Labfacil respondeu, mas não retornou um Token válido (${targetLabfacilUrl}).`;
           }
         } catch (err: any) {
-          softlabSuccess = false;
+          labfacilSuccess = false;
           if (err.response) {
             if (err.response.status === 401 || err.response.status === 400) {
-              softlabMsg = `❌ Erro ${err.response.status}: Credenciais (Login '${softlabLogin}' / Senha) recusadas pela API Softlab em ${targetSoftlabUrl}.`;
+              labfacilMsg = `❌ Erro ${err.response.status}: Credenciais (Login '${loginLabfacil}' / Senha) recusadas pela API Labfacil em ${targetLabfacilUrl}.`;
             } else {
-              softlabMsg = `❌ Resposta da API Softlab (HTTP ${err.response.status}): ${err.response.data?.message || err.response.data?.mensagem || err.response.statusText}`;
+              labfacilMsg = `❌ Resposta da API Labfacil (HTTP ${err.response.status}): ${err.response.data?.message || err.response.data?.mensagem || err.response.statusText}`;
             }
           } else if (err.code === "ENOTFOUND" || err.code === "EAI_AGAIN") {
-            softlabMsg = `❌ Servidor do Softlab não encontrado no domínio '${targetSoftlabUrl}'. Verifique a URL.`;
+            labfacilMsg = `❌ Servidor do Labfacil não encontrado no domínio '${targetLabfacilUrl}'. Verifique a URL.`;
           } else if (err.code === "ETIMEDOUT" || err.code === "ECONNABORTED") {
-            softlabMsg = `❌ Timeout: Servidor Softlab em '${targetSoftlabUrl}' não respondeu em 8s.`;
+            labfacilMsg = `❌ Timeout: Servidor Labfacil em '${targetLabfacilUrl}' não respondeu em 8s.`;
           } else {
-            softlabMsg = `❌ Falha na conexão com Softlab: ${err.message}`;
+            labfacilMsg = `❌ Falha na conexão com Labfacil: ${err.message}`;
           }
         }
       }
@@ -77,11 +92,9 @@ export async function POST(request: Request) {
           console.log(`[TestConnection API] Testando Autolac em ${targetWsUrl} com entidade '${identificacaoEntidade}'...`);
           let isTested = false;
 
-          // 1. Tenta autenticação na REST API do Autolac (/Api/Inter-Autolac/Login)
           try {
             const apoiadoNum = parseInt(identificacaoEntidade, 10);
             
-            // Garante que a senha vá em formato Base64 exigido pela API Autolac
             let base64Senha = senhaWs;
             if (!/^[A-Za-z0-9+/=]+$/.test(senhaWs) || senhaWs.length % 4 !== 0 || senhaWs.includes('@')) {
               base64Senha = Buffer.from(senhaWs).toString('base64');
@@ -92,7 +105,6 @@ export async function POST(request: Request) {
               senha: base64Senha
             };
 
-            console.log(`[TestConnection API] Tentando POST ${targetWsUrl}/Api/Inter-Autolac/Login com apoiadoId=${loginPayload.apoiadoId}...`);
             const loginRes = await axios.post(`${targetWsUrl}/Api/Inter-Autolac/Login`, loginPayload, { timeout: 5000 });
             if (loginRes.status === 200 && loginRes.data?.success !== false) {
               autolacSuccess = true;
@@ -111,10 +123,8 @@ export async function POST(request: Request) {
             }
           }
 
-          // 2. Tenta Health Check na API do Autolac (/Api/Health)
           if (!isTested) {
             try {
-              console.log(`[TestConnection API] Tentando GET ${targetWsUrl}/Api/Health...`);
               const healthRes = await axios.get(`${targetWsUrl}/Api/Health`, { timeout: 4000 });
               if (healthRes.status === 200) {
                 autolacSuccess = true;
@@ -126,20 +136,12 @@ export async function POST(request: Request) {
             }
           }
 
-          // 3. Fallback: Teste WSDL SOAP
           if (!isTested) {
             const pingUrl = targetWsUrl.endsWith('wsdl') ? targetWsUrl : `${targetWsUrl}/?wsdl`;
-            console.log(`[TestConnection API] Tentando GET SOAP WSDL ${pingUrl}...`);
             const wsRes = await axios.get(pingUrl, { timeout: 6000 });
             if (wsRes.status === 200) {
-              const dataStr = String(wsRes.data || '');
-              if (dataStr.includes('SoftlabWeb Apoio') || dataStr.includes('SoftlabWeb')) {
-                autolacSuccess = false;
-                autolacMsg = `⚠️ A URL ${targetWsUrl} é o portal "SoftlabWeb Apoio" (HTML), e NÃO o WebService Autolac! Utilize a URL da Lifesys: http://homolog.app.lifesys.com.br:5030`;
-              } else {
-                autolacSuccess = true;
-                autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
-              }
+              autolacSuccess = true;
+              autolacMsg = `✓ WebService Autolac SOAP Online (WSDL 200 OK) - Entidade: '${identificacaoEntidade}' em ${targetWsUrl}!`;
             } else {
               autolacSuccess = false;
               autolacMsg = `❌ Resposta do WebService Autolac (HTTP ${wsRes.status}) em ${targetWsUrl}.`;
@@ -163,13 +165,17 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      softlabSuccess,
-      softlabMsg,
+      labfacilSuccess,
+      labfacilMsg,
+      softlabSuccess: labfacilSuccess,
+      softlabMsg: labfacilMsg,
       autolacSuccess,
       autolacMsg
     });
   } catch (error: any) {
     return NextResponse.json({
+      labfacilSuccess: false,
+      labfacilMsg: `Erro interno no servidor: ${error.message}`,
       softlabSuccess: false,
       softlabMsg: `Erro interno no servidor: ${error.message}`,
       autolacSuccess: false,

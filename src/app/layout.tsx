@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MidwayLab SaaS - Plataforma de Integração Autolac ↔ Softlab Apoio",
-  description: "Sistema Multiempresas intermediário para sincronização de atendimentos, exames, laudos e DE-PARA entre Autolac e Softlab Apoio.",
+  title: "MidwayLab SaaS - Plataforma de Integração Labfacil ↔ Equipamentos",
+  description: "Sistema Multiempresas intermediário para sincronização de atendimentos, exames, equipamentos (CB350, YUMIZEN) e DE-PARA com o Labfacil.",
 };
 
 export default function RootLayout({

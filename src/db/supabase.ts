@@ -51,6 +51,11 @@ export interface ITenantRecord {
       identificacao_entidade?: string;
       senha_ws?: string;
     };
+    labfacil?: {
+      base_url?: string;
+      login?: string;
+      senha?: string;
+    };
     softlab?: {
       base_url?: string;
       login?: string;
@@ -60,6 +65,9 @@ export interface ITenantRecord {
   };
   senha_ws?: string;
   ws_url?: string;
+  labfacil_base_url?: string;
+  labfacil_login?: string;
+  labfacil_senha?: string;
   softlab_base_url?: string;
   softlab_login?: string;
   softlab_senha?: string;
@@ -69,17 +77,39 @@ export interface ITenantRecord {
   updated_at?: string;
 }
 
+export interface IEquipamentoRecord {
+  id?: string;
+  tenant_id: string;
+  nome: string;               // Ex: "Bioquímica Central", "Hematologia Bancada"
+  modelo: string;             // Ex: "CB350", "YUMIZEN", "HORIBA_YUMIZEN", "GENERICO"
+  codigo_identificador?: string; // Ex: "CB350-01"
+  fabricante?: string;        // Ex: "Cormay", "Horiba"
+  tipo_comunicacao?: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' | 'API';
+  ip_host?: string;
+  porta?: number;
+  diretorio_carga?: string;   // Pasta de entrada onde o equipamento lê JSON/XML/ASTM
+  diretorio_resultados?: string; // Pasta onde o equipamento cospe resultados
+  ativo: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface IDeparaExameRecord {
   id?: string;
   tenant_id: string;
-  codigo_autolac: string;
+  equipamento_id?: string | null;
+  codigo_autolac?: string;
   descricao_autolac?: string;
-  codigo_softlab: string;
-  descricao_softlab?: string;
+  codigo_labfacil: string;
+  descricao_labfacil?: string;
+  codigo_softlab?: string;     // alias de compatibilidade
+  descricao_softlab?: string;  // alias de compatibilidade
+  codigo_equipamento?: string; // Código correspondente no analisador (CB350 / Yumizen)
+  canal_equipamento?: string;  // Canal/parâmetro no analisador
   tipo_resultado?: string;
 }
 
-export interface ICatalogoSoftlabRecord {
+export interface ICatalogoLabfacilRecord {
   id?: string;
   tenant_id?: string | null;
   codigo: string;
@@ -88,6 +118,9 @@ export interface ICatalogoSoftlabRecord {
   tipo_resultado?: string;
   updated_at?: string;
 }
+
+// Alias legado de compatibilidade
+export type ICatalogoSoftlabRecord = ICatalogoLabfacilRecord;
 
 export interface ICatalogoAutolacRecord {
   id?: string;
@@ -99,17 +132,25 @@ export interface ICatalogoAutolacRecord {
 export interface IPedidoRecord {
   id?: string;
   tenant_id: string;
+  equipamento_id?: string | null;
   codigo_lote_autolac?: string;
-  local_autolac: string;
-  protocolo_autolac: string;
+  local_autolac?: string;
+  protocolo_autolac?: string;
   numero_solicitacao?: string;
-  codigo_pedido_softlab?: string;
+  codigo_pedido_labfacil?: string;
+  codigo_pedido_softlab?: string; // alias
   paciente_nome?: string;
   paciente_cpf?: string;
+  paciente_sexo?: string;
+  paciente_nascimento?: string;
+  origem_arquivo?: 'LABFACIL_JSON' | 'LABFACIL_XML' | 'AUTOLAC_SOAP' | 'MANUAL';
   status: string;
   mensagem_erro?: string;
   payload_autolac_xml?: string;
-  payload_softlab_json?: string;
+  payload_labfacil_json?: string;
+  payload_softlab_json?: string; // alias
+  arquivo_nome?: string;
+  created_at?: string;
 }
 
 export interface IUsuarioRecord {
