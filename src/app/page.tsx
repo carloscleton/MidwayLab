@@ -650,6 +650,7 @@ export default function MidwayLabDashboard() {
         // 3. Fetch DE-PARA Mappings & Labfacil Catalog for the Active Tenant
         const activeTenantObj = mappedTenants.find(t => t.nome === selectedTenant) || mappedTenants[0];
         await loadLabfacilCatalogForTenant(activeTenantObj?.id, activeTenantObj);
+        await loadEquipamentosForTenant(activeTenantObj?.id);
 
         // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames with Deduplication
         const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac(activeTenantObj?.id);
@@ -1487,6 +1488,21 @@ export default function MidwayLabDashboard() {
   const [logFilterDirection, setLogFilterDirection] = useState<"TODOS" | "IDA" | "VOLTA">("TODOS");
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
+  // CARREGAR EQUIPAMENTOS VINCULADOS EXCLUSIVAMENTE À EMPRESA (TENANT) ATIVA
+  const loadEquipamentosForTenant = async (tenantId?: string) => {
+    try {
+      if (!tenantId) {
+        setEquipamentosList([]);
+        return;
+      }
+      const data = await EquipamentoService.listarEquipamentos(tenantId);
+      setEquipamentosList(data || []);
+    } catch (e) {
+      console.warn("[Dashboard] Erro ao carregar equipamentos do tenant:", e);
+      setEquipamentosList([]);
+    }
+  };
+
   // CHANGE ACTIVE TENANT & RE-FETCH DE-PARA MAPPINGS SPECIFIC TO THAT LABORATORY
   const handleSelectTenantChange = (tenantNome: string) => {
     startTransition(() => {
@@ -1507,6 +1523,7 @@ export default function MidwayLabDashboard() {
     setTimeout(() => {
       startTransition(async () => {
         await loadLabfacilCatalogForTenant(tenantId, activeTenant);
+        await loadEquipamentosForTenant(tenantId);
       });
     }, 10);
   };
@@ -2686,7 +2703,10 @@ export default function MidwayLabDashboard() {
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
             }`}
           >
-            <Server className="w-4 h-4 text-cyan-400" /> Equipamentos ({equipamentosList.length})
+            <Server className="w-4 h-4 text-cyan-400" /> Equipamentos ({equipamentosList.filter(eq => {
+              const activeT = tenants.find(t => t.nome === selectedTenant);
+              return activeT ? eq.tenant_id === activeT.id : false;
+            }).length})
           </button>
 
           {/* TAB: INGESTÃO ARQUIVOS LABFACIL */}
@@ -4180,9 +4200,28 @@ export default function MidwayLabDashboard() {
               </button>
             </div>
 
-            {/* LISTA DE EQUIPAMENTOS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {equipamentosList.map((eq) => (
+            {/* LISTA DE EQUIPAMENTOS FILTRADOS POR EMPRESA */}
+            {(() => {
+              const activeT = tenants.find(t => t.nome === selectedTenant);
+              const filteredEquips = equipamentosList.filter(eq => activeT ? eq.tenant_id === activeT.id : true);
+
+              if (filteredEquips.length === 0) {
+                return (
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center mx-auto">
+                      <Server className="w-6 h-6" />
+                    </div>
+                    <h3 className="font-bold text-slate-200 text-sm">Nenhum equipamento cadastrado para {selectedTenant}</h3>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      Esta empresa ainda não possui analisadores vinculados. Clique no botão acima para cadastrar o primeiro equipamento (ex.: CB350, YUMIZEN).
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredEquips.map((eq) => (
                 <div key={eq.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 hover:border-teal-500/40 transition">
                   <div className="flex items-start justify-between">
                     <div>
@@ -4238,8 +4277,10 @@ export default function MidwayLabDashboard() {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 
