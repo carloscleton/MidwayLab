@@ -199,6 +199,8 @@ export default function MidwayLabDashboard() {
     }
   ]);
   const [selectedEquipamentoId, setSelectedEquipamentoId] = useState<string>("eq-1");
+  const [isTestingEquipConnection, setIsTestingEquipConnection] = useState(false);
+  const [equipTestResult, setEquipTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isEquipamentoModalOpen, setIsEquipamentoModalOpen] = useState(false);
   const [editingEquipamento, setEditingEquipamento] = useState<IEquipamentoRecord | null>(null);
   const [equipamentoForm, setEquipamentoForm] = useState<Partial<IEquipamentoRecord>>({
@@ -4586,18 +4588,26 @@ export default function MidwayLabDashboard() {
 
       </main>
 
-      {/* MODAL: CADASTRAR / EDITAR EQUIPAMENTO */}
+      {/* MODAL: CADASTRAR / EDITAR EQUIPAMENTO UNIVERSAL */}
       {isEquipamentoModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl relative">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl max-h-[90vh] rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Server className="w-5 h-5 text-teal-400" />
-                {editingEquipamento ? "Editar Equipamento" : "Cadastrar Novo Equipamento"}
-              </h3>
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <Server className="w-5 h-5 text-teal-400" />
+                  {editingEquipamento ? "Editar Analisador / Equipamento" : "Cadastrar Novo Analisador Laboratorial"}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Compatível com qualquer analisador via TCP/IP (ASTM/HL7), Pasta de Carga ou Serial
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setIsEquipamentoModalOpen(false)}
+                onClick={() => {
+                  setIsEquipamentoModalOpen(false);
+                  setEquipTestResult(null);
+                }}
                 className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -4623,88 +4633,230 @@ export default function MidwayLabDashboard() {
                     }
                     return [...prev, saved];
                   });
-                  showNotification(`Equipamento ${saved.nome} salvo com sucesso!`);
+                  showNotification(`✓ Equipamento ${saved.nome} salvo para ${selectedTenant}!`);
                 }
                 setIsEquipamentoModalOpen(false);
+                setEquipTestResult(null);
               }}
-              className="space-y-3 text-xs"
+              className="space-y-4 text-xs"
             >
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nome do Equipamento / Bancada</label>
+                <label className="block text-slate-300 font-semibold mb-1">Nome do Equipamento / Bancada</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex.: Bioquímica Central CB350"
+                  placeholder="Ex.: Bioquímica Central CB350 / Hematologia Yumizen"
                   value={equipamentoForm.nome || ""}
                   onChange={(e) => setEquipamentoForm({ ...equipamentoForm, nome: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Modelo do Analisador</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Modelo do Analisador</label>
                   <select
                     value={equipamentoForm.modelo || "CB350"}
                     onChange={(e) => {
                       const mod = e.target.value;
-                      const fab = mod.includes("YUMIZEN") ? "Horiba" : "Cormay";
-                      setEquipamentoForm({ ...equipamentoForm, modelo: mod, fabricante: fab });
+                      let fab = "Fabricante Geral";
+                      let tipoCom = equipamentoForm.tipo_comunicacao || "TCP_IP";
+                      if (mod === "CB350") { fab = "Cormay"; tipoCom = "ARQUIVO_COMPARTILHADO"; }
+                      else if (mod === "YUMIZEN") { fab = "Horiba"; tipoCom = "TCP_IP"; }
+                      else if (mod === "SYSMEX") { fab = "Sysmex"; tipoCom = "TCP_IP"; }
+                      else if (mod === "MINDRAY") { fab = "Mindray"; tipoCom = "TCP_IP"; }
+                      else if (mod === "ROCHE_COBAS") { fab = "Roche Diagnostics"; tipoCom = "TCP_IP"; }
+                      setEquipamentoForm({ ...equipamentoForm, modelo: mod, fabricante: fab, tipo_comunicacao: tipoCom as any });
                     }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   >
-                    <option value="CB350">CB350 (Bioquímica)</option>
-                    <option value="YUMIZEN">YUMIZEN (Hematologia)</option>
-                    <option value="GENERICO">Outro Modelo</option>
+                    <option value="CB350">CB350 (Bioquímica - Cormay)</option>
+                    <option value="YUMIZEN">YUMIZEN (Hematologia - Horiba)</option>
+                    <option value="SYSMEX">Sysmex (Hematologia)</option>
+                    <option value="MINDRAY">Mindray (Bioquímica / Hematologia)</option>
+                    <option value="ROCHE_COBAS">Roche Cobas</option>
+                    <option value="GENERICO">⚙️ Outro Modelo (Padrão ASTM / HL7)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Fabricante</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Fabricante</label>
                   <input
                     type="text"
                     value={equipamentoForm.fabricante || ""}
                     onChange={(e) => setEquipamentoForm({ ...equipamentoForm, fabricante: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Diretório de Carga (Pasta Compartilhada)</label>
-                <input
-                  type="text"
-                  placeholder="C:\Equipamentos\Carga"
-                  value={equipamentoForm.diretorio_carga || ""}
-                  onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_carga: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
-                />
-              </div>
+              {/* TIPO DE COMUNICAÇÃO UNIVERSAL */}
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60">
+                  <span className="font-bold text-teal-300 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-teal-400" /> Modo de Comunicação & Protocolo
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Padrão Internacional</span>
+                </div>
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Diretório de Resultados do Equipamento</label>
-                <input
-                  type="text"
-                  placeholder="C:\Equipamentos\Resultados"
-                  value={equipamentoForm.diretorio_resultados || ""}
-                  onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_resultados: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEquipamentoForm({ ...equipamentoForm, tipo_comunicacao: "TCP_IP" })}
+                    className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer font-bold ${
+                      equipamentoForm.tipo_comunicacao === "TCP_IP"
+                        ? "bg-teal-500/15 border-teal-500/40 text-teal-300 shadow-sm"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    🌐 Rede TCP/IP
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEquipamentoForm({ ...equipamentoForm, tipo_comunicacao: "ARQUIVO_COMPARTILHADO" })}
+                    className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer font-bold ${
+                      equipamentoForm.tipo_comunicacao === "ARQUIVO_COMPARTILHADO"
+                        ? "bg-teal-500/15 border-teal-500/40 text-teal-300 shadow-sm"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    📁 Pasta Carga
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEquipamentoForm({ ...equipamentoForm, tipo_comunicacao: "SERIAL" })}
+                    className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer font-bold ${
+                      equipamentoForm.tipo_comunicacao === "SERIAL"
+                        ? "bg-teal-500/15 border-teal-500/40 text-teal-300 shadow-sm"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    🔌 Serial (RS-232)
+                  </button>
+                </div>
+
+                {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP */}
+                {equipamentoForm.tipo_comunicacao === "TCP_IP" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-300 font-semibold mb-1">Endereço IP do Analisador</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 192.168.1.50"
+                        value={equipamentoForm.ip_host || ""}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, ip_host: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Porta TCP</label>
+                      <input
+                        type="number"
+                        placeholder="Ex: 5100"
+                        value={equipamentoForm.porta || ""}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || undefined })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* CAMPOS ESPECÍFICOS DE PASTA COMPARTILHADA */}
+                {equipamentoForm.tipo_comunicacao === "ARQUIVO_COMPARTILHADO" && (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Diretório de Carga (Pasta Compartilhada)</label>
+                      <input
+                        type="text"
+                        placeholder="C:\Equipamentos\Carga"
+                        value={equipamentoForm.diretorio_carga || ""}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_carga: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Diretório de Resultados do Equipamento</label>
+                      <input
+                        type="text"
+                        placeholder="C:\Equipamentos\Resultados"
+                        value={equipamentoForm.diretorio_resultados || ""}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_resultados: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* BOTÃO E REPORT DE TESTE DE CONEXÃO */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-800/60">
+                  <button
+                    type="button"
+                    disabled={isTestingEquipConnection}
+                    onClick={async () => {
+                      setIsTestingEquipConnection(true);
+                      setEquipTestResult(null);
+                      try {
+                        const res = await fetch("/api/test-equipment-connection", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            tipoComunicacao: equipamentoForm.tipo_comunicacao || "TCP_IP",
+                            ipHost: equipamentoForm.ip_host,
+                            porta: equipamentoForm.porta,
+                            diretorioCarga: equipamentoForm.diretorio_carga,
+                            diretorioResultados: equipamentoForm.diretorio_resultados
+                          })
+                        });
+                        const data = await res.json();
+                        setEquipTestResult(data);
+                      } catch (err: any) {
+                        setEquipTestResult({ success: false, message: `Falha no teste: ${err.message}` });
+                      } finally {
+                        setIsTestingEquipConnection(false);
+                      }
+                    }}
+                    className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingEquipConnection ? "animate-spin" : ""}`} />
+                    {isTestingEquipConnection ? "Testando Conexão..." : "⚡ Testar Conexão com o Analisador"}
+                  </button>
+
+                  <span className="text-[10px] text-slate-400 font-mono text-center sm:text-right">
+                    Protocolo: {equipamentoForm.modelo === "CB350" ? "Worklist / JSON" : "ASTM E1394"}
+                  </span>
+                </div>
+
+                {equipTestResult && (
+                  <div className={`p-3 rounded-xl border text-xs font-mono ${
+                    equipTestResult.success
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                      : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                  }`}>
+                    {equipTestResult.message}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsEquipamentoModalOpen(false)}
+                  onClick={() => {
+                    setIsEquipamentoModalOpen(false);
+                    setEquipTestResult(null);
+                  }}
                   className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition cursor-pointer shadow-lg shadow-teal-500/20"
                 >
-                  Salvar Equipamento
+                  Salvar Analisador
                 </button>
               </div>
             </form>
