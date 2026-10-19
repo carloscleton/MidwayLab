@@ -196,4 +196,41 @@ export class TenantService {
       };
     }
   }
+  /**
+   * Salva configurações específicas de Ingestão de Pastas no JSONB da empresa (Tenant)
+   */
+  static async salvarConfigIngestaoPastas(tenantId: string, configIngestao: any): Promise<boolean> {
+    try {
+      // 1. Busca configurações atuais
+      const { data: tenant, error: fetchErr } = await supabaseBrowser
+        .from("tenants")
+        .select("configuracoes")
+        .eq("id", tenantId)
+        .single();
+
+      const existingConfigs = tenant?.configuracoes || {};
+      const updatedConfigs = {
+        ...existingConfigs,
+        ingestao_pastas: {
+          ...(existingConfigs.ingestao_pastas || {}),
+          ...configIngestao,
+          atualizado_em: new Date().toISOString()
+        }
+      };
+
+      const { error: updateErr } = await supabaseBrowser
+        .from("tenants")
+        .update({ configuracoes: updatedConfigs })
+        .eq("id", tenantId);
+
+      if (updateErr) {
+        console.warn("[TenantService] Erro ao salvar configuracoes.ingestao_pastas:", updateErr.message);
+        return false;
+      }
+      return true;
+    } catch (err: any) {
+      console.error("[TenantService] Falha ao atualizar configuracao JSONB:", err.message);
+      return false;
+    }
+  }
 }

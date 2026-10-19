@@ -668,6 +668,7 @@ export default function MidwayLabDashboard() {
         const activeTenantObj = mappedTenants.find(t => t.nome === selectedTenant) || mappedTenants[0];
         await loadLabfacilCatalogForTenant(activeTenantObj?.id, activeTenantObj);
         await loadEquipamentosForTenant(activeTenantObj?.id);
+        loadWatcherConfigForTenant(activeTenantObj);
 
         // 5. Fetch Autolac Catalog from Supabase Table catalogo_autolac_exames with Deduplication
         const dbAutolacCatalog = await DeparaService.listarCatalogoAutolac(activeTenantObj?.id);
@@ -1581,6 +1582,26 @@ export default function MidwayLabDashboard() {
     };
   }, [isWatcherRunning, localDirHandle, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
+  // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT)
+  const loadWatcherConfigForTenant = (tenantObj: any) => {
+    if (!tenantObj) return;
+    const jsonbConfig = tenantObj.configuracoes?.ingestao_pastas;
+
+    // Nome sanitizado da empresa para criar pastas personalizadas por padrão
+    const cleanLabName = (tenantObj.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
+
+    const configPorEmpresa = {
+      diretorioEntrada: jsonbConfig?.diretorio_entrada || `C:\\Labfacil\\${cleanLabName}\\Pedidos`,
+      diretorioProcessados: jsonbConfig?.diretorio_processados || `C:\\Labfacil\\${cleanLabName}\\Processados`,
+      diretorioErros: jsonbConfig?.diretorio_erros || `C:\\Labfacil\\${cleanLabName}\\Erros`,
+      equipamentoDestino: jsonbConfig?.equipamento_destino || "CB350",
+      ativo: Boolean(jsonbConfig?.monitor_ativo)
+    };
+
+    setWatcherConfig(configPorEmpresa);
+    setIsWatcherRunning(configPorEmpresa.ativo);
+  };
+
   // CARREGAR EQUIPAMENTOS VINCULADOS EXCLUSIVAMENTE À EMPRESA (TENANT) ATIVA
   const loadEquipamentosForTenant = async (tenantId?: string) => {
     try {
@@ -1617,6 +1638,7 @@ export default function MidwayLabDashboard() {
       startTransition(async () => {
         await loadLabfacilCatalogForTenant(tenantId, activeTenant);
         await loadEquipamentosForTenant(tenantId);
+        loadWatcherConfigForTenant(activeTenant);
       });
     }, 10);
   };
@@ -4385,6 +4407,58 @@ export default function MidwayLabDashboard() {
                 <div>
                   <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                     <RefreshCw className={`w-5 h-5 text-teal-400 ${isWatcherRunning ? "animate-spin" : ""}`} />
+                    Monitoramento de Pastas por Empresa (Gravado em JSONB)
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Caminhos e configurações personalizados gravados no banco Supabase para <strong>{selectedTenant}</strong>.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* SALVAR NO JSONB DO SUPABASE */}
+                  <button
+                    type="button"
+                    disabled={isSavingWatcherConfig}
+                    onClick={async () => {
+                      setIsSavingWatcherConfig(true);
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (!activeTenant) return;
+
+                      const payloadJsonb = {
+                        diretorio_entrada: watcherConfig.diretorioEntrada,
+                        diretorio_processados: watcherConfig.diretorioProcessados,
+                        diretorio_erros: watcherConfig.diretorioErros,
+                        equipamento_destino: watcherConfig.equipamentoDestino,
+                        monitor_ativo: isWatcherRunning
+                      };
+
+                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb);
+                      if (ok) {
+                        // Atualiza localmente no objeto do tenant
+                        activeTenant.configuracoes = {
+                          ...(activeTenant.configuracoes || {}),
+                          ingestao_pastas: payloadJsonb
+                        };
+                        showNotification(`💾 Configurações de pasta salvas no banco Supabase (JSONB) para ${selectedTenant}!`);
+                      } else {
+                        showNotification(`Erro ao salvar no banco Supabase.`);
+                      }
+                      setIsSavingWatcherConfig(false);
+                    }}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/20"
+                  >
+                    <Save className="w-4 h-4" /> 💾 Salvar Configurações no Banco ({selectedTenant.slice(0, 15)}...)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <span className="text-xs text-slate-400 font-mono">
+                  Status do Monitor: <strong className={isWatcherRunning ? "text-emerald-400" : "text-slate-500"}>{isWatcherRunning ? "🟢 ATIVO / LIGADO" : "⚪ PAUSADO / DESLIGADO"}</strong>
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <RefreshCw className={`w-5 h-5 text-teal-400 ${isWatcherRunning ? "animate-spin" : ""}`} />
                     Monitoramento Automático de Pastas (Watcher Autônomo)
                   </h3>
                   <p className="text-xs text-slate-400">
@@ -4431,7 +4505,18 @@ export default function MidwayLabDashboard() {
                       if (novoEstado && localDirHandle) {
                         scanLocalDirectory(localDirHandle);
                       }
-                      showNotification(novoEstado ? "▶️ Monitoramento automático ligado!" : "⏸️ Monitoramento automático desligado.");
+                      // Persistir estado no JSONB da empresa ativa
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (activeTenant) {
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                          diretorio_entrada: watcherConfig.diretorioEntrada,
+                          diretorio_processados: watcherConfig.diretorioProcessados,
+                          diretorio_erros: watcherConfig.diretorioErros,
+                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          monitor_ativo: novoEstado
+                        });
+                      }
+                      showNotification(novoEstado ? "▶️ Monitoramento automático ligado e salvo no banco!" : "⏸️ Monitoramento automático desligado e salvo no banco.");
                     }}
                     className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-lg ${
                       isWatcherRunning
