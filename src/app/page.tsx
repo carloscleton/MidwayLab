@@ -640,6 +640,7 @@ export default function MidwayLabDashboard() {
           labfacil_senha: t.labfacil_senha || (t.configuracoes?.labfacil?.senha) || "",
           usarCatalogoProprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
+          configuracoes: t.configuracoes || {},
           ultimoLote: "1",
           status: t.ativo ? "ONLINE" : "OFFLINE"
         }));
@@ -1543,7 +1544,8 @@ export default function MidwayLabDashboard() {
 
               setGeneratedWorklists(prev => [...generated, ...prev]);
 
-              // 1. COPIAR PARA A PASTA DE PROCESSADOS (se selecionada)
+              // 1. COPIAR PARA A PASTA DE PROCESSADOS
+              let copiedSuccessfully = false;
               if (dirProcHandle) {
                 try {
                   const targetFileName = `${file.name.replace(/\.[^/.]+$/, "")}_${Date.now()}${file.name.slice(file.name.lastIndexOf("."))}`;
@@ -1551,8 +1553,24 @@ export default function MidwayLabDashboard() {
                   const writable = await newFileHandle.createWritable();
                   await writable.write(text);
                   await writable.close();
+                  copiedSuccessfully = true;
                 } catch (copyErr) {
-                  console.warn("Aviso ao copiar para processados:", copyErr);
+                  console.warn("Aviso ao copiar para processados escolhida:", copyErr);
+                }
+              }
+
+              // Fallback automático: se o usuário não escolheu a pasta de processados explicitamente, tenta criar uma subpasta 'Processados' na própria pasta de entrada
+              if (!copiedSuccessfully && dirEntradaHandle?.getDirectoryHandle) {
+                try {
+                  const autoProcDir = await dirEntradaHandle.getDirectoryHandle("Processados", { create: true });
+                  const targetFileName = `${file.name.replace(/\.[^/.]+$/, "")}_${Date.now()}${file.name.slice(file.name.lastIndexOf("."))}`;
+                  const newFileHandle = await autoProcDir.getFileHandle(targetFileName, { create: true });
+                  const writable = await newFileHandle.createWritable();
+                  await writable.write(text);
+                  await writable.close();
+                  copiedSuccessfully = true;
+                } catch (fallbackErr) {
+                  console.warn("Aviso ao criar subpasta Processados automática:", fallbackErr);
                 }
               }
 
@@ -4428,7 +4446,7 @@ export default function MidwayLabDashboard() {
                 <div>
                   <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                     <RefreshCw className={`w-5 h-5 text-teal-400 ${isWatcherRunning ? "animate-spin" : ""}`} />
-                    Monitoramento de Pastas por Empresa (Gravado em JSONB)
+                    Monitoramento Automático de Pastas por Empresa (Gravado em JSONB)
                   </h3>
                   <p className="text-xs text-slate-400">
                     Caminhos e configurações personalizados gravados no banco Supabase para <strong>{selectedTenant}</strong>.
@@ -4436,87 +4454,6 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* SALVAR NO JSONB DO SUPABASE */}
-                  <button
-                    type="button"
-                    disabled={isSavingWatcherConfig}
-                    onClick={async () => {
-                      setIsSavingWatcherConfig(true);
-                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                      if (!activeTenant) return;
-
-                      const payloadJsonb = {
-                        diretorio_entrada: watcherConfig.diretorioEntrada,
-                        diretorio_processados: watcherConfig.diretorioProcessados,
-                        diretorio_erros: watcherConfig.diretorioErros,
-                        equipamento_destino: watcherConfig.equipamentoDestino,
-                        monitor_ativo: isWatcherRunning
-                      };
-
-                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb);
-                      if (ok) {
-                        // Atualiza localmente no objeto do tenant
-                        activeTenant.configuracoes = {
-                          ...(activeTenant.configuracoes || {}),
-                          ingestao_pastas: payloadJsonb
-                        };
-                        showNotification(`💾 Configurações de pasta salvas no banco Supabase (JSONB) para ${selectedTenant}!`);
-                      } else {
-                        showNotification(`Erro ao salvar no banco Supabase.`);
-                      }
-                      setIsSavingWatcherConfig(false);
-                    }}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/20"
-                  >
-                    <Save className="w-4 h-4" /> 💾 Salvar Configurações no Banco ({selectedTenant.slice(0, 15)}...)
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <span className="text-xs text-slate-400 font-mono">
-                  Status do Monitor: <strong className={isWatcherRunning ? "text-emerald-400" : "text-slate-500"}>{isWatcherRunning ? "🟢 ATIVO / LIGADO" : "⚪ PAUSADO / DESLIGADO"}</strong>
-                </span>
-                <div>
-                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    <RefreshCw className={`w-5 h-5 text-teal-400 ${isWatcherRunning ? "animate-spin" : ""}`} />
-                    Monitoramento Automático de Pastas (Watcher Autônomo)
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    O sistema monitora a pasta em segundo plano e, ao detectar qualquer arquivo XML ou JSON gerado pelo Labfacil, cria os diretórios automaticamente (se não existirem), processa os pedidos e gera a carga para o equipamento.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* SELECIONAR PASTA NATIVA DO WINDOWS */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        // @ts-ignore
-                        if (window.showDirectoryPicker) {
-                          // @ts-ignore
-                          const handle = await window.showDirectoryPicker();
-                          setHandleEntrada(handle);
-                          setWatcherConfig(prev => ({ ...prev, diretorioEntrada: handle.name || "Pasta Selecionada" }));
-                          setIsWatcherRunning(true);
-                          await scanLocalDirectory(handle, handleProcessados);
-                          showNotification(`📁 Pasta "${handle.name}" conectada! Monitoramento automático ativado.`);
-                        } else {
-                          // Fallback tradicional
-                          setIsWatcherRunning(!isWatcherRunning);
-                        }
-                      } catch (err: any) {
-                        if (err.name !== "AbortError") {
-                          showNotification(`Erro ao abrir pasta: ${err.message}`);
-                        }
-                      }
-                    }}
-                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-teal-500/20"
-                  >
-                    <Folder className="w-4 h-4" /> 📁 Selecionar Pasta Local (C:\Labfacil\Pedidos)
-                  </button>
-
                   {/* TOGGLE LIGAR / DESLIGAR */}
                   <button
                     type="button"
@@ -4562,6 +4499,40 @@ export default function MidwayLabDashboard() {
                       🔄 Varrer Agora
                     </button>
                   )}
+
+                  {/* SALVAR NO JSONB DO SUPABASE */}
+                  <button
+                    type="button"
+                    disabled={isSavingWatcherConfig}
+                    onClick={async () => {
+                      setIsSavingWatcherConfig(true);
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (!activeTenant) return;
+
+                      const payloadJsonb = {
+                        diretorio_entrada: watcherConfig.diretorioEntrada,
+                        diretorio_processados: watcherConfig.diretorioProcessados,
+                        diretorio_erros: watcherConfig.diretorioErros,
+                        equipamento_destino: watcherConfig.equipamentoDestino,
+                        monitor_ativo: isWatcherRunning
+                      };
+
+                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb);
+                      if (ok) {
+                        activeTenant.configuracoes = {
+                          ...(activeTenant.configuracoes || {}),
+                          ingestao_pastas: payloadJsonb
+                        };
+                        showNotification(`💾 Configurações de pastas salvas no banco Supabase para ${selectedTenant}!`);
+                      } else {
+                        showNotification(`Erro ao salvar no banco Supabase.`);
+                      }
+                      setIsSavingWatcherConfig(false);
+                    }}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/20"
+                  >
+                    <Save className="w-4 h-4" /> 💾 Salvar no Banco
+                  </button>
                 </div>
               </div>
 
@@ -4582,10 +4553,24 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleEntrada(handle);
-                            setWatcherConfig(prev => ({ ...prev, diretorioEntrada: handle.name || "C:\\Labfacil\\Pedidos" }));
+                            const pathName = handle.name || "C:\\Labfacil\\Pedidos";
+                            setWatcherConfig(prev => {
+                              const updated = { ...prev, diretorioEntrada: pathName };
+                              const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                              if (activeTenant) {
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                                  diretorio_entrada: pathName,
+                                  diretorio_processados: prev.diretorioProcessados,
+                                  diretorio_erros: prev.diretorioErros,
+                                  equipamento_destino: prev.equipamentoDestino,
+                                  monitor_ativo: true
+                                });
+                              }
+                              return updated;
+                            });
                             setIsWatcherRunning(true);
                             scanLocalDirectory(handle, handleProcessados);
-                            showNotification(`📁 Pasta de Entrada "${handle.name}" conectada!`);
+                            showNotification(`📁 Pasta de Entrada "${handle.name}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4599,7 +4584,11 @@ export default function MidwayLabDashboard() {
                   <input
                     type="text"
                     value={watcherConfig.diretorioEntrada}
-                    onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioEntrada: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setWatcherConfig(prev => ({ ...prev, diretorioEntrada: val }));
+                    }}
+                    placeholder="Ex: C:\Labfacil\Pedidos"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-teal-300 focus:outline-none text-[11px]"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">
@@ -4622,8 +4611,22 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleProcessados(handle);
-                            setWatcherConfig(prev => ({ ...prev, diretorioProcessados: handle.name || "C:\\Labfacil\\Processados" }));
-                            showNotification(`📦 Pasta de Processados "${handle.name}" conectada!`);
+                            const pathName = handle.name || "C:\\Labfacil\\Processados";
+                            setWatcherConfig(prev => {
+                              const updated = { ...prev, diretorioProcessados: pathName };
+                              const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                              if (activeTenant) {
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                                  diretorio_entrada: prev.diretorioEntrada,
+                                  diretorio_processados: pathName,
+                                  diretorio_erros: prev.diretorioErros,
+                                  equipamento_destino: prev.equipamentoDestino,
+                                  monitor_ativo: isWatcherRunning
+                                });
+                              }
+                              return updated;
+                            });
+                            showNotification(`📦 Pasta de Processados "${handle.name}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4637,11 +4640,15 @@ export default function MidwayLabDashboard() {
                   <input
                     type="text"
                     value={watcherConfig.diretorioProcessados}
-                    onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioProcessados: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setWatcherConfig(prev => ({ ...prev, diretorioProcessados: val }));
+                    }}
+                    placeholder="Ex: C:\Labfacil\Processados"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-cyan-300 focus:outline-none text-[11px]"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">
-                    Arquivos processados são copiados para cá como histórico seguro.
+                    Arquivos lidos na pasta Pedidos são movidos para cá.
                   </span>
                 </div>
 
@@ -4660,8 +4667,22 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleErros(handle);
-                            setWatcherConfig(prev => ({ ...prev, diretorioErros: handle.name || "C:\\Labfacil\\Erros" }));
-                            showNotification(`⚠️ Pasta de Erros "${handle.name}" conectada!`);
+                            const pathName = handle.name || "C:\\Labfacil\\Erros";
+                            setWatcherConfig(prev => {
+                              const updated = { ...prev, diretorioErros: pathName };
+                              const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                              if (activeTenant) {
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                                  diretorio_entrada: prev.diretorioEntrada,
+                                  diretorio_processados: prev.diretorioProcessados,
+                                  diretorio_erros: pathName,
+                                  equipamento_destino: prev.equipamentoDestino,
+                                  monitor_ativo: isWatcherRunning
+                                });
+                              }
+                              return updated;
+                            });
+                            showNotification(`⚠️ Pasta de Erros "${handle.name}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4675,7 +4696,11 @@ export default function MidwayLabDashboard() {
                   <input
                     type="text"
                     value={watcherConfig.diretorioErros}
-                    onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioErros: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setWatcherConfig(prev => ({ ...prev, diretorioErros: val }));
+                    }}
+                    placeholder="Ex: C:\Labfacil\Erros"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-rose-300 focus:outline-none text-[11px]"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">
