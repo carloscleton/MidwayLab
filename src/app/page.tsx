@@ -225,7 +225,9 @@ export default function MidwayLabDashboard() {
   });
   const [watcherLogs, setWatcherLogs] = useState<Array<{ id: string; timestamp: string; arquivo: string; status: string; mensagem: string }>>([]);
   const [isWatcherRunning, setIsWatcherRunning] = useState(false);
-  const [localDirHandle, setLocalDirHandle] = useState<any>(null);
+  const [handleEntrada, setHandleEntrada] = useState<any>(null);
+  const [handleProcessados, setHandleProcessados] = useState<any>(null);
+  const [handleErros, setHandleErros] = useState<any>(null);
   const [processedFileNames, setProcessedFileNames] = useState<Set<string>>(new Set());
 
   const [isSavingWatcherConfig, setIsSavingWatcherConfig] = useState(false);
@@ -1507,16 +1509,14 @@ export default function MidwayLabDashboard() {
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
   // VARREDURA NATIVA NO NAVEGADOR VIA FILE SYSTEM ACCESS API
-  const scanLocalDirectory = async (dirHandle: any) => {
-    if (!dirHandle) return;
+  const scanLocalDirectory = async (dirEntradaHandle: any, dirProcHandle?: any) => {
+    if (!dirEntradaHandle) return;
     try {
-      let foundAny = false;
       // @ts-ignore
-      for await (const entry of dirHandle.values()) {
+      for await (const entry of dirEntradaHandle.values()) {
         if (entry.kind === "file") {
           const lower = entry.name.toLowerCase();
           if ((lower.endsWith(".xml") || lower.endsWith(".json")) && !processedFileNames.has(entry.name)) {
-            foundAny = true;
             const file = await entry.getFile();
             const text = await file.text();
             
@@ -1524,7 +1524,6 @@ export default function MidwayLabDashboard() {
               const orders = LabfacilParserService.parseFile(text, file.name);
               setParsedLabfacilOrders(prev => [...orders, ...prev]);
 
-              // Mapeamentos
               const mapMapeamentos = new Map<string, string>();
               labfacilExames.forEach(ex => {
                 if (ex.autolacMapped) {
@@ -1544,43 +1543,65 @@ export default function MidwayLabDashboard() {
 
               setGeneratedWorklists(prev => [...generated, ...prev]);
 
-              // Registrar log no Watcher
+              // 1. COPIAR PARA A PASTA DE PROCESSADOS (se selecionada)
+              if (dirProcHandle) {
+                try {
+                  const targetFileName = `${file.name.replace(/\.[^/.]+$/, "")}_${Date.now()}${file.name.slice(file.name.lastIndexOf("."))}`;
+                  const newFileHandle = await dirProcHandle.getFileHandle(targetFileName, { create: true });
+                  const writable = await newFileHandle.createWritable();
+                  await writable.write(text);
+                  await writable.close();
+                } catch (copyErr) {
+                  console.warn("Aviso ao copiar para processados:", copyErr);
+                }
+              }
+
+              // 2. APAGAR DA PASTA DE ENTRADA
+              try {
+                // @ts-ignore
+                if (dirEntradaHandle.removeEntry) {
+                  await dirEntradaHandle.removeEntry(entry.name);
+                }
+              } catch (delErr) {
+                console.warn("Aviso ao apagar da entrada:", delErr);
+              }
+
               setWatcherLogs(prev => [
                 {
                   id: `log-${Date.now()}`,
                   timestamp: new Date().toLocaleTimeString("pt-BR"),
                   arquivo: file.name,
                   status: "PROCESSADO",
-                  mensagem: `Lido com sucesso (${orders.length} pedidos, ${orders[0]?.exames?.length || 0} exames)`
+                  mensagem: `Lido, movido para Processados e apagado da Entrada (${orders[0]?.exames?.length || 0} exames)`
                 },
                 ...prev
               ]);
 
               setProcessedFileNames(prev => new Set(prev).add(entry.name));
-              showNotification(`⚡ Novo arquivo detectado na pasta: ${file.name}! Pedidos carregados automaticamente.`);
+              showNotification(`⚡ ${file.name} lido com sucesso, arquivado em Processados e removido da Entrada!`);
             } catch (err: any) {
-              console.warn("Erro ao processar arquivo da pasta:", err);
+              console.warn("Erro ao processar arquivo:", err);
             }
           }
         }
       }
     } catch (e: any) {
-      console.warn("Erro ao varrer pasta local:", e);
+      console.warn("Erro na varredura:", e);
     }
   };
 
   // LOOP DE MONITORAMENTO DA PASTA NO NAVEGADOR
   useEffect(() => {
     let interval: any = null;
-    if (isWatcherRunning && localDirHandle) {
+    if (isWatcherRunning && handleEntrada) {
       interval = setInterval(() => {
-        scanLocalDirectory(localDirHandle);
-      }, 3000); // Checa a cada 3 segundos
+        scanLocalDirectory(handleEntrada, handleProcessados);
+      }, 3000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isWatcherRunning, localDirHandle, processedFileNames, selectedTargetEquipamento, labfacilExames]);
+  }, [isWatcherRunning, handleEntrada, handleProcessados, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
   // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT)
   const loadWatcherConfigForTenant = (tenantObj: any) => {
@@ -4476,10 +4497,10 @@ export default function MidwayLabDashboard() {
                         if (window.showDirectoryPicker) {
                           // @ts-ignore
                           const handle = await window.showDirectoryPicker();
-                          setLocalDirHandle(handle);
+                          setHandleEntrada(handle);
                           setWatcherConfig(prev => ({ ...prev, diretorioEntrada: handle.name || "Pasta Selecionada" }));
                           setIsWatcherRunning(true);
-                          await scanLocalDirectory(handle);
+                          await scanLocalDirectory(handle, handleProcessados);
                           showNotification(`📁 Pasta "${handle.name}" conectada! Monitoramento automático ativado.`);
                         } else {
                           // Fallback tradicional
@@ -4502,8 +4523,8 @@ export default function MidwayLabDashboard() {
                     onClick={() => {
                       const novoEstado = !isWatcherRunning;
                       setIsWatcherRunning(novoEstado);
-                      if (novoEstado && localDirHandle) {
-                        scanLocalDirectory(localDirHandle);
+                      if (novoEstado && handleEntrada) {
+                        scanLocalDirectory(handleEntrada, handleProcessados);
                       }
                       // Persistir estado no JSONB da empresa ativa
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
@@ -4529,11 +4550,11 @@ export default function MidwayLabDashboard() {
                   </button>
 
                   {/* VARREDURA MANUAL */}
-                  {localDirHandle && (
+                  {handleEntrada && (
                     <button
                       type="button"
                       onClick={() => {
-                        scanLocalDirectory(localDirHandle);
+                        scanLocalDirectory(handleEntrada, handleProcessados);
                         showNotification("🔄 Varredura na pasta executada!");
                       }}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl font-semibold text-xs transition cursor-pointer"
@@ -4544,48 +4565,122 @@ export default function MidwayLabDashboard() {
                 </div>
               </div>
 
-              {/* CONFIGURAÇÃO DOS CAMINHOS DAS PASTAS */}
+              {/* SELETORES E CAMINHOS INDIVIDUAIS: ENTRADA, PROCESSADOS E ERROS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
-                <div>
-                  <label className="block text-slate-300 font-semibold font-sans mb-1">
-                    📁 Pasta de Entrada (Onde o Labfacil grava XML):
-                  </label>
+                {/* 1. ENTRADA */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-teal-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-bold font-sans flex items-center gap-1.5">
+                      📁 Pasta de ENTRADA (Pedidos)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          // @ts-ignore
+                          if (window.showDirectoryPicker) {
+                            // @ts-ignore
+                            const handle = await window.showDirectoryPicker();
+                            setHandleEntrada(handle);
+                            setWatcherConfig(prev => ({ ...prev, diretorioEntrada: handle.name || "C:\\Labfacil\\Pedidos" }));
+                            setIsWatcherRunning(true);
+                            scanLocalDirectory(handle, handleProcessados);
+                            showNotification(`📁 Pasta de Entrada "${handle.name}" conectada!`);
+                          }
+                        } catch (err: any) {
+                          if (err.name !== "AbortError") showNotification(err.message);
+                        }
+                      }}
+                      className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-[11px] font-sans cursor-pointer transition shadow"
+                    >
+                      📂 Escolher Pasta
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={watcherConfig.diretorioEntrada}
                     onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioEntrada: e.target.value })}
-                    placeholder="C:\Labfacil\Pedidos"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 focus:outline-none focus:border-teal-400"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-teal-300 focus:outline-none text-[11px]"
                   />
-                  <span className="text-[10px] text-slate-500 font-sans block mt-1">Cria a pasta automaticamente se não existir</span>
+                  <span className="text-[10px] text-slate-400 font-sans block">
+                    O sistema vigia esta pasta, lê o XML e apaga após processar.
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold font-sans mb-1">
-                    📦 Pasta de Processados (Histórico/Backup):
-                  </label>
+                {/* 2. PROCESSADOS */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-cyan-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-bold font-sans flex items-center gap-1.5">
+                      📦 Pasta de PROCESSADOS (Backup)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          // @ts-ignore
+                          if (window.showDirectoryPicker) {
+                            // @ts-ignore
+                            const handle = await window.showDirectoryPicker();
+                            setHandleProcessados(handle);
+                            setWatcherConfig(prev => ({ ...prev, diretorioProcessados: handle.name || "C:\\Labfacil\\Processados" }));
+                            showNotification(`📦 Pasta de Processados "${handle.name}" conectada!`);
+                          }
+                        } catch (err: any) {
+                          if (err.name !== "AbortError") showNotification(err.message);
+                        }
+                      }}
+                      className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-[11px] font-sans cursor-pointer transition shadow"
+                    >
+                      📂 Escolher Pasta
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={watcherConfig.diretorioProcessados}
                     onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioProcessados: e.target.value })}
-                    placeholder="C:\Labfacil\Processados"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-cyan-300 focus:outline-none focus:border-teal-400"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-cyan-300 focus:outline-none text-[11px]"
                   />
-                  <span className="text-[10px] text-slate-500 font-sans block mt-1">Arquivos já lidos são movidos para cá</span>
+                  <span className="text-[10px] text-slate-400 font-sans block">
+                    Arquivos processados são copiados para cá como histórico seguro.
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold font-sans mb-1">
-                    ⚠️ Pasta de Erros / Falhas:
-                  </label>
+                {/* 3. ERROS */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-rose-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-bold font-sans flex items-center gap-1.5">
+                      ⚠️ Pasta de ERROS / FALHAS
+                    </label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          // @ts-ignore
+                          if (window.showDirectoryPicker) {
+                            // @ts-ignore
+                            const handle = await window.showDirectoryPicker();
+                            setHandleErros(handle);
+                            setWatcherConfig(prev => ({ ...prev, diretorioErros: handle.name || "C:\\Labfacil\\Erros" }));
+                            showNotification(`⚠️ Pasta de Erros "${handle.name}" conectada!`);
+                          }
+                        } catch (err: any) {
+                          if (err.name !== "AbortError") showNotification(err.message);
+                        }
+                      }}
+                      className="bg-rose-500 hover:bg-rose-400 text-white font-bold px-2.5 py-1 rounded-lg text-[11px] font-sans cursor-pointer transition shadow"
+                    >
+                      📂 Escolher Pasta
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={watcherConfig.diretorioErros}
                     onChange={(e) => setWatcherConfig({ ...watcherConfig, diretorioErros: e.target.value })}
-                    placeholder="C:\Labfacil\Erros"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-rose-300 focus:outline-none focus:border-teal-400"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-rose-300 focus:outline-none text-[11px]"
                   />
-                  <span className="text-[10px] text-slate-500 font-sans block mt-1">Arquivos corrompidos ou com falhas de XML</span>
+                  <span className="text-[10px] text-slate-400 font-sans block">
+                    Arquivos corrompidos ou com XML inválido são movidos para cá.
+                  </span>
                 </div>
               </div>
 
@@ -4741,18 +4836,66 @@ export default function MidwayLabDashboard() {
                           )}
                         </div>
 
-                        {/* LISTA DE EXAMES DO PEDIDO */}
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-slate-400 font-semibold">Relação de Exames Solicitados pelo Labfacil:</span>
-                          <div className="flex flex-wrap gap-2">
-                            {order.exames.map((ex, exIdx) => (
-                              <span key={exIdx} className="bg-slate-950 border border-slate-800 text-slate-300 px-2.5 py-1 rounded-lg text-xs font-mono flex items-center gap-1.5">
-                                <span className="font-bold text-teal-400">{ex.codigo}</span>
-                                {ex.descricao && <span className="text-slate-400">({ex.descricao})</span>}
-                                {ex.amostra && <span className="text-amber-400 bg-amber-500/10 px-1 rounded text-[10px]">Tubo: {ex.amostra}</span>}
-                                {ex.material && <span className="text-cyan-300 bg-cyan-500/10 px-1 rounded text-[10px]">{ex.material}</span>}
-                              </span>
-                            ))}
+                        {/* LISTA DE EXAMES DO PEDIDO EM TABELA ULTRA ORGANIZADA */}
+                        <div className="space-y-2 pt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                              📋 Relação de Exames do Pedido ({order.exames.length} exames identificados no XML)
+                            </span>
+                            <span className="text-[11px] text-teal-400 font-mono">
+                              Lis: <strong>{order.numeroPedido}</strong>
+                            </span>
+                          </div>
+
+                          <div className="overflow-x-auto rounded-xl border border-slate-800">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
+                                <tr>
+                                  <th className="py-2 px-3">#</th>
+                                  <th className="py-2 px-3">Código Labfacil</th>
+                                  <th className="py-2 px-3">Descrição do Exame</th>
+                                  <th className="py-2 px-3">Amostra / Tubo</th>
+                                  <th className="py-2 px-3">Material</th>
+                                  <th className="py-2 px-3">Código Equipamento</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
+                                {order.exames.map((ex, exIdx) => {
+                                  const deparaMatch = labfacilExames.find(le => le.codigo === ex.codigo);
+                                  const codEq = deparaMatch?.autolacMapped || ex.codigoEquipamento || ex.codigo;
+                                  return (
+                                    <tr key={exIdx} className="hover:bg-slate-800/40 transition">
+                                      <td className="py-2 px-3 text-slate-500">{exIdx + 1}</td>
+                                      <td className="py-2 px-3 font-bold text-teal-400">{ex.codigo}</td>
+                                      <td className="py-2 px-3 font-sans font-medium text-slate-200">{ex.descricao || "-"}</td>
+                                      <td className="py-2 px-3">
+                                        {ex.amostra ? (
+                                          <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                            {ex.amostra}
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-500">-</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        {ex.material ? (
+                                          <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                            {ex.material}
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-500">SORO</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                          {codEq}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
 
