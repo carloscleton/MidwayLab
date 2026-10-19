@@ -4388,7 +4388,7 @@ export default function MidwayLabDashboard() {
                               Pedido: {order.numeroPedido}
                             </span>
                             <span className="font-bold text-slate-200 text-sm">
-                              Cliente: {order.cliente.nome} {order.cliente.cpf ? `(${order.cliente.cpf})` : ""}
+                              Paciente: {order.cliente.nome} | Sexo: {order.cliente.sexo} | Nasc: {order.cliente.dataNascimento || "-"} {order.cliente.idade ? `(${order.cliente.idade} anos)` : ""} {order.cliente.codPac ? `| CodPac: ${order.cliente.codPac}` : ""}
                             </span>
                           </div>
 
@@ -4420,6 +4420,8 @@ export default function MidwayLabDashboard() {
                               <span key={exIdx} className="bg-slate-950 border border-slate-800 text-slate-300 px-2.5 py-1 rounded-lg text-xs font-mono flex items-center gap-1.5">
                                 <span className="font-bold text-teal-400">{ex.codigo}</span>
                                 {ex.descricao && <span className="text-slate-400">({ex.descricao})</span>}
+                                {ex.amostra && <span className="text-amber-400 bg-amber-500/10 px-1 rounded text-[10px]">Tubo: {ex.amostra}</span>}
+                                {ex.material && <span className="text-cyan-300 bg-cyan-500/10 px-1 rounded text-[10px]">{ex.material}</span>}
                               </span>
                             ))}
                           </div>
