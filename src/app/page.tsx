@@ -63,7 +63,10 @@ import {
   EyeOff,
   Info,
   Printer,
-  Folder
+  Folder,
+  ChevronDown,
+  ChevronUp,
+  Users
 } from "lucide-react";
 
 export interface ILabfacilExamItem {
@@ -235,6 +238,7 @@ export default function MidwayLabDashboard() {
   const [selectedTargetEquipamento, setSelectedTargetEquipamento] = useState<string>("CB350");
   const [generatedWorklists, setGeneratedWorklists] = useState<Array<{ pedido: string; arquivo: string; formato: string; nomeArquivo: string }>>([]);
   const [ingestionStatus, setIngestionStatus] = useState<string | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
 
   const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers" | "equipamentos" | "ingestao">("depara");
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
@@ -4821,119 +4825,200 @@ export default function MidwayLabDashboard() {
             {/* PEDIDOS E CLIENTES LIDOS */}
             {parsedLabfacilOrders.length > 0 && (
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center justify-between">
-                  <span>Ordens e Exames Identificados ({parsedLabfacilOrders.length} pedidos)</span>
-                  <span className="text-xs text-teal-400 font-mono">Destino: {selectedTargetEquipamento}</span>
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-teal-400" />
+                      Pacientes e Pedidos Identificados ({parsedLabfacilOrders.length} {parsedLabfacilOrders.length === 1 ? "pedido" : "pedidos"})
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Clique no paciente para expandir ou recolher seus exames.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allExp: Record<string, boolean> = {};
+                        parsedLabfacilOrders.forEach((o, i) => {
+                          allExp[o.numeroPedido || String(i)] = true;
+                        });
+                        setExpandedOrders(allExp);
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" /> Expandir Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedOrders({})}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" /> Recolher Todos
+                    </button>
+                    <span className="text-xs text-teal-400 font-mono bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
+                      Destino: <strong>{selectedTargetEquipamento}</strong>
+                    </span>
+                  </div>
+                </div>
 
                 <div className="space-y-3">
                   {parsedLabfacilOrders.map((order, idx) => {
+                    const orderKey = order.numeroPedido || String(idx);
+                    // Por padrão, se não tiver sido interagido, abre o primeiro ou usa o estado
+                    const isExpanded = expandedOrders[orderKey] ?? true;
                     const generatedItem = generatedWorklists.find(g => g.pedido === order.numeroPedido);
                     return (
-                      <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                          <div className="flex items-center gap-3">
-                            <span className="bg-teal-500/10 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-xs font-mono font-bold">
+                      <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition">
+                        {/* CABEÇALHO DO PACIENTE CLICÁVEL COM SETAS CIMA/BAIXO */}
+                        <div
+                          onClick={() => {
+                            setExpandedOrders(prev => ({
+                              ...prev,
+                              [orderKey]: !isExpanded
+                            }));
+                          }}
+                          className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 hover:bg-slate-800/60 cursor-pointer border-b border-slate-800 select-none transition"
+                        >
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="bg-teal-500/10 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-lg text-xs font-mono font-bold">
                               Pedido: {order.numeroPedido}
                             </span>
-                            <span className="font-bold text-slate-200 text-sm">
-                              Paciente: {order.cliente.nome} | Sexo: {order.cliente.sexo} | Nasc: {order.cliente.dataNascimento || "-"} {order.cliente.idade ? `(${order.cliente.idade} anos)` : ""} {order.cliente.codPac ? `| CodPac: ${order.cliente.codPac}` : ""}
+                            <span className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                              {order.cliente.nome}
+                            </span>
+                            <span className="text-xs text-slate-400 font-medium">
+                              | Sexo: <strong className="text-slate-300">{order.cliente.sexo}</strong> 
+                              | Nasc: <strong className="text-slate-300">{order.cliente.dataNascimento || "-"}</strong> {order.cliente.idade ? `(${order.cliente.idade} anos)` : ""} 
+                              {order.cliente.codPac ? ` | CodPac: ${order.cliente.codPac}` : ""}
+                            </span>
+                            <span className="bg-slate-950 text-teal-400 border border-slate-800 text-[11px] font-mono font-bold px-2 py-0.5 rounded-full">
+                              {order.exames.length} exames
                             </span>
                           </div>
 
-                          {generatedItem && (
+                          <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
+                            {generatedItem && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const blob = new Blob([generatedItem.arquivo], { type: "text/plain;charset=utf-8" });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = generatedItem.nomeArquivo;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                  showNotification(`Download do arquivo para o equipamento iniciado: ${generatedItem.nomeArquivo}`);
+                                }}
+                                className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Baixar Carga ({generatedItem.formato})
+                              </button>
+                            )}
+
+                            {/* BOTÃO COM AS SETAS PARA BAIXO / CIMA */}
                             <button
                               type="button"
                               onClick={() => {
-                                const blob = new Blob([generatedItem.arquivo], { type: "text/plain;charset=utf-8" });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = generatedItem.nomeArquivo;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                                showNotification(`Download do arquivo para o equipamento iniciado: ${generatedItem.nomeArquivo}`);
+                                setExpandedOrders(prev => ({
+                                  ...prev,
+                                  [orderKey]: !isExpanded
+                                }));
                               }}
-                              className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto transition"
+                              className={`p-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1 text-xs font-semibold ${
+                                isExpanded
+                                  ? "bg-teal-500/20 text-teal-300 border-teal-500/40"
+                                  : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+                              }`}
+                              title={isExpanded ? "Recolher exames" : "Ver exames"}
                             >
-                              <Download className="w-3.5 h-3.5" /> Baixar Carga ({generatedItem.formato})
+                              <span className="text-[11px] px-1">{isExpanded ? "Ocultar" : "Ver Exames"}</span>
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-teal-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-slate-300" />
+                              )}
                             </button>
-                          )}
-                        </div>
-
-                        {/* LISTA DE EXAMES DO PEDIDO EM TABELA ULTRA ORGANIZADA */}
-                        <div className="space-y-2 pt-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
-                              📋 Relação de Exames do Pedido ({order.exames.length} exames identificados no XML)
-                            </span>
-                            <span className="text-[11px] text-teal-400 font-mono">
-                              Lis: <strong>{order.numeroPedido}</strong>
-                            </span>
-                          </div>
-
-                          <div className="overflow-x-auto rounded-xl border border-slate-800">
-                            <table className="w-full text-left text-xs">
-                              <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
-                                <tr>
-                                  <th className="py-2 px-3">#</th>
-                                  <th className="py-2 px-3">Código Labfacil</th>
-                                  <th className="py-2 px-3">Descrição do Exame</th>
-                                  <th className="py-2 px-3">Amostra / Tubo</th>
-                                  <th className="py-2 px-3">Material</th>
-                                  <th className="py-2 px-3">Código Equipamento</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
-                                {order.exames.map((ex, exIdx) => {
-                                  const deparaMatch = labfacilExames.find(le => le.codigo === ex.codigo);
-                                  const codEq = deparaMatch?.autolacMapped || ex.codigoEquipamento || ex.codigo;
-                                  return (
-                                    <tr key={exIdx} className="hover:bg-slate-800/40 transition">
-                                      <td className="py-2 px-3 text-slate-500">{exIdx + 1}</td>
-                                      <td className="py-2 px-3 font-bold text-teal-400">{ex.codigo}</td>
-                                      <td className="py-2 px-3 font-sans font-medium text-slate-200">{ex.descricao || "-"}</td>
-                                      <td className="py-2 px-3">
-                                        {ex.amostra ? (
-                                          <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
-                                            {ex.amostra}
-                                          </span>
-                                        ) : (
-                                          <span className="text-slate-500">-</span>
-                                        )}
-                                      </td>
-                                      <td className="py-2 px-3">
-                                        {ex.material ? (
-                                          <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
-                                            {ex.material}
-                                          </span>
-                                        ) : (
-                                          <span className="text-slate-500">SORO</span>
-                                        )}
-                                      </td>
-                                      <td className="py-2 px-3">
-                                        <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
-                                          {codEq}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
                           </div>
                         </div>
 
-                        {/* WORKLIST PREVIEW */}
-                        {generatedItem && (
-                          <details className="text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                            <summary className="text-slate-400 cursor-pointer font-mono hover:text-teal-300">
-                              Ver conteúdo gerado para o equipamento ({generatedItem.nomeArquivo})
-                            </summary>
-                            <pre className="mt-2 text-slate-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap">
-                              {generatedItem.arquivo}
-                            </pre>
-                          </details>
+                        {/* CORPO EXPANSÍVEL: LISTA DE EXAMES DO PEDIDO */}
+                        {isExpanded && (
+                          <div className="p-4 space-y-3 bg-slate-950/40 animate-fadeIn">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                                📋 Relação de Exames do Pedido ({order.exames.length} exames identificados no XML)
+                              </span>
+                              <span className="text-[11px] text-teal-400 font-mono">
+                                Lis: <strong>{order.numeroPedido}</strong>
+                              </span>
+                            </div>
+
+                            <div className="overflow-x-auto rounded-xl border border-slate-800">
+                              <table className="w-full text-left text-xs">
+                                <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
+                                  <tr>
+                                    <th className="py-2.5 px-3">#</th>
+                                    <th className="py-2.5 px-3">Código Labfacil</th>
+                                    <th className="py-2.5 px-3">Descrição do Exame</th>
+                                    <th className="py-2.5 px-3">Amostra / Tubo</th>
+                                    <th className="py-2.5 px-3">Material</th>
+                                    <th className="py-2.5 px-3">Código Equipamento</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
+                                  {order.exames.map((ex, exIdx) => {
+                                    const deparaMatch = labfacilExames.find(le => le.codigo === ex.codigo);
+                                    const codEq = deparaMatch?.autolacMapped || ex.codigoEquipamento || ex.codigo;
+                                    return (
+                                      <tr key={exIdx} className="hover:bg-slate-800/40 transition">
+                                        <td className="py-2 px-3 text-slate-500">{exIdx + 1}</td>
+                                        <td className="py-2 px-3 font-bold text-teal-400">{ex.codigo}</td>
+                                        <td className="py-2 px-3 font-sans font-medium text-slate-200">{ex.descricao || "-"}</td>
+                                        <td className="py-2 px-3">
+                                          {ex.amostra ? (
+                                            <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                              {ex.amostra}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-500">-</span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          {ex.material ? (
+                                            <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                              {ex.material}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-500">SORO</span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                            {codEq}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* WORKLIST PREVIEW */}
+                            {generatedItem && (
+                              <details className="text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                                <summary className="text-slate-400 cursor-pointer font-mono hover:text-teal-300">
+                                  Ver conteúdo gerado para o equipamento ({generatedItem.nomeArquivo})
+                                </summary>
+                                <pre className="mt-2 text-slate-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap">
+                                  {generatedItem.arquivo}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
                         )}
                       </div>
                     );
