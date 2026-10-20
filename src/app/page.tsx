@@ -4906,7 +4906,7 @@ export default function MidwayLabDashboard() {
                       onClick={() => {
                         const allExp: Record<string, boolean> = {};
                         parsedLabfacilOrders.forEach((o, i) => {
-                          allExp[o.numeroPedido || String(i)] = true;
+                          allExp[`order_${o.numeroPedido || 'idx'}_${i}`] = true;
                         });
                         setExpandedOrders(allExp);
                       }}
@@ -4916,7 +4916,13 @@ export default function MidwayLabDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setExpandedOrders({})}
+                      onClick={() => {
+                        const allClosed: Record<string, boolean> = {};
+                        parsedLabfacilOrders.forEach((o, i) => {
+                          allClosed[`order_${o.numeroPedido || 'idx'}_${i}`] = false;
+                        });
+                        setExpandedOrders(allClosed);
+                      }}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                     >
                       <ChevronUp className="w-3.5 h-3.5" /> Recolher Todos
@@ -4929,9 +4935,9 @@ export default function MidwayLabDashboard() {
 
                 <div className="space-y-3">
                   {parsedLabfacilOrders.map((order, idx) => {
-                    const orderKey = order.numeroPedido || String(idx);
-                    // Por padrão, se não tiver sido interagido, abre o primeiro ou usa o estado
-                    const isExpanded = expandedOrders[orderKey] ?? true;
+                    const orderKey = `order_${order.numeroPedido || 'idx'}_${idx}`;
+                    // Cada paciente tem seu próprio estado independente (por padrão recolhido, expandindo apenas o primeiro ou o clicado)
+                    const isExpanded = expandedOrders[orderKey] ?? (idx === 0);
                     const generatedItem = generatedWorklists.find(g => g.pedido === order.numeroPedido);
                     return (
                       <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition">
