@@ -1548,7 +1548,7 @@ export default function MidwayLabDashboard() {
 
               setGeneratedWorklists(prev => [...generated, ...prev]);
 
-              // 1. COPIAR PARA A PASTA DE PROCESSADOS
+              // 1. COPIAR PARA A PASTA DE PROCESSADOS (SELECIONADA OU PASTA 'Processados' FORA DE PEDIDOS)
               let copiedSuccessfully = false;
               if (dirProcHandle) {
                 try {
@@ -1559,22 +1559,7 @@ export default function MidwayLabDashboard() {
                   await writable.close();
                   copiedSuccessfully = true;
                 } catch (copyErr) {
-                  console.warn("Aviso ao copiar para processados escolhida:", copyErr);
-                }
-              }
-
-              // Fallback automático: se o usuário não escolheu a pasta de processados explicitamente, tenta criar uma subpasta 'Processados' na própria pasta de entrada
-              if (!copiedSuccessfully && dirEntradaHandle?.getDirectoryHandle) {
-                try {
-                  const autoProcDir = await dirEntradaHandle.getDirectoryHandle("Processados", { create: true });
-                  const targetFileName = `${file.name.replace(/\.[^/.]+$/, "")}_${Date.now()}${file.name.slice(file.name.lastIndexOf("."))}`;
-                  const newFileHandle = await autoProcDir.getFileHandle(targetFileName, { create: true });
-                  const writable = await newFileHandle.createWritable();
-                  await writable.write(text);
-                  await writable.close();
-                  copiedSuccessfully = true;
-                } catch (fallbackErr) {
-                  console.warn("Aviso ao criar subpasta Processados automática:", fallbackErr);
+                  console.warn("Aviso ao copiar para pasta de processados:", copyErr);
                 }
               }
 
@@ -4630,6 +4615,10 @@ export default function MidwayLabDashboard() {
                               }
                               return updated;
                             });
+                            // Se já tem arquivos lidos ou se o watcher está rodando, repassa o handle para o monitoramento
+                            if (handleEntrada) {
+                              scanLocalDirectory(handleEntrada, handle);
+                            }
                             showNotification(`📦 Pasta de Processados "${handle.name}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
