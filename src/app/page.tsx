@@ -7,6 +7,7 @@ import { TenantService } from "../services/tenant-service";
 import { DeparaService } from "../services/depara-service";
 import { EquipamentoService } from "../services/equipamento-service";
 import { LabfacilParserService, ILabfacilPedidoParsed } from "../services/labfacil-parser-service";
+import { DirectoryStorageService } from "../services/DirectoryStorageService";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
@@ -1563,7 +1564,7 @@ export default function MidwayLabDashboard() {
                 }
               }
 
-              // 2. APAGAR DA PASTA DE ENTRADA
+              // 2. APAGAR DA PASTA DE ENTRADA (SOMENTE SE FOI COPIADO COM SUCESSO OU SE NÃO HOUVER PASTA DE PROCESSADOS DEFINIDA)
               try {
                 // @ts-ignore
                 if (dirEntradaHandle.removeEntry) {
@@ -1573,19 +1574,27 @@ export default function MidwayLabDashboard() {
                 console.warn("Aviso ao apagar da entrada:", delErr);
               }
 
+              const msgStatus = copiedSuccessfully
+                ? `Lido, arquivado com sucesso em Processados e apagado da Entrada (${orders[0]?.exames?.length || 0} exames)`
+                : `Lido e apagado da Entrada (${orders[0]?.exames?.length || 0} exames) - ⚠️ Atenção: conecte a Pasta de Processados para salvar o backup`;
+
               setWatcherLogs(prev => [
                 {
                   id: `log-${Date.now()}`,
                   timestamp: new Date().toLocaleTimeString("pt-BR"),
                   arquivo: file.name,
                   status: "PROCESSADO",
-                  mensagem: `Lido, movido para Processados e apagado da Entrada (${orders[0]?.exames?.length || 0} exames)`
+                  mensagem: msgStatus
                 },
                 ...prev
               ]);
 
               setProcessedFileNames(prev => new Set(prev).add(entry.name));
-              showNotification(`⚡ ${file.name} lido com sucesso, arquivado em Processados e removido da Entrada!`);
+              showNotification(
+                copiedSuccessfully
+                  ? `⚡ ${file.name} lido com sucesso, arquivado em Processados e removido de Pedidos!`
+                  : `⚡ ${file.name} lido e removido de Pedidos! (Conecte a pasta Processados para gravar cópias de segurança)`
+              );
             } catch (err: any) {
               console.warn("Erro ao processar arquivo:", err);
             }
@@ -1611,7 +1620,7 @@ export default function MidwayLabDashboard() {
   }, [isWatcherRunning, handleEntrada, handleProcessados, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
   // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT)
-  const loadWatcherConfigForTenant = (tenantObj: any) => {
+  const loadWatcherConfigForTenant = async (tenantObj: any) => {
     if (!tenantObj) return;
     const jsonbConfig = tenantObj.configuracoes?.ingestao_pastas;
 
@@ -1628,6 +1637,22 @@ export default function MidwayLabDashboard() {
 
     setWatcherConfig(configPorEmpresa);
     setIsWatcherRunning(configPorEmpresa.ativo);
+
+    // Tentar restaurar handles do IndexedDB local se existirem para este tenant
+    if (tenantObj.id) {
+      try {
+        const [savedEntrada, savedProcessados, savedErros] = await Promise.all([
+          DirectoryStorageService.obterHandle(`entrada_${tenantObj.id}`),
+          DirectoryStorageService.obterHandle(`processados_${tenantObj.id}`),
+          DirectoryStorageService.obterHandle(`erros_${tenantObj.id}`)
+        ]);
+        if (savedEntrada) setHandleEntrada(savedEntrada);
+        if (savedProcessados) setHandleProcessados(savedProcessados);
+        if (savedErros) setHandleErros(savedErros);
+      } catch (err) {
+        console.warn("[DirectoryStorageService] Falha ao recuperar handles salvos:", err);
+      }
+    }
   };
 
   // CARREGAR EQUIPAMENTOS VINCULADOS EXCLUSIVAMENTE À EMPRESA (TENANT) ATIVA
@@ -4446,10 +4471,29 @@ export default function MidwayLabDashboard() {
                   {/* TOGGLE LIGAR / DESLIGAR */}
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const novoEstado = !isWatcherRunning;
                       setIsWatcherRunning(novoEstado);
-                      if (novoEstado && handleEntrada) {
+                      
+                      // Se ligou mas ainda não tem os handles na memória, tenta reativar via IndexedDB
+                      if (novoEstado && !handleEntrada) {
+                        const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                        if (activeTenant?.id) {
+                          const savedEntrada = await DirectoryStorageService.obterHandle(`entrada_${activeTenant.id}`);
+                          const savedProc = await DirectoryStorageService.obterHandle(`processados_${activeTenant.id}`);
+                          if (savedEntrada) {
+                            const temPermissao = await DirectoryStorageService.verificarOuSolicitarPermissao(savedEntrada);
+                            if (temPermissao) {
+                              setHandleEntrada(savedEntrada);
+                              if (savedProc) {
+                                await DirectoryStorageService.verificarOuSolicitarPermissao(savedProc);
+                                setHandleProcessados(savedProc);
+                              }
+                              scanLocalDirectory(savedEntrada, savedProc);
+                            }
+                          }
+                        }
+                      } else if (novoEstado && handleEntrada) {
                         scanLocalDirectory(handleEntrada, handleProcessados);
                       }
                       // Persistir estado no JSONB da empresa ativa
@@ -4528,10 +4572,15 @@ export default function MidwayLabDashboard() {
               {/* SELETORES E CAMINHOS INDIVIDUAIS: ENTRADA, PROCESSADOS E ERROS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
                 {/* 1. ENTRADA */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-teal-500/30 space-y-2">
+                <div className={`p-3.5 rounded-xl border space-y-2 transition ${handleEntrada ? "bg-slate-950 border-teal-500/50 shadow-sm shadow-teal-500/10" : "bg-slate-950/80 border-amber-500/30"}`}>
                   <div className="flex items-center justify-between">
                     <label className="text-slate-200 font-bold font-sans flex items-center gap-1.5">
                       📁 Pasta de ENTRADA (Pedidos)
+                      {handleEntrada ? (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-mono font-normal">🟢 Pronta</span>
+                      ) : (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-normal">🟡 Autorizar</span>
+                      )}
                     </label>
                     <button
                       type="button"
@@ -4542,13 +4591,16 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleEntrada(handle);
+                            const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                            if (activeTenant?.id) {
+                              DirectoryStorageService.salvarHandle(`entrada_${activeTenant.id}`, handle);
+                            }
                             // Mantém o caminho digitado/configurado se for mais completo que apenas o nome do folder
                             const pathName = watcherConfig.diretorioEntrada && watcherConfig.diretorioEntrada.includes(":") 
                               ? watcherConfig.diretorioEntrada 
                               : `C:\\Labfacil\\${handle.name || "Pedidos"}`;
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioEntrada: pathName };
-                              const activeTenant = tenants.find(t => t.nome === selectedTenant);
                               if (activeTenant) {
                                 TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
                                   diretorio_entrada: pathName,
@@ -4589,10 +4641,15 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 {/* 2. PROCESSADOS */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-cyan-500/30 space-y-2">
+                <div className={`p-3.5 rounded-xl border space-y-2 transition ${handleProcessados ? "bg-slate-950 border-cyan-500/50 shadow-sm shadow-cyan-500/10" : "bg-slate-950/80 border-amber-500/30"}`}>
                   <div className="flex items-center justify-between">
                     <label className="text-slate-200 font-bold font-sans flex items-center gap-1.5">
                       📦 Pasta de PROCESSADOS (Backup)
+                      {handleProcessados ? (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-mono font-normal">🟢 Pronta</span>
+                      ) : (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-normal">🟡 Autorizar</span>
+                      )}
                     </label>
                     <button
                       type="button"
@@ -4603,12 +4660,15 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleProcessados(handle);
+                            const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                            if (activeTenant?.id) {
+                              DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}`, handle);
+                            }
                             const pathName = watcherConfig.diretorioProcessados && watcherConfig.diretorioProcessados.includes(":")
                               ? watcherConfig.diretorioProcessados
                               : `C:\\Labfacil\\${handle.name || "Processados"}`;
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioProcessados: pathName };
-                              const activeTenant = tenants.find(t => t.nome === selectedTenant);
                               if (activeTenant) {
                                 TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
                                   diretorio_entrada: prev.diretorioEntrada,
@@ -4651,10 +4711,15 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 {/* 3. ERROS */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-rose-500/30 space-y-2">
+                <div className={`p-3.5 rounded-xl border space-y-2 transition ${handleErros ? "bg-slate-950 border-rose-500/50 shadow-sm shadow-rose-500/10" : "bg-slate-950/80 border-slate-800"}`}>
                   <div className="flex items-center justify-between">
                     <label className="text-slate-200 font-bold font-sans flex items-center gap-1.5">
                       ⚠️ Pasta de ERROS / FALHAS
+                      {handleErros ? (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-mono font-normal">🟢 Pronta</span>
+                      ) : (
+                        <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono font-normal">Opcional</span>
+                      )}
                     </label>
                     <button
                       type="button"
@@ -4665,12 +4730,15 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleErros(handle);
+                            const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                            if (activeTenant?.id) {
+                              DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}`, handle);
+                            }
                             const pathName = watcherConfig.diretorioErros && watcherConfig.diretorioErros.includes(":")
                               ? watcherConfig.diretorioErros
                               : `C:\\Labfacil\\${handle.name || "Erros"}`;
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioErros: pathName };
-                              const activeTenant = tenants.find(t => t.nome === selectedTenant);
                               if (activeTenant) {
                                 TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
                                   diretorio_entrada: prev.diretorioEntrada,
