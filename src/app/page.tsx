@@ -4542,7 +4542,10 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleEntrada(handle);
-                            const pathName = handle.name || "C:\\Labfacil\\Pedidos";
+                            // Mantém o caminho digitado/configurado se for mais completo que apenas o nome do folder
+                            const pathName = watcherConfig.diretorioEntrada && watcherConfig.diretorioEntrada.includes(":") 
+                              ? watcherConfig.diretorioEntrada 
+                              : `C:\\Labfacil\\${handle.name || "Pedidos"}`;
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioEntrada: pathName };
                               const activeTenant = tenants.find(t => t.nome === selectedTenant);
@@ -4559,7 +4562,7 @@ export default function MidwayLabDashboard() {
                             });
                             setIsWatcherRunning(true);
                             scanLocalDirectory(handle, handleProcessados);
-                            showNotification(`📁 Pasta de Entrada "${handle.name}" conectada e salva no banco da empresa!`);
+                            showNotification(`📁 Pasta de Entrada "${pathName}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4600,7 +4603,9 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleProcessados(handle);
-                            const pathName = handle.name || "C:\\Labfacil\\Processados";
+                            const pathName = watcherConfig.diretorioProcessados && watcherConfig.diretorioProcessados.includes(":")
+                              ? watcherConfig.diretorioProcessados
+                              : `C:\\Labfacil\\${handle.name || "Processados"}`;
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioProcessados: pathName };
                               const activeTenant = tenants.find(t => t.nome === selectedTenant);
@@ -4619,7 +4624,7 @@ export default function MidwayLabDashboard() {
                             if (handleEntrada) {
                               scanLocalDirectory(handleEntrada, handle);
                             }
-                            showNotification(`📦 Pasta de Processados "${handle.name}" conectada e salva no banco da empresa!`);
+                            showNotification(`📦 Pasta de Processados "${pathName}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4660,7 +4665,9 @@ export default function MidwayLabDashboard() {
                             // @ts-ignore
                             const handle = await window.showDirectoryPicker();
                             setHandleErros(handle);
-                            const pathName = handle.name || "C:\\Labfacil\\Erros";
+                            const pathName = watcherConfig.diretorioErros && watcherConfig.diretorioErros.includes(":")
+                              ? watcherConfig.diretorioErros
+                              : `C:\\Labfacil\\${handle.name || "Erros"}`;
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioErros: pathName };
                               const activeTenant = tenants.find(t => t.nome === selectedTenant);
@@ -4675,7 +4682,7 @@ export default function MidwayLabDashboard() {
                               }
                               return updated;
                             });
-                            showNotification(`⚠️ Pasta de Erros "${handle.name}" conectada e salva no banco da empresa!`);
+                            showNotification(`⚠️ Pasta de Erros "${pathName}" conectada e salva no banco da empresa!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
