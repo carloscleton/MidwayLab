@@ -227,6 +227,7 @@ export default function MidwayLabDashboard() {
   const [isSavingExamesAparelho, setIsSavingExamesAparelho] = useState<boolean>(false);
   const [isNovoExameModalOpen, setIsNovoExameModalOpen] = useState<boolean>(false);
   const [editingExameItem, setEditingExameItem] = useState<IExameEquipamentoRecord | null>(null);
+  const [editingInlineCell, setEditingInlineCell] = useState<{ id: string; field: 'codigoEquipamento' | 'codigoLabfacilSugerido' } | null>(null);
   const [novoExameForm, setNovoExameForm] = useState({
     codigoEquipamento: "",
     nomeExame: "",
@@ -5820,31 +5821,72 @@ export default function MidwayLabDashboard() {
                             {ex.ativo ? "ATIVO" : "INATIVO"}
                           </button>
                         </td>
-                        <td className="py-2.5 px-3">
-                          <input
-                            type="text"
-                            value={ex.codigoEquipamento}
-                            onChange={(e) => {
-                              const novoCodigo = e.target.value.toUpperCase();
-                              setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || item.id === ex.id) ? { ...item, codigoEquipamento: novoCodigo } : item));
-                            }}
-                            className="bg-slate-950/80 text-emerald-300 border border-emerald-500/40 focus:border-emerald-400 focus:bg-slate-900 rounded px-2 py-0.5 text-xs font-bold font-mono w-24 text-center transition focus:outline-none"
-                            placeholder="CÓD"
-                            title="Clique para editar o código do aparelho diretamente"
-                          />
+                        {/* CÓDIGO DO APARELHO - DUPLO CLIQUE PARA EDITAR */}
+                        <td className="py-2 px-3">
+                          {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoEquipamento' ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={ex.codigoEquipamento}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const novoCodigo = e.target.value.toUpperCase();
+                                setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoEquipamento: novoCodigo } : item));
+                              }}
+                              onBlur={() => setEditingInlineCell(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") {
+                                  setEditingInlineCell(null);
+                                }
+                              }}
+                              className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none ring-2 ring-amber-400/50"
+                              placeholder="CÓD"
+                            />
+                          ) : (
+                            <div
+                              onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoEquipamento' })}
+                              className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
+                              title="Duplo clique para alterar o código do aparelho"
+                            >
+                              <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 group-hover/badge:border-amber-400 group-hover/badge:text-amber-300 group-hover/badge:bg-amber-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
+                                {ex.codigoEquipamento}
+                              </span>
+                            </div>
+                          )}
                         </td>
-                        <td className="py-2.5 px-3">
-                          <input
-                            type="text"
-                            value={ex.codigoLabfacilSugerido || ""}
-                            onChange={(e) => {
-                              const novoCodLab = e.target.value.toUpperCase();
-                              setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || item.id === ex.id) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
-                            }}
-                            className="bg-slate-950/80 text-teal-300 border border-teal-500/40 focus:border-teal-400 focus:bg-slate-900 rounded px-2 py-0.5 text-xs font-bold font-mono w-28 text-center transition focus:outline-none"
-                            placeholder="CÓD LAB"
-                            title="Clique para editar o código Labfacil sugerido diretamente"
-                          />
+
+                        {/* CÓDIGO LABFACIL - DUPLO CLIQUE PARA EDITAR */}
+                        <td className="py-2 px-3">
+                          {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={ex.codigoLabfacilSugerido || ""}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const novoCodLab = e.target.value.toUpperCase();
+                                setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
+                              }}
+                              onBlur={() => setEditingInlineCell(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") {
+                                  setEditingInlineCell(null);
+                                }
+                              }}
+                              className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none ring-2 ring-cyan-400/50"
+                              placeholder="CÓD LAB"
+                            />
+                          ) : (
+                            <div
+                              onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoLabfacilSugerido' })}
+                              className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
+                              title="Duplo clique para alterar o código do Labfacil"
+                            >
+                              <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 group-hover/badge:border-cyan-400 group-hover/badge:text-cyan-300 group-hover/badge:bg-cyan-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
+                                {ex.codigoLabfacilSugerido || "-"}
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 font-sans font-medium text-slate-100">
                           {ex.nomeExame}
