@@ -4589,9 +4589,28 @@ export default function MidwayLabDashboard() {
                     <span className="text-slate-400">Empresa: <strong className="text-slate-200">{selectedTenant}</strong></span>
                     <span className="text-slate-600">|</span>
                     <span className="text-slate-400">Configuração do Equipamento:</span>
-                    <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-[11px] font-mono font-bold">
-                      {selectedTargetEquipamento}
-                    </span>
+                    <select
+                      value={selectedTargetEquipamento}
+                      onChange={(e) => {
+                        const novoEquip = e.target.value;
+                        setSelectedTargetEquipamento(novoEquip);
+                        const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                        if (activeTenant) {
+                          loadWatcherConfigForTenant(activeTenant, novoEquip);
+                          showNotification(`🔬 Pastas alternadas para o equipamento '${novoEquip}'!`);
+                        }
+                      }}
+                      className="bg-slate-950 border border-teal-500/50 rounded-lg px-2.5 py-1 text-teal-300 text-xs font-mono font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="CB350">Cormay CB350</option>
+                      <option value="YUMIZEN">Horiba Yumizen</option>
+                      <option value="ACCESS">Beckman Coulter ACCESS</option>
+                      <option value="BC_3000">Mindray BC 3000 Plus</option>
+                      <option value="BC_5380">Mindray BC 5380</option>
+                      <option value="BS_240">Mindray BS 240</option>
+                      <option value="INVISTAR_300">Invistar 300</option>
+                      <option value="GENERICO">Outro Analisador</option>
+                    </select>
                   </div>
                 </div>
 
@@ -4823,13 +4842,14 @@ export default function MidwayLabDashboard() {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
                           monitor_ativo: isWatcherRunning
-                        }).then((ok) => {
+                        }, selectedTargetEquipamento).then((ok) => {
                           if (ok) {
-                            showNotification(`💾 Caminho "${watcherConfig.diretorioEntrada}" gravado no banco da empresa ${selectedTenant}!`);
+                            showNotification(`💾 Caminho de Entrada gravado para ${selectedTargetEquipamento} (${selectedTenant})!`);
                           }
                         });
+                        const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
                           ingestao_pastas: {
@@ -4837,8 +4857,19 @@ export default function MidwayLabDashboard() {
                             diretorio_entrada: watcherConfig.diretorioEntrada,
                             diretorio_processados: watcherConfig.diretorioProcessados,
                             diretorio_erros: watcherConfig.diretorioErros,
-                            equipamento_destino: watcherConfig.equipamentoDestino,
+                            equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
                             monitor_ativo: isWatcherRunning
+                          },
+                          equipamentos_pastas: {
+                            ...equipConfigs,
+                            [selectedTargetEquipamento]: {
+                              diretorio_entrada: watcherConfig.diretorioEntrada,
+                              diretorio_processados: watcherConfig.diretorioProcessados,
+                              diretorio_erros: watcherConfig.diretorioErros,
+                              equipamento_destino: selectedTargetEquipamento,
+                              monitor_ativo: isWatcherRunning,
+                              atualizado_em: new Date().toISOString()
+                            }
                           }
                         };
                       }
