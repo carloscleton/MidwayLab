@@ -1666,12 +1666,19 @@ export default function MidwayLabDashboard() {
           DirectoryStorageService.obterHandle(`processados_${tenantObj.id}`),
           DirectoryStorageService.obterHandle(`erros_${tenantObj.id}`)
         ]);
-        if (savedEntrada) setHandleEntrada(savedEntrada);
-        if (savedProcessados) setHandleProcessados(savedProcessados);
-        if (savedErros) setHandleErros(savedErros);
+        setHandleEntrada(savedEntrada || null);
+        setHandleProcessados(savedProcessados || null);
+        setHandleErros(savedErros || null);
       } catch (err) {
         console.warn("[DirectoryStorageService] Falha ao recuperar handles salvos:", err);
+        setHandleEntrada(null);
+        setHandleProcessados(null);
+        setHandleErros(null);
       }
+    } else {
+      setHandleEntrada(null);
+      setHandleProcessados(null);
+      setHandleErros(null);
     }
   };
 
@@ -1692,6 +1699,11 @@ export default function MidwayLabDashboard() {
 
   // CHANGE ACTIVE TENANT & RE-FETCH DE-PARA MAPPINGS SPECIFIC TO THAT LABORATORY
   const handleSelectTenantChange = (tenantNome: string) => {
+    // Resetar handles de sessão imediatamente para a nova empresa
+    setHandleEntrada(null);
+    setHandleProcessados(null);
+    setHandleErros(null);
+
     startTransition(() => {
       setSelectedTenant(tenantNome);
       setSelectedLabfacilExam(null);
@@ -1704,14 +1716,14 @@ export default function MidwayLabDashboard() {
     const tenantId = activeTenant?.id;
 
     if (tenantNome) {
-      showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando catálogo e mapeamentos...`);
+      showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando configurações e pastas...`);
     }
 
     setTimeout(() => {
       startTransition(async () => {
         await loadLabfacilCatalogForTenant(tenantId, activeTenant);
         await loadEquipamentosForTenant(tenantId);
-        loadWatcherConfigForTenant(activeTenant);
+        await loadWatcherConfigForTenant(activeTenant);
       });
     }, 10);
   };
@@ -4637,10 +4649,11 @@ export default function MidwayLabDashboard() {
                             if (activeTenant?.id) {
                               DirectoryStorageService.salvarHandle(`entrada_${activeTenant.id}`, handle);
                             }
-                            // Mantém o caminho digitado/configurado se for mais completo que apenas o nome do folder
-                            const pathName = watcherConfig.diretorioEntrada && watcherConfig.diretorioEntrada.includes(":") 
-                              ? watcherConfig.diretorioEntrada 
-                              : `C:\\Labfacil\\${handle.name || "Pedidos"}`;
+                            // Extrai o nome da pasta selecionada pelo usuário no Windows
+                            const selectedFolder = handle.name || "Pedidos";
+                            const cleanLabName = (activeTenant?.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
+                            const pathName = `C:\\Labfacil\\${cleanLabName}\\${selectedFolder}`;
+
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioEntrada: pathName };
                               if (activeTenant) {
@@ -4651,12 +4664,24 @@ export default function MidwayLabDashboard() {
                                   equipamento_destino: prev.equipamentoDestino,
                                   monitor_ativo: true
                                 });
+                                // Atualiza o cache local do tenant para sincronizar na hora
+                                activeTenant.configuracoes = {
+                                  ...(activeTenant.configuracoes || {}),
+                                  ingestao_pastas: {
+                                    ...(activeTenant.configuracoes?.ingestao_pastas || {}),
+                                    diretorio_entrada: pathName,
+                                    diretorio_processados: prev.diretorioProcessados,
+                                    diretorio_erros: prev.diretorioErros,
+                                    equipamento_destino: prev.equipamentoDestino,
+                                    monitor_ativo: true
+                                  }
+                                };
                               }
                               return updated;
                             });
                             setIsWatcherRunning(true);
                             scanLocalDirectory(handle, handleProcessados);
-                            showNotification(`📁 Pasta de Entrada "${pathName}" conectada e salva no banco da empresa!`);
+                            showNotification(`📁 Pasta de Entrada "${pathName}" conectada e salva no banco da empresa ${selectedTenant}!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4706,9 +4731,10 @@ export default function MidwayLabDashboard() {
                             if (activeTenant?.id) {
                               DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}`, handle);
                             }
-                            const pathName = watcherConfig.diretorioProcessados && watcherConfig.diretorioProcessados.includes(":")
-                              ? watcherConfig.diretorioProcessados
-                              : `C:\\Labfacil\\${handle.name || "Processados"}`;
+                            const selectedFolder = handle.name || "Processados";
+                            const cleanLabName = (activeTenant?.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
+                            const pathName = `C:\\Labfacil\\${cleanLabName}\\${selectedFolder}`;
+
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioProcessados: pathName };
                               if (activeTenant) {
@@ -4719,6 +4745,17 @@ export default function MidwayLabDashboard() {
                                   equipamento_destino: prev.equipamentoDestino,
                                   monitor_ativo: isWatcherRunning
                                 });
+                                activeTenant.configuracoes = {
+                                  ...(activeTenant.configuracoes || {}),
+                                  ingestao_pastas: {
+                                    ...(activeTenant.configuracoes?.ingestao_pastas || {}),
+                                    diretorio_entrada: prev.diretorioEntrada,
+                                    diretorio_processados: pathName,
+                                    diretorio_erros: prev.diretorioErros,
+                                    equipamento_destino: prev.equipamentoDestino,
+                                    monitor_ativo: isWatcherRunning
+                                  }
+                                };
                               }
                               return updated;
                             });
@@ -4726,7 +4763,7 @@ export default function MidwayLabDashboard() {
                             if (handleEntrada) {
                               scanLocalDirectory(handleEntrada, handle);
                             }
-                            showNotification(`📦 Pasta de Processados "${pathName}" conectada e salva no banco da empresa!`);
+                            showNotification(`📦 Pasta de Processados "${pathName}" conectada e salva no banco da empresa ${selectedTenant}!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
@@ -4776,9 +4813,10 @@ export default function MidwayLabDashboard() {
                             if (activeTenant?.id) {
                               DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}`, handle);
                             }
-                            const pathName = watcherConfig.diretorioErros && watcherConfig.diretorioErros.includes(":")
-                              ? watcherConfig.diretorioErros
-                              : `C:\\Labfacil\\${handle.name || "Erros"}`;
+                            const selectedFolder = handle.name || "Erros";
+                            const cleanLabName = (activeTenant?.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
+                            const pathName = `C:\\Labfacil\\${cleanLabName}\\${selectedFolder}`;
+
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioErros: pathName };
                               if (activeTenant) {
@@ -4789,10 +4827,21 @@ export default function MidwayLabDashboard() {
                                   equipamento_destino: prev.equipamentoDestino,
                                   monitor_ativo: isWatcherRunning
                                 });
+                                activeTenant.configuracoes = {
+                                  ...(activeTenant.configuracoes || {}),
+                                  ingestao_pastas: {
+                                    ...(activeTenant.configuracoes?.ingestao_pastas || {}),
+                                    diretorio_entrada: prev.diretorioEntrada,
+                                    diretorio_processados: prev.diretorioProcessados,
+                                    diretorio_erros: pathName,
+                                    equipamento_destino: prev.equipamentoDestino,
+                                    monitor_ativo: isWatcherRunning
+                                  }
+                                };
                               }
                               return updated;
                             });
-                            showNotification(`⚠️ Pasta de Erros "${pathName}" conectada e salva no banco da empresa!`);
+                            showNotification(`⚠️ Pasta de Erros "${pathName}" conectada e salva no banco da empresa ${selectedTenant}!`);
                           }
                         } catch (err: any) {
                           if (err.name !== "AbortError") showNotification(err.message);
