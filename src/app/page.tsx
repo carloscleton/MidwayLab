@@ -1637,18 +1637,56 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  // LOOP DE MONITORAMENTO DA PASTA NO NAVEGADOR
+  // LOOP DE MONITORAMENTO HÍBRIDO (FRONTEND COM FILE SYSTEM ACCESS API + BACKEND FS)
   useEffect(() => {
     let interval: any = null;
-    if (isWatcherRunning && handleEntrada) {
-      interval = setInterval(() => {
-        scanLocalDirectory(handleEntrada, handleProcessados);
+    if (isWatcherRunning) {
+      interval = setInterval(async () => {
+        // 1. Monitoramento no Navegador (se houver handle ativo)
+        if (handleEntrada) {
+          scanLocalDirectory(handleEntrada, handleProcessados);
+        }
+
+        // 2. Monitoramento Dinâmico no Backend Node.js (Varrer diretamente o caminho configurado no disco: C:\Labfacil\Enviados, etc.)
+        if (watcherConfig.diretorioEntrada) {
+          try {
+            const res = await fetch("/api/folder-watcher", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                acao: "varrer_agora",
+                config: {
+                  diretorioEntrada: watcherConfig.diretorioEntrada,
+                  diretorioProcessados: watcherConfig.diretorioProcessados,
+                  diretorioErros: watcherConfig.diretorioErros,
+                  equipamentoDestino: selectedTargetEquipamento,
+                  ativo: true
+                }
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.processadosAgora > 0) {
+                showNotification(`⚡ ${data.processadosAgora} arquivo(s) processado(s) dinamicamente na pasta: ${watcherConfig.diretorioEntrada}`);
+              }
+              if (data.logs && data.logs.length > 0) {
+                setWatcherLogs(prev => {
+                  const existingIds = new Set(prev.map(l => l.id));
+                  const newLogs = data.logs.filter((l: any) => !existingIds.has(l.id));
+                  return [...newLogs, ...prev].slice(0, 100);
+                });
+              }
+            }
+          } catch (backendErr) {
+            // Silencioso se o backend não estiver acessível
+          }
+        }
       }, 3000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isWatcherRunning, handleEntrada, handleProcessados, processedFileNames, selectedTargetEquipamento, labfacilExames]);
+  }, [isWatcherRunning, handleEntrada, handleProcessados, watcherConfig.diretorioEntrada, watcherConfig.diretorioProcessados, watcherConfig.diretorioErros, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
   // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT)
   const loadWatcherConfigForTenant = async (tenantObj: any) => {
@@ -4601,18 +4639,52 @@ export default function MidwayLabDashboard() {
                   </button>
 
                   {/* VARREDURA MANUAL */}
-                  {handleEntrada && (
-                    <button
-                      type="button"
-                      onClick={() => {
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (handleEntrada) {
                         scanLocalDirectory(handleEntrada, handleProcessados);
-                        showNotification("🔄 Varredura na pasta executada!");
-                      }}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl font-semibold text-xs transition cursor-pointer"
-                    >
-                      🔄 Varrer Agora
-                    </button>
-                  )}
+                      }
+                      if (watcherConfig.diretorioEntrada) {
+                        try {
+                          const res = await fetch("/api/folder-watcher", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              acao: "varrer_agora",
+                              config: {
+                                diretorioEntrada: watcherConfig.diretorioEntrada,
+                                diretorioProcessados: watcherConfig.diretorioProcessados,
+                                diretorioErros: watcherConfig.diretorioErros,
+                                equipamentoDestino: selectedTargetEquipamento,
+                                ativo: true
+                              }
+                            })
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            if (data.processadosAgora > 0) {
+                              showNotification(`⚡ ${data.processadosAgora} arquivo(s) processado(s) dinamicamente na pasta: ${watcherConfig.diretorioEntrada}!`);
+                            } else {
+                              showNotification(`📂 Varredura executada em "${watcherConfig.diretorioEntrada}". Nenhum arquivo pendente.`);
+                            }
+                            if (data.logs && data.logs.length > 0) {
+                              setWatcherLogs(prev => {
+                                const existingIds = new Set(prev.map(l => l.id));
+                                const newLogs = data.logs.filter((l: any) => !existingIds.has(l.id));
+                                return [...newLogs, ...prev].slice(0, 100);
+                              });
+                            }
+                          }
+                        } catch (e: any) {
+                          showNotification("🔄 Varredura na pasta executada!");
+                        }
+                      }
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> 🔄 Varrer Agora
+                  </button>
 
                   {/* SALVAR NO JSONB DO SUPABASE */}
                   <button
@@ -4678,7 +4750,14 @@ export default function MidwayLabDashboard() {
                             }
                             // Extrai o nome da pasta selecionada pelo usuário no Windows
                             const selectedFolder = handle.name || "Pedidos";
-                            const pathName = `C:\\Labfacil\\${selectedFolder}`;
+                            // Se o usuário já tinha um caminho digitado (ex: C:\OutraPasta\Subpasta), respeita a base ou usa a pasta escolhida
+                            let pathName = `C:\\Labfacil\\${selectedFolder}`;
+                            if (watcherConfig.diretorioEntrada && !watcherConfig.diretorioEntrada.startsWith("C:\\Labfacil\\")) {
+                              const lastSlash = watcherConfig.diretorioEntrada.lastIndexOf("\\");
+                              if (lastSlash !== -1) {
+                                pathName = `${watcherConfig.diretorioEntrada.slice(0, lastSlash)}\\${selectedFolder}`;
+                              }
+                            }
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioEntrada: pathName };
@@ -4779,7 +4858,13 @@ export default function MidwayLabDashboard() {
                               DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}`, handle);
                             }
                             const selectedFolder = handle.name || "Processados";
-                            const pathName = `C:\\Labfacil\\${selectedFolder}`;
+                            let pathName = `C:\\Labfacil\\${selectedFolder}`;
+                            if (watcherConfig.diretorioProcessados && !watcherConfig.diretorioProcessados.startsWith("C:\\Labfacil\\")) {
+                              const lastSlash = watcherConfig.diretorioProcessados.lastIndexOf("\\");
+                              if (lastSlash !== -1) {
+                                pathName = `${watcherConfig.diretorioProcessados.slice(0, lastSlash)}\\${selectedFolder}`;
+                              }
+                            }
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioProcessados: pathName };
@@ -4881,7 +4966,13 @@ export default function MidwayLabDashboard() {
                               DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}`, handle);
                             }
                             const selectedFolder = handle.name || "Erros";
-                            const pathName = `C:\\Labfacil\\${selectedFolder}`;
+                            let pathName = `C:\\Labfacil\\${selectedFolder}`;
+                            if (watcherConfig.diretorioErros && !watcherConfig.diretorioErros.startsWith("C:\\Labfacil\\")) {
+                              const lastSlash = watcherConfig.diretorioErros.lastIndexOf("\\");
+                              if (lastSlash !== -1) {
+                                pathName = `${watcherConfig.diretorioErros.slice(0, lastSlash)}\\${selectedFolder}`;
+                              }
+                            }
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioErros: pathName };
