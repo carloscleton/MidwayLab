@@ -1764,19 +1764,49 @@ export default function MidwayLabDashboard() {
       setSearchLabfacil("");
       setSearchAutolac("");
       if (activeTenant) {
+        // Carrega configurações de pastas imediatamente
         loadWatcherConfigForTenant(activeTenant);
+        // Atualiza os dados do formulário do tenant para refletir a empresa ativa
+        setTenantFormData({
+          nome: activeTenant.nome || "",
+          identificacaoEntidade: activeTenant.identificacaoEntidade || "",
+          senhaWs: activeTenant.senhaWs || "",
+          codigoAgente: activeTenant.codigoAgente || "1",
+          wsUrl: activeTenant.wsUrl || "http://homolog.app.lifesys.com.br:5030",
+          labfacilBaseUrl: activeTenant.labfacilBaseUrl || "http://apoio.labfacilsolucoes.com.br",
+          labfacilLogin: activeTenant.labfacilLogin || "",
+          labfacilSenha: activeTenant.labfacilSenha || "",
+          usarCatalogoProprio: Boolean(activeTenant.usarCatalogoProprio)
+        });
       }
     });
 
     if (tenantNome) {
-      showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando configurações e pastas...`);
+      showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando dados da empresa...`);
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Busca dados frescos diretamente do banco para garantir que temos as últimas pastas e configs
+      try {
+        if (tenantId) {
+          const freshTenants = await TenantService.listarTenants();
+          const freshTenant = freshTenants.find(t => t.id === tenantId);
+          if (freshTenant) {
+            setTenants(prev => prev.map(t => t.id === tenantId ? {
+              ...t,
+              configuracoes: freshTenant.configuracoes || {},
+              usarCatalogoProprio: Boolean(freshTenant.usar_catalogo_proprio ?? freshTenant.configuracoes?.usar_catalogo_proprio)
+            } : t));
+            loadWatcherConfigForTenant(freshTenant);
+          }
+        }
+      } catch (e) {
+        console.warn("Erro ao recarregar tenant:", e);
+      }
+
       startTransition(async () => {
         await loadLabfacilCatalogForTenant(tenantId, activeTenant);
         await loadEquipamentosForTenant(tenantId);
-        await loadWatcherConfigForTenant(activeTenant);
       });
     }, 10);
   };
