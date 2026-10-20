@@ -201,8 +201,25 @@ export class TenantService {
    */
   static async salvarConfigIngestaoPastas(tenantId: string, configIngestao: any): Promise<boolean> {
     try {
-      // 1. Busca configurações atuais
-      const { data: tenant, error: fetchErr } = await supabaseBrowser
+      // 1. Tenta salvar via API Route do backend (Garante bypass de RLS e Service Role)
+      try {
+        const response = await fetch('/api/tenant-folder-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenantId, configIngestao })
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.success) {
+            return true;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("[TenantService] API route /api/tenant-folder-config falhou, tentando fallback direto:", apiErr);
+      }
+
+      // 2. Fallback: Salva diretamente via supabaseBrowser
+      const { data: tenant } = await supabaseBrowser
         .from("tenants")
         .select("configuracoes")
         .eq("id", tenantId)
@@ -224,7 +241,7 @@ export class TenantService {
         .eq("id", tenantId);
 
       if (updateErr) {
-        console.warn("[TenantService] Erro ao salvar configuracoes.ingestao_pastas:", updateErr.message);
+        console.warn("[TenantService] Erro ao salvar configuracoes.ingestao_pastas via fallback:", updateErr.message);
         return false;
       }
       return true;

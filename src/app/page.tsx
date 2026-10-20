@@ -1704,16 +1704,19 @@ export default function MidwayLabDashboard() {
     setHandleProcessados(null);
     setHandleErros(null);
 
+    const activeTenant = tenants.find(t => t.nome === tenantNome);
+    const tenantId = activeTenant?.id;
+
     startTransition(() => {
       setSelectedTenant(tenantNome);
       setSelectedLabfacilExam(null);
       setSelectedAutolacExam(null);
       setSearchLabfacil("");
       setSearchAutolac("");
+      if (activeTenant) {
+        loadWatcherConfigForTenant(activeTenant);
+      }
     });
-
-    const activeTenant = tenants.find(t => t.nome === tenantNome);
-    const tenantId = activeTenant?.id;
 
     if (tenantNome) {
       showNotification(`🏢 Empresa ativa alterada para '${tenantNome}'! Recarregando configurações e pastas...`);
@@ -4651,8 +4654,7 @@ export default function MidwayLabDashboard() {
                             }
                             // Extrai o nome da pasta selecionada pelo usuário no Windows
                             const selectedFolder = handle.name || "Pedidos";
-                            const cleanLabName = (activeTenant?.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
-                            const pathName = `C:\\Labfacil\\${cleanLabName}\\${selectedFolder}`;
+                            const pathName = `C:\\Labfacil\\${selectedFolder}`;
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioEntrada: pathName };
@@ -4753,8 +4755,7 @@ export default function MidwayLabDashboard() {
                               DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}`, handle);
                             }
                             const selectedFolder = handle.name || "Processados";
-                            const cleanLabName = (activeTenant?.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
-                            const pathName = `C:\\Labfacil\\${cleanLabName}\\${selectedFolder}`;
+                            const pathName = `C:\\Labfacil\\${selectedFolder}`;
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioProcessados: pathName };
@@ -4856,8 +4857,7 @@ export default function MidwayLabDashboard() {
                               DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}`, handle);
                             }
                             const selectedFolder = handle.name || "Erros";
-                            const cleanLabName = (activeTenant?.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
-                            const pathName = `C:\\Labfacil\\${cleanLabName}\\${selectedFolder}`;
+                            const pathName = `C:\\Labfacil\\${selectedFolder}`;
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioErros: pathName };
