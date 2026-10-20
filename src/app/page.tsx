@@ -8,6 +8,7 @@ import { DeparaService } from "../services/depara-service";
 import { EquipamentoService } from "../services/equipamento-service";
 import { LabfacilParserService, ILabfacilPedidoParsed } from "../services/labfacil-parser-service";
 import { DirectoryStorageService } from "../services/DirectoryStorageService";
+import { CATALOGO_EQUIPAMENTOS_DOC, IEquipamentoCatalogDoc } from "../data/equipamentos-catalog";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
@@ -217,6 +218,8 @@ export default function MidwayLabDashboard() {
     diretorio_resultados: "C:\\Equipamentos\\Resultados",
     ativo: true
   });
+  const [viewDocEquipamentoModal, setViewDocEquipamentoModal] = useState<IEquipamentoCatalogDoc | null>(null);
+  const [docSearchTerm, setDocSearchTerm] = useState<string>("");
 
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
   // FOLDER WATCHER AUTOMÁTICO (MONITORAMENTO DE PASTAS)
@@ -4421,6 +4424,18 @@ export default function MidwayLabDashboard() {
                       <button
                         type="button"
                         onClick={() => {
+                          const docInfo = CATALOGO_EQUIPAMENTOS_DOC[eq.modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350;
+                          setViewDocEquipamentoModal(docInfo);
+                          setDocSearchTerm("");
+                        }}
+                        className="text-xs text-cyan-300 hover:text-cyan-200 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 transition cursor-pointer flex items-center gap-1 font-semibold"
+                        title="Ver tabela de exames e códigos suportados pelo equipamento conforme manual técnico"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> Códigos do Aparelho
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setEditingEquipamento(eq);
                           setEquipamentoForm({ ...eq });
                           setIsEquipamentoModalOpen(true);
@@ -5517,6 +5532,122 @@ export default function MidwayLabDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DOCUMENTAÇÃO TÉCNICA E CÓDIGOS DO EQUIPAMENTO */}
+      {viewDocEquipamentoModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl max-h-[90vh] rounded-2xl p-6 space-y-4 shadow-2xl relative flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-cyan-400" />
+                  <h3 className="text-lg font-bold text-slate-100">
+                    Manual Técnico: {viewDocEquipamentoModal.nomeCompleto}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Fabricante: <strong className="text-slate-300">{viewDocEquipamentoModal.fabricante}</strong> | Tipo: <strong className="text-slate-300">{viewDocEquipamentoModal.tipoAnalise}</strong> | Comunicação: <strong className="text-teal-400 font-mono">{viewDocEquipamentoModal.protocoloComunicacao}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewDocEquipamentoModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl text-xs text-cyan-300">
+              💡 <strong>Instrução para o DE-PARA:</strong> {viewDocEquipamentoModal.descricaoDoc}
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar por código do equipamento, exame, princípio ou código Labfacil sugerido..."
+                  value={docSearchTerm}
+                  onChange={(e) => setDocSearchTerm(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-slate-100 text-xs focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+              <span className="text-xs text-slate-400 font-mono shrink-0">
+                Total: <strong>{viewDocEquipamentoModal.exames.length} testes homologados</strong>
+              </span>
+            </div>
+
+            <div className="overflow-y-auto flex-1 rounded-xl border border-slate-800 custom-scrollbar">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
+                  <tr>
+                    <th className="py-2.5 px-3">Código do Aparelho</th>
+                    <th className="py-2.5 px-3">Nome do Exame no Equipamento</th>
+                    <th className="py-2.5 px-3">Categoria</th>
+                    <th className="py-2.5 px-3">Princípio / Método</th>
+                    <th className="py-2.5 px-3">Cód. Labfacil Sugerido</th>
+                    <th className="py-2.5 px-3">Amostra & Unidade</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
+                  {viewDocEquipamentoModal.exames
+                    .filter((ex) => {
+                      if (!docSearchTerm.trim()) return true;
+                      const term = docSearchTerm.toLowerCase();
+                      return (
+                        ex.codigoEquipamento.toLowerCase().includes(term) ||
+                        ex.nomeExame.toLowerCase().includes(term) ||
+                        ex.categoria.toLowerCase().includes(term) ||
+                        ex.codigoLabfacilSugerido.toLowerCase().includes(term) ||
+                        ex.metodoOuPrincipio.toLowerCase().includes(term)
+                      );
+                    })
+                    .map((ex, exIdx) => (
+                      <tr key={exIdx} className="hover:bg-slate-800/40 transition">
+                        <td className="py-2.5 px-3">
+                          <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-xs font-bold font-mono">
+                            {ex.codigoEquipamento}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-sans font-medium text-slate-100">
+                          {ex.nomeExame}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 text-[10px]">
+                          {ex.categoria}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 font-sans text-[10px]">
+                          {ex.metodoOuPrincipio}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="bg-teal-500/10 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
+                            {ex.codigoLabfacilSugerido}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 text-[10px]">
+                          {ex.amostraSugerida} ({ex.unidadePadrao})
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-[11px] text-slate-500 font-mono">
+                Padrão oficial para integração com HL7 / ASTM / Worklist Labfacil Apoio
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewDocEquipamentoModal(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
