@@ -5776,12 +5776,12 @@ export default function MidwayLabDashboard() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
                   <tr>
-                    <th className="py-2.5 px-3 w-16">Status</th>
+                    <th className="py-2.5 px-3 w-16 text-center">Status</th>
                     <th className="py-2.5 px-3">Código Aparelho</th>
+                    <th className="py-2.5 px-3">Cód. Labfacil</th>
                     <th className="py-2.5 px-3">Nome do Exame</th>
                     <th className="py-2.5 px-3">Categoria</th>
                     <th className="py-2.5 px-3">Princípio / Método</th>
-                    <th className="py-2.5 px-3">Cód. Labfacil Sugerido</th>
                     <th className="py-2.5 px-3">Amostra & Unidade</th>
                     <th className="py-2.5 px-3 text-right">Ações</th>
                   </tr>
@@ -5802,7 +5802,7 @@ export default function MidwayLabDashboard() {
                     .map((ex, exIdx) => (
                       <tr key={ex.id || exIdx} className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
                         {/* TOGGLE HABILITAR / DESABILITAR */}
-                        <td className="py-2.5 px-3">
+                        <td className="py-2.5 px-3 text-center">
                           <button
                             type="button"
                             onClick={() => {
@@ -5825,6 +5825,11 @@ export default function MidwayLabDashboard() {
                             {ex.codigoEquipamento}
                           </span>
                         </td>
+                        <td className="py-2.5 px-3">
+                          <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-xs font-bold font-mono">
+                            {ex.codigoLabfacilSugerido || "-"}
+                          </span>
+                        </td>
                         <td className="py-2.5 px-3 font-sans font-medium text-slate-100">
                           {ex.nomeExame}
                         </td>
@@ -5833,11 +5838,6 @@ export default function MidwayLabDashboard() {
                         </td>
                         <td className="py-2.5 px-3 text-slate-400 font-sans text-[10px]">
                           {ex.metodoOuPrincipio}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="bg-teal-500/10 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
-                            {ex.codigoLabfacilSugerido}
-                          </span>
                         </td>
                         <td className="py-2.5 px-3 text-slate-400 text-[10px]">
                           {ex.amostraSugerida} ({ex.unidadePadrao})
