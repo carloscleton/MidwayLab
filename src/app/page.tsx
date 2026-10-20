@@ -4982,6 +4982,11 @@ export default function MidwayLabDashboard() {
                   >
                     <option value="CB350">🔬 Cormay CB350 (Bioquímica)</option>
                     <option value="YUMIZEN">🩸 Horiba Yumizen (Hematologia - ASTM)</option>
+                    <option value="ACCESS">🧪 Beckman Coulter ACCESS (Imunologia - ASTM)</option>
+                    <option value="BC_3000">🩸 Mindray BC 3000 Plus (Hematologia 3-Part)</option>
+                    <option value="BC_5380">🩸 Mindray BC 5380 (Hematologia 5-Part - HL7)</option>
+                    <option value="BS_240">🔬 Mindray BS 240 (Bioquímica - HL7)</option>
+                    <option value="INVISTAR_300">🔬 Invistar 300 (Bioquímica)</option>
                     <option value="GENERICO">⚙️ Outro Analisador (Carga JSON)</option>
                   </select>
                 </div>
@@ -5474,18 +5479,26 @@ export default function MidwayLabDashboard() {
                       let fab = "Fabricante Geral";
                       let tipoCom = equipamentoForm.tipo_comunicacao || "TCP_IP";
                       if (mod === "CB350") { fab = "Cormay"; tipoCom = "ARQUIVO_COMPARTILHADO"; }
-                      else if (mod === "YUMIZEN") { fab = "Horiba"; tipoCom = "TCP_IP"; }
+                      else if (mod === "YUMIZEN") { fab = "Horiba Medical"; tipoCom = "TCP_IP"; }
+                      else if (mod === "ACCESS") { fab = "Beckman Coulter"; tipoCom = "SERIAL"; }
+                      else if (mod === "BC_3000") { fab = "Mindray"; tipoCom = "SERIAL"; }
+                      else if (mod === "BC_5380") { fab = "Mindray"; tipoCom = "TCP_IP"; }
+                      else if (mod === "BS_240") { fab = "Mindray"; tipoCom = "TCP_IP"; }
+                      else if (mod === "INVISTAR_300") { fab = "Invistar / Genrui"; tipoCom = "SERIAL"; }
                       else if (mod === "SYSMEX") { fab = "Sysmex"; tipoCom = "TCP_IP"; }
-                      else if (mod === "MINDRAY") { fab = "Mindray"; tipoCom = "TCP_IP"; }
                       else if (mod === "ROCHE_COBAS") { fab = "Roche Diagnostics"; tipoCom = "TCP_IP"; }
                       setEquipamentoForm({ ...equipamentoForm, modelo: mod, fabricante: fab, tipo_comunicacao: tipoCom as any });
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   >
                     <option value="CB350">CB350 (Bioquímica - Cormay)</option>
-                    <option value="YUMIZEN">YUMIZEN (Hematologia - Horiba)</option>
+                    <option value="YUMIZEN">YUMIZEN H500/H550 (Hematologia - Horiba)</option>
+                    <option value="ACCESS">ACCESS / Access 2 (Imunologia - Beckman Coulter)</option>
+                    <option value="BC_3000">BC 3000 Plus (Hematologia 3-Part - Mindray)</option>
+                    <option value="BC_5380">BC 5380 (Hematologia 5-Part - Mindray)</option>
+                    <option value="BS_240">BS 240 (Bioquímica - Mindray)</option>
+                    <option value="INVISTAR_300">INVISTAR 300 (Bioquímica - Genrui)</option>
                     <option value="SYSMEX">Sysmex (Hematologia)</option>
-                    <option value="MINDRAY">Mindray (Bioquímica / Hematologia)</option>
                     <option value="ROCHE_COBAS">Roche Cobas</option>
                     <option value="GENERICO">⚙️ Outro Modelo (Padrão ASTM / HL7)</option>
                   </select>
