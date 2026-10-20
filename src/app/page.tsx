@@ -5821,14 +5821,30 @@ export default function MidwayLabDashboard() {
                           </button>
                         </td>
                         <td className="py-2.5 px-3">
-                          <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-xs font-bold font-mono">
-                            {ex.codigoEquipamento}
-                          </span>
+                          <input
+                            type="text"
+                            value={ex.codigoEquipamento}
+                            onChange={(e) => {
+                              const novoCodigo = e.target.value.toUpperCase();
+                              setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || item.id === ex.id) ? { ...item, codigoEquipamento: novoCodigo } : item));
+                            }}
+                            className="bg-slate-950/80 text-emerald-300 border border-emerald-500/40 focus:border-emerald-400 focus:bg-slate-900 rounded px-2 py-0.5 text-xs font-bold font-mono w-24 text-center transition focus:outline-none"
+                            placeholder="CÓD"
+                            title="Clique para editar o código do aparelho diretamente"
+                          />
                         </td>
                         <td className="py-2.5 px-3">
-                          <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-xs font-bold font-mono">
-                            {ex.codigoLabfacilSugerido || "-"}
-                          </span>
+                          <input
+                            type="text"
+                            value={ex.codigoLabfacilSugerido || ""}
+                            onChange={(e) => {
+                              const novoCodLab = e.target.value.toUpperCase();
+                              setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || item.id === ex.id) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
+                            }}
+                            className="bg-slate-950/80 text-teal-300 border border-teal-500/40 focus:border-teal-400 focus:bg-slate-900 rounded px-2 py-0.5 text-xs font-bold font-mono w-28 text-center transition focus:outline-none"
+                            placeholder="CÓD LAB"
+                            title="Clique para editar o código Labfacil sugerido diretamente"
+                          />
                         </td>
                         <td className="py-2.5 px-3 font-sans font-medium text-slate-100">
                           {ex.nomeExame}
