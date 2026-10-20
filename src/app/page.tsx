@@ -1695,17 +1695,14 @@ export default function MidwayLabDashboard() {
     
     // 1. Busca configurações específicas deste equipamento (ex: Yumizen, CB350, Access)
     const equipConfigs = tenantObj.configuracoes?.equipamentos_pastas?.[modeloAtual];
-    const jsonbConfig = equipConfigs || tenantObj.configuracoes?.ingestao_pastas;
-
-    // Nome sanitizado da empresa para criar pastas personalizadas por padrão
-    const cleanLabName = (tenantObj.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
-
+    
+    // Se não tiver configuração salva para este equipamento, sugere pastas dedicadas padrão para ele em vez de puxar as de outro equipamento
     const configPorEmpresa = {
-      diretorioEntrada: equipConfigs?.diretorio_entrada || jsonbConfig?.diretorio_entrada || `C:\\Labfacil\\${modeloAtual}\\Pedidos`,
-      diretorioProcessados: equipConfigs?.diretorio_processados || jsonbConfig?.diretorio_processados || `C:\\Labfacil\\${modeloAtual}\\Processados`,
-      diretorioErros: equipConfigs?.diretorio_erros || jsonbConfig?.diretorio_erros || `C:\\Labfacil\\${modeloAtual}\\Erros`,
+      diretorioEntrada: equipConfigs?.diretorio_entrada || `C:\\Labfacil\\${modeloAtual}\\Enviados`,
+      diretorioProcessados: equipConfigs?.diretorio_processados || `C:\\Labfacil\\${modeloAtual}\\Enviados\\Processados`,
+      diretorioErros: equipConfigs?.diretorio_erros || `C:\\Labfacil\\Erros`,
       equipamentoDestino: modeloAtual,
-      ativo: Boolean(jsonbConfig?.monitor_ativo)
+      ativo: equipConfigs?.monitor_ativo !== undefined ? Boolean(equipConfigs.monitor_ativo) : Boolean(tenantObj.configuracoes?.ingestao_pastas?.monitor_ativo)
     };
 
     setWatcherConfig(configPorEmpresa);
