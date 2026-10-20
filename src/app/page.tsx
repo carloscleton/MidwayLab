@@ -4698,6 +4698,27 @@ export default function MidwayLabDashboard() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setWatcherConfig(prev => ({ ...prev, diretorioEntrada: val }));
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (activeTenant) {
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                          diretorio_entrada: val,
+                          diretorio_processados: watcherConfig.diretorioProcessados,
+                          diretorio_erros: watcherConfig.diretorioErros,
+                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          monitor_ativo: isWatcherRunning
+                        });
+                        activeTenant.configuracoes = {
+                          ...(activeTenant.configuracoes || {}),
+                          ingestao_pastas: {
+                            ...(activeTenant.configuracoes?.ingestao_pastas || {}),
+                            diretorio_entrada: val,
+                            diretorio_processados: watcherConfig.diretorioProcessados,
+                            diretorio_erros: watcherConfig.diretorioErros,
+                            equipamento_destino: watcherConfig.equipamentoDestino,
+                            monitor_ativo: isWatcherRunning
+                          }
+                        };
+                      }
                     }}
                     placeholder="Ex: C:\Labfacil\Pedidos"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-teal-300 focus:outline-none text-[11px]"
@@ -4780,6 +4801,27 @@ export default function MidwayLabDashboard() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setWatcherConfig(prev => ({ ...prev, diretorioProcessados: val }));
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (activeTenant) {
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                          diretorio_entrada: watcherConfig.diretorioEntrada,
+                          diretorio_processados: val,
+                          diretorio_erros: watcherConfig.diretorioErros,
+                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          monitor_ativo: isWatcherRunning
+                        });
+                        activeTenant.configuracoes = {
+                          ...(activeTenant.configuracoes || {}),
+                          ingestao_pastas: {
+                            ...(activeTenant.configuracoes?.ingestao_pastas || {}),
+                            diretorio_entrada: watcherConfig.diretorioEntrada,
+                            diretorio_processados: val,
+                            diretorio_erros: watcherConfig.diretorioErros,
+                            equipamento_destino: watcherConfig.equipamentoDestino,
+                            monitor_ativo: isWatcherRunning
+                          }
+                        };
+                      }
                     }}
                     placeholder="Ex: C:\Labfacil\Processados"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-cyan-300 focus:outline-none text-[11px]"
@@ -4858,6 +4900,27 @@ export default function MidwayLabDashboard() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setWatcherConfig(prev => ({ ...prev, diretorioErros: val }));
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (activeTenant) {
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                          diretorio_entrada: watcherConfig.diretorioEntrada,
+                          diretorio_processados: watcherConfig.diretorioProcessados,
+                          diretorio_erros: val,
+                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          monitor_ativo: isWatcherRunning
+                        });
+                        activeTenant.configuracoes = {
+                          ...(activeTenant.configuracoes || {}),
+                          ingestao_pastas: {
+                            ...(activeTenant.configuracoes?.ingestao_pastas || {}),
+                            diretorio_entrada: watcherConfig.diretorioEntrada,
+                            diretorio_processados: watcherConfig.diretorioProcessados,
+                            diretorio_erros: val,
+                            equipamento_destino: watcherConfig.equipamentoDestino,
+                            monitor_ativo: isWatcherRunning
+                          }
+                        };
+                      }
                     }}
                     placeholder="Ex: C:\Labfacil\Erros"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-rose-300 focus:outline-none text-[11px]"
