@@ -4803,20 +4803,26 @@ export default function MidwayLabDashboard() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setWatcherConfig(prev => ({ ...prev, diretorioEntrada: val }));
+                    }}
+                    onBlur={() => {
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
                         TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
-                          diretorio_entrada: val,
+                          diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
                           equipamento_destino: watcherConfig.equipamentoDestino,
                           monitor_ativo: isWatcherRunning
+                        }).then((ok) => {
+                          if (ok) {
+                            showNotification(`💾 Caminho "${watcherConfig.diretorioEntrada}" gravado no banco da empresa ${selectedTenant}!`);
+                          }
                         });
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
                           ingestao_pastas: {
                             ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                            diretorio_entrada: val,
+                            diretorio_entrada: watcherConfig.diretorioEntrada,
                             diretorio_processados: watcherConfig.diretorioProcessados,
                             diretorio_erros: watcherConfig.diretorioErros,
                             equipamento_destino: watcherConfig.equipamentoDestino,
@@ -4911,21 +4917,27 @@ export default function MidwayLabDashboard() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setWatcherConfig(prev => ({ ...prev, diretorioProcessados: val }));
+                    }}
+                    onBlur={() => {
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
                         TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
-                          diretorio_processados: val,
+                          diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
                           equipamento_destino: watcherConfig.equipamentoDestino,
                           monitor_ativo: isWatcherRunning
+                        }).then((ok) => {
+                          if (ok) {
+                            showNotification(`💾 Caminho de Processados gravado no banco da empresa ${selectedTenant}!`);
+                          }
                         });
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
                           ingestao_pastas: {
                             ...(activeTenant.configuracoes?.ingestao_pastas || {}),
                             diretorio_entrada: watcherConfig.diretorioEntrada,
-                            diretorio_processados: val,
+                            diretorio_processados: watcherConfig.diretorioProcessados,
                             diretorio_erros: watcherConfig.diretorioErros,
                             equipamento_destino: watcherConfig.equipamentoDestino,
                             monitor_ativo: isWatcherRunning
@@ -5015,14 +5027,20 @@ export default function MidwayLabDashboard() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setWatcherConfig(prev => ({ ...prev, diretorioErros: val }));
+                    }}
+                    onBlur={() => {
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
                         TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
-                          diretorio_erros: val,
+                          diretorio_erros: watcherConfig.diretorioErros,
                           equipamento_destino: watcherConfig.equipamentoDestino,
                           monitor_ativo: isWatcherRunning
+                        }).then((ok) => {
+                          if (ok) {
+                            showNotification(`💾 Caminho de Erros gravado no banco da empresa ${selectedTenant}!`);
+                          }
                         });
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
@@ -5030,7 +5048,7 @@ export default function MidwayLabDashboard() {
                             ...(activeTenant.configuracoes?.ingestao_pastas || {}),
                             diretorio_entrada: watcherConfig.diretorioEntrada,
                             diretorio_processados: watcherConfig.diretorioProcessados,
-                            diretorio_erros: val,
+                            diretorio_erros: watcherConfig.diretorioErros,
                             equipamento_destino: watcherConfig.equipamentoDestino,
                             monitor_ativo: isWatcherRunning
                           }
