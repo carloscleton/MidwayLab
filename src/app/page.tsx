@@ -9,6 +9,7 @@ import { EquipamentoService } from "../services/equipamento-service";
 import { LabfacilParserService, ILabfacilPedidoParsed } from "../services/labfacil-parser-service";
 import { DirectoryStorageService } from "../services/DirectoryStorageService";
 import { CATALOGO_EQUIPAMENTOS_DOC, IEquipamentoCatalogDoc } from "../data/equipamentos-catalog";
+import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
@@ -220,6 +221,22 @@ export default function MidwayLabDashboard() {
   });
   const [viewDocEquipamentoModal, setViewDocEquipamentoModal] = useState<IEquipamentoCatalogDoc | null>(null);
   const [docSearchTerm, setDocSearchTerm] = useState<string>("");
+  const [activeEquipamentoForDoc, setActiveEquipamentoForDoc] = useState<IEquipamentoRecord | null>(null);
+  const [equipamentoExamesList, setEquipamentoExamesList] = useState<IExameEquipamentoRecord[]>([]);
+  const [origemExamesAparelho, setOrigemExamesAparelho] = useState<'BANCO' | 'DOC_APARELHO'>('DOC_APARELHO');
+  const [isSavingExamesAparelho, setIsSavingExamesAparelho] = useState<boolean>(false);
+  const [isNovoExameModalOpen, setIsNovoExameModalOpen] = useState<boolean>(false);
+  const [editingExameItem, setEditingExameItem] = useState<IExameEquipamentoRecord | null>(null);
+  const [novoExameForm, setNovoExameForm] = useState({
+    codigoEquipamento: "",
+    nomeExame: "",
+    categoria: "Bioquímica",
+    metodoOuPrincipio: "Enzimático Colorimétrico",
+    codigoLabfacilSugerido: "",
+    amostraSugerida: "Soro",
+    unidadePadrao: "mg/dL",
+    ativo: true
+  });
 
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
   // FOLDER WATCHER AUTOMÁTICO (MONITORAMENTO DE PASTAS)
@@ -4423,13 +4440,23 @@ export default function MidwayLabDashboard() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           const docInfo = CATALOGO_EQUIPAMENTOS_DOC[eq.modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350;
+                          setActiveEquipamentoForDoc(eq);
                           setViewDocEquipamentoModal(docInfo);
                           setDocSearchTerm("");
+                          showNotification(`🔍 Consultando banco de dados para ${eq.nome}...`);
+                          const res = await EquipamentoExamesService.obterExamesDoAparelho(eq.modelo, eq.id, eq.tenant_id);
+                          setEquipamentoExamesList(res.exames);
+                          setOrigemExamesAparelho(res.origem);
+                          if (res.origem === 'BANCO') {
+                            showNotification(`💾 ${res.exames.length} Exames carregados do Banco de Dados para ${eq.nome}`);
+                          } else {
+                            showNotification(`⚙️ Exames carregados da documentação técnica nativa do aparelho (${eq.modelo})`);
+                          }
                         }}
                         className="text-xs text-cyan-300 hover:text-cyan-200 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 transition cursor-pointer flex items-center gap-1 font-semibold"
-                        title="Ver tabela de exames e códigos suportados pelo equipamento conforme manual técnico"
+                        title="Ver e gerenciar códigos de exames do aparelho com gravação no banco de dados"
                       >
                         <FileText className="w-3.5 h-3.5" /> Códigos do Aparelho
                       </button>
@@ -5536,17 +5563,26 @@ export default function MidwayLabDashboard() {
         </div>
       )}
 
-      {/* MODAL: DOCUMENTAÇÃO TÉCNICA E CÓDIGOS DO EQUIPAMENTO */}
+      {/* MODAL: DOCUMENTAÇÃO TÉCNICA E CÓDIGOS DO EQUIPAMENTO COM CRUD NO BANCO */}
       {viewDocEquipamentoModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl max-h-[90vh] rounded-2xl p-6 space-y-4 shadow-2xl relative flex flex-col">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-5xl max-h-[92vh] rounded-2xl p-6 space-y-4 shadow-2xl relative flex flex-col">
             <div className="flex items-start justify-between border-b border-slate-800 pb-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <FileText className="w-5 h-5 text-cyan-400" />
                   <h3 className="text-lg font-bold text-slate-100">
-                    Manual Técnico: {viewDocEquipamentoModal.nomeCompleto}
+                    Catálogo do Equipamento: {viewDocEquipamentoModal.nomeCompleto}
                   </h3>
+                  {origemExamesAparelho === "BANCO" ? (
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                      <Database className="w-3 h-3" /> Sincronizado no Banco (Supabase)
+                    </span>
+                  ) : (
+                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Documentação Nativa do Aparelho (Não gravado no Banco)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
                   Fabricante: <strong className="text-slate-300">{viewDocEquipamentoModal.fabricante}</strong> | Tipo: <strong className="text-slate-300">{viewDocEquipamentoModal.tipoAnalise}</strong> | Comunicação: <strong className="text-teal-400 font-mono">{viewDocEquipamentoModal.protocoloComunicacao}</strong>
@@ -5561,40 +5597,85 @@ export default function MidwayLabDashboard() {
               </button>
             </div>
 
-            <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl text-xs text-cyan-300">
-              💡 <strong>Instrução para o DE-PARA:</strong> {viewDocEquipamentoModal.descricaoDoc}
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
+            {/* AÇÕES SUPERIORES: BUSCA, NOVO EXAME E GRAVAÇÃO NO BANCO */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
-                  placeholder="Pesquisar por código do equipamento, exame, princípio ou código Labfacil sugerido..."
+                  placeholder="Pesquisar por código, exame, princípio ou código Labfacil sugerido..."
                   value={docSearchTerm}
                   onChange={(e) => setDocSearchTerm(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-slate-100 text-xs focus:outline-none focus:border-teal-500/50"
                 />
               </div>
-              <span className="text-xs text-slate-400 font-mono shrink-0">
-                Total: <strong>{viewDocEquipamentoModal.exames.length} testes homologados</strong>
-              </span>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingExameItem(null);
+                    setNovoExameForm({
+                      codigoEquipamento: "",
+                      nomeExame: "",
+                      categoria: viewDocEquipamentoModal.modelo === "YUMIZEN" ? "Hematologia" : "Bioquímica",
+                      metodoOuPrincipio: "Enzimático / Cinético",
+                      codigoLabfacilSugerido: "",
+                      amostraSugerida: viewDocEquipamentoModal.modelo === "YUMIZEN" ? "Sangue Total EDTA" : "Soro",
+                      unidadePadrao: viewDocEquipamentoModal.modelo === "YUMIZEN" ? "10^3/µL" : "mg/dL",
+                      ativo: true
+                    });
+                    setIsNovoExameModalOpen(true);
+                  }}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
+                >
+                  <Plus className="w-4 h-4" /> Incluir Novo Exame
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSavingExamesAparelho}
+                  onClick={async () => {
+                    setIsSavingExamesAparelho(true);
+                    showNotification(`💾 Gravando catálogo do equipamento no Supabase...`);
+                    const ok = await EquipamentoExamesService.salvarExamesNoBanco(
+                      equipamentoExamesList,
+                      viewDocEquipamentoModal.modelo,
+                      activeEquipamentoForDoc?.id,
+                      activeEquipamentoForDoc?.tenant_id
+                    );
+                    if (ok) {
+                      setOrigemExamesAparelho('BANCO');
+                      showNotification(`✅ ${equipamentoExamesList.length} Exames gravados no Banco de Dados com sucesso!`);
+                    } else {
+                      showNotification(`⚠️ Salvo na memória da sessão. Verifique as permissões da tabela.`);
+                    }
+                    setIsSavingExamesAparelho(false);
+                  }}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
+                </button>
+              </div>
             </div>
 
+            {/* TABELA DE EXAMES COM CRUD E HABILITAR/DESABILITAR */}
             <div className="overflow-y-auto flex-1 rounded-xl border border-slate-800 custom-scrollbar">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
                   <tr>
-                    <th className="py-2.5 px-3">Código do Aparelho</th>
-                    <th className="py-2.5 px-3">Nome do Exame no Equipamento</th>
+                    <th className="py-2.5 px-3 w-16">Status</th>
+                    <th className="py-2.5 px-3">Código Aparelho</th>
+                    <th className="py-2.5 px-3">Nome do Exame</th>
                     <th className="py-2.5 px-3">Categoria</th>
                     <th className="py-2.5 px-3">Princípio / Método</th>
                     <th className="py-2.5 px-3">Cód. Labfacil Sugerido</th>
                     <th className="py-2.5 px-3">Amostra & Unidade</th>
+                    <th className="py-2.5 px-3 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
-                  {viewDocEquipamentoModal.exames
+                  {equipamentoExamesList
                     .filter((ex) => {
                       if (!docSearchTerm.trim()) return true;
                       const term = docSearchTerm.toLowerCase();
@@ -5607,7 +5688,26 @@ export default function MidwayLabDashboard() {
                       );
                     })
                     .map((ex, exIdx) => (
-                      <tr key={exIdx} className="hover:bg-slate-800/40 transition">
+                      <tr key={ex.id || exIdx} className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
+                        {/* TOGGLE HABILITAR / DESABILITAR */}
+                        <td className="py-2.5 px-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const novoStatus = !ex.ativo;
+                              setEquipamentoExamesList(prev => prev.map(item => item.codigoEquipamento === ex.codigoEquipamento ? { ...item, ativo: novoStatus } : item));
+                              showNotification(`${novoStatus ? "🟢 Exame ativado:" : "⚪ Exame desativado:"} ${ex.codigoEquipamento}`);
+                            }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                              ex.ativo
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                : "bg-slate-800 text-slate-500 border border-slate-700"
+                            }`}
+                            title={ex.ativo ? "Clique para desativar este exame" : "Clique para ativar este exame"}
+                          >
+                            {ex.ativo ? "ATIVO" : "INATIVO"}
+                          </button>
+                        </td>
                         <td className="py-2.5 px-3">
                           <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-xs font-bold font-mono">
                             {ex.codigoEquipamento}
@@ -5630,6 +5730,47 @@ export default function MidwayLabDashboard() {
                         <td className="py-2.5 px-3 text-slate-400 text-[10px]">
                           {ex.amostraSugerida} ({ex.unidadePadrao})
                         </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingExameItem(ex);
+                                setNovoExameForm({
+                                  codigoEquipamento: ex.codigoEquipamento,
+                                  nomeExame: ex.nomeExame,
+                                  categoria: ex.categoria,
+                                  metodoOuPrincipio: ex.metodoOuPrincipio,
+                                  codigoLabfacilSugerido: ex.codigoLabfacilSugerido,
+                                  amostraSugerida: ex.amostraSugerida,
+                                  unidadePadrao: ex.unidadePadrao,
+                                  ativo: ex.ativo
+                                });
+                                setIsNovoExameModalOpen(true);
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 cursor-pointer"
+                              title="Editar este exame"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Deseja remover o exame ${ex.codigoEquipamento} (${ex.nomeExame})?`)) {
+                                  setEquipamentoExamesList(prev => prev.filter(item => item.codigoEquipamento !== ex.codigoEquipamento));
+                                  if (ex.id && !ex.id.startsWith("doc-")) {
+                                    EquipamentoExamesService.excluirExame(ex.id);
+                                  }
+                                  showNotification(`Exame ${ex.codigoEquipamento} removido da lista.`);
+                                }
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 cursor-pointer"
+                              title="Excluir exame"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                 </tbody>
@@ -5637,8 +5778,8 @@ export default function MidwayLabDashboard() {
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-              <span className="text-[11px] text-slate-500 font-mono">
-                Padrão oficial para integração com HL7 / ASTM / Worklist Labfacil Apoio
+              <span className="text-[11px] text-slate-400 font-mono">
+                Total: <strong>{equipamentoExamesList.length} testes</strong> ({equipamentoExamesList.filter(e => e.ativo).length} ativos)
               </span>
               <button
                 type="button"
@@ -5648,6 +5789,171 @@ export default function MidwayLabDashboard() {
                 Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL CRUD: INCLUIR OU EDITAR EXAME DO EQUIPAMENTO */}
+      {isNovoExameModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Tag className="w-4 h-4 text-teal-400" />
+                {editingExameItem ? "Editar Exame do Equipamento" : "Incluir Novo Exame no Equipamento"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsNovoExameModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!novoExameForm.codigoEquipamento.trim()) return;
+
+                const novoRegistro: IExameEquipamentoRecord = {
+                  id: editingExameItem?.id || `user-${Date.now()}`,
+                  equipamento_id: activeEquipamentoForDoc?.id || null,
+                  modelo_equipamento: viewDocEquipamentoModal?.modelo || "CB350",
+                  tenant_id: activeEquipamentoForDoc?.tenant_id || null,
+                  codigoEquipamento: novoExameForm.codigoEquipamento.trim().toUpperCase(),
+                  nomeExame: novoExameForm.nomeExame.trim(),
+                  categoria: novoExameForm.categoria.trim() || "Geral",
+                  metodoOuPrincipio: novoExameForm.metodoOuPrincipio.trim() || "-",
+                  codigoLabfacilSugerido: novoExameForm.codigoLabfacilSugerido.trim().toUpperCase(),
+                  amostraSugerida: novoExameForm.amostraSugerida.trim() || "Soro",
+                  unidadePadrao: novoExameForm.unidadePadrao.trim() || "-",
+                  ativo: novoExameForm.ativo,
+                  origem: 'BANCO'
+                };
+
+                if (editingExameItem) {
+                  setEquipamentoExamesList(prev => prev.map(item => item.codigoEquipamento === editingExameItem.codigoEquipamento ? novoRegistro : item));
+                  showNotification(`Exame ${novoRegistro.codigoEquipamento} atualizado! Clique em 'Gravar no Banco' para persistir.`);
+                } else {
+                  setEquipamentoExamesList(prev => [novoRegistro, ...prev]);
+                  showNotification(`Novo exame ${novoRegistro.codigoEquipamento} incluído na lista! Clique em 'Gravar no Banco' para persistir.`);
+                }
+                setIsNovoExameModalOpen(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Código no Equipamento</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: GLI, TSH, DIFF"
+                    value={novoExameForm.codigoEquipamento}
+                    onChange={(e) => setNovoExameForm({ ...novoExameForm, codigoEquipamento: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono uppercase font-bold focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Cód. Labfacil Sugerido</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: GLICOSE, TSH01"
+                    value={novoExameForm.codigoLabfacilSugerido}
+                    onChange={(e) => setNovoExameForm({ ...novoExameForm, codigoLabfacilSugerido: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono uppercase font-bold focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Nome do Exame</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Glicose de Jejum, Hemograma Completo"
+                  value={novoExameForm.nomeExame}
+                  onChange={(e) => setNovoExameForm({ ...novoExameForm, nomeExame: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Categoria</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Bioquímica, Hepático, Lipídios"
+                    value={novoExameForm.categoria}
+                    onChange={(e) => setNovoExameForm({ ...novoExameForm, categoria: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Princípio / Método</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Enzimático, Cinético UV, Citometria"
+                    value={novoExameForm.metodoOuPrincipio}
+                    onChange={(e) => setNovoExameForm({ ...novoExameForm, metodoOuPrincipio: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Tipo de Amostra</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Soro, Sangue Total EDTA"
+                    value={novoExameForm.amostraSugerida}
+                    onChange={(e) => setNovoExameForm({ ...novoExameForm, amostraSugerida: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Unidade Padrão</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: mg/dL, U/L, g/dL, %"
+                    value={novoExameForm.unidadePadrao}
+                    onChange={(e) => setNovoExameForm({ ...novoExameForm, unidadePadrao: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="chk_exame_ativo"
+                  checked={novoExameForm.ativo}
+                  onChange={(e) => setNovoExameForm({ ...novoExameForm, ativo: e.target.checked })}
+                  className="rounded bg-slate-950 border-slate-800 text-teal-400 focus:ring-0 cursor-pointer"
+                />
+                <label htmlFor="chk_exame_ativo" className="text-slate-300 font-semibold cursor-pointer">
+                  Exame Habilitado para Mapeamento e Cargas
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsNovoExameModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl transition cursor-pointer shadow-lg shadow-teal-500/20"
+                >
+                  {editingExameItem ? "Salvar Alterações" : "Adicionar à Lista"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
