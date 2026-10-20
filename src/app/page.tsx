@@ -9,6 +9,7 @@ import { EquipamentoService } from "../services/equipamento-service";
 import { LabfacilParserService, ILabfacilPedidoParsed } from "../services/labfacil-parser-service";
 import { DirectoryStorageService } from "../services/DirectoryStorageService";
 import { CATALOGO_EQUIPAMENTOS_DOC, IEquipamentoCatalogDoc } from "../data/equipamentos-catalog";
+import { EquipamentoSimulatorService, ISimulatedSampleRelease } from "../services/equipamento-simulator-service";
 import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
@@ -47,6 +48,7 @@ import {
   AlertTriangle,
   Zap,
   Download,
+  Cpu,
   Filter,
   Link,
   Globe,
@@ -262,7 +264,15 @@ export default function MidwayLabDashboard() {
   const [ingestionStatus, setIngestionStatus] = useState<string | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
 
-  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers" | "equipamentos" | "ingestao">("depara");
+  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers" | "equipamentos" | "ingestao" | "simulador">("depara");
+
+  // SIMULADOR DE EQUIPAMENTOS (MOCK DE IDA & RETORNO)
+  const [simulatorSelectedEquipamento, setSimulatorSelectedEquipamento] = useState<string>("CB350");
+  const [simulatorPedidoNumero, setSimulatorPedidoNumero] = useState<string>("PED-2026-001");
+  const [simulatorPacienteNome, setSimulatorPacienteNome] = useState<string>("MARIA HELENA SANTOS");
+  const [simulatorExamesInput, setSimulatorExamesInput] = useState<string>("GLI, URE, CRE, COL, TRI");
+  const [simulatorSimularAlterados, setSimulatorSimularAlterados] = useState<boolean>(false);
+  const [simulatorSimulatedRelease, setSimulatorSimulatedRelease] = useState<ISimulatedSampleRelease | null>(null);
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
 
   // HANDLE FILE SELECTION & PARSING (CSV / JSON)
@@ -2926,6 +2936,19 @@ export default function MidwayLabDashboard() {
             <Upload className="w-4 h-4 text-emerald-400" /> Ingestão Labfacil (JSON/XML)
           </button>
 
+          {/* TAB: SIMULADOR DE EQUIPAMENTOS (MOCK IDA & VOLTA) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("simulador")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+              activeTab === "simulador"
+                ? "bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <Cpu className="w-4 h-4 text-purple-400" /> 🧪 Simulador de Equipamentos (Sandbox)
+          </button>
+
           {/* TAB 2: OPERAÇÕES (Visible to All) */}
           <button
             type="button"
@@ -5259,6 +5282,264 @@ export default function MidwayLabDashboard() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB: SIMULADOR DE EQUIPAMENTOS (MOCK DE IDA & RETORNO) */}
+        {activeTab === "simulador" && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-slate-900/90 border border-purple-500/40 p-6 rounded-2xl space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    <Cpu className="w-5 h-5 text-purple-400" />
+                    Simulador Interativo de Analisadores Laboratoriais (Sandbox de Teste)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Ambiente seguro para simular a <strong>IDA</strong> (recebimento do pedido/amostra pelo equipamento) e o <strong>RETORNO</strong> (liberação automática de resultados no protocolo oficial HL7, ASTM ou JSON).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40 px-3 py-1 rounded-full font-bold flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Modo Simulação Ativo
+                  </span>
+                </div>
+              </div>
+
+              {/* CONTROLES DO SIMULADOR */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-mono">
+                {/* 1. ESCOLHA DO ANALISADOR A SER SIMULADO */}
+                <div className="space-y-1.5">
+                  <label className="text-slate-300 font-bold font-sans">1. Analisador Simulado:</label>
+                  <select
+                    value={simulatorSelectedEquipamento}
+                    onChange={(e) => {
+                      const mod = e.target.value;
+                      setSimulatorSelectedEquipamento(mod);
+                      if (mod === "ACCESS") {
+                        setSimulatorExamesInput("TSH, T4L, PSA, BHCG, VITD");
+                      } else if (mod === "BC_3000" || mod === "BC_5380" || mod === "YUMIZEN") {
+                        setSimulatorExamesInput("WBC, RBC, HGB, HCT, PLT, NEU%, LYM%");
+                      } else {
+                        setSimulatorExamesInput("GLI, URE, CRE, COL, TRI, AST, ALT");
+                      }
+                      setSimulatorSimulatedRelease(null);
+                    }}
+                    className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none"
+                  >
+                    <option value="CB350">Cormay CB350 (Bioquímica - JSON)</option>
+                    <option value="BS_240">Mindray BS 240 (Bioquímica - HL7)</option>
+                    <option value="INVISTAR_300">Invistar 300 (Bioquímica - ASCII/JSON)</option>
+                    <option value="YUMIZEN">Horiba Yumizen (Hematologia - ASTM)</option>
+                    <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part - HL7)</option>
+                    <option value="BC_3000">Mindray BC 3000 Plus (Hematologia 3-Part - ASCII)</option>
+                    <option value="ACCESS">Beckman Coulter ACCESS (Imunologia - ASTM)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 font-sans block">
+                    Protocolo: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
+                  </span>
+                </div>
+
+                {/* 2. DADOS DO PEDIDO DE TESTE */}
+                <div className="space-y-1.5">
+                  <label className="text-slate-300 font-bold font-sans">2. Número do Pedido / Tubo:</label>
+                  <input
+                    type="text"
+                    value={simulatorPedidoNumero}
+                    onChange={(e) => setSimulatorPedidoNumero(e.target.value.toUpperCase())}
+                    placeholder="Ex: PED-2026-001"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500"
+                  />
+                  <span className="text-[10px] text-slate-400 font-sans block">Identificador do código de barras</span>
+                </div>
+
+                {/* 3. PACIENTE */}
+                <div className="space-y-1.5">
+                  <label className="text-slate-300 font-bold font-sans">3. Nome do Paciente:</label>
+                  <input
+                    type="text"
+                    value={simulatorPacienteNome}
+                    onChange={(e) => setSimulatorPacienteNome(e.target.value)}
+                    placeholder="Ex: Maria Helena Santos"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500 font-sans"
+                  />
+                  <span className="text-[10px] text-slate-400 font-sans block">Enviado no pacote de worklist</span>
+                </div>
+
+                {/* 4. EXAMES REQUISITADOS */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-bold font-sans">4. Códigos dos Exames:</label>
+                    <button
+                      type="button"
+                      onClick={() => setSimulatorSimularAlterados(!simulatorSimularAlterados)}
+                      className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition font-bold font-sans ${
+                        simulatorSimularAlterados ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-slate-800 text-slate-400"
+                      }`}
+                      title="Alternar entre gerar todos normais ou alguns alterados"
+                    >
+                      {simulatorSimularAlterados ? "⚠️ Simular Alterados" : "✅ Todos Normais"}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={simulatorExamesInput}
+                    onChange={(e) => setSimulatorExamesInput(e.target.value.toUpperCase())}
+                    placeholder="GLI, URE, CRE, COL, TRI"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-bold focus:outline-none focus:border-purple-500"
+                  />
+                  <span className="text-[10px] text-slate-400 font-sans block">Separados por vírgula</span>
+                </div>
+              </div>
+
+              {/* BOTÕES DE AÇÃO: DISPARAR SIMULAÇÃO */}
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const examesArray = simulatorExamesInput
+                      .split(",")
+                      .map((c) => c.trim())
+                      .filter(Boolean)
+                      .map((c) => ({ codigoEquipamento: c, nomeExame: c }));
+
+                    if (examesArray.length === 0) {
+                      showNotification("⚠️ Informe ao menos um código de exame para simular.");
+                      return;
+                    }
+
+                    const resultados = EquipamentoSimulatorService.gerarResultadosSimulados(
+                      examesArray,
+                      simulatorSelectedEquipamento,
+                      simulatorSimularAlterados
+                    );
+
+                    const releasePayload = EquipamentoSimulatorService.construirPayloadRetorno(
+                      simulatorPedidoNumero,
+                      simulatorPacienteNome,
+                      simulatorSelectedEquipamento,
+                      resultados
+                    );
+
+                    setSimulatorSimulatedRelease(releasePayload);
+                    showNotification(`🧪 [SIMULADOR] Equipamento '${simulatorSelectedEquipamento}' executou a análise do pedido '${simulatorPedidoNumero}' e liberou ${resultados.length} resultados!`);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-500 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-purple-600/30"
+                >
+                  <Play className="w-4 h-4 fill-current" /> ▶️ Simular Ida & Execução do Aparelho
+                </button>
+
+                {simulatorSimulatedRelease && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      showNotification(`📥 [RETORNO] Resultados do pedido '${simulatorSimulatedRelease.numeroPedido}' recebidos com sucesso no Midway via protocolo ${simulatorSimulatedRelease.formato}!`);
+                    }}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/20"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> 📥 Confirmar Entrada de Retorno no Midway
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimulatorSimulatedRelease(null);
+                    showNotification("🧹 Painel de simulação limpo.");
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Limpar
+                </button>
+              </div>
+
+              {/* PAINEL DE RESULTADOS SIMULADOS (RETORNO DO ANALISADOR) */}
+              {simulatorSimulatedRelease && (
+                <div className="mt-4 p-5 rounded-2xl bg-slate-950 border border-purple-500/50 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                          Pacote de Retorno Gerado pelo Aparelho: <span className="text-purple-300 font-mono">{simulatorSimulatedRelease.equipamentoModelo}</span>
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Pedido: <strong className="text-teal-300 font-mono">{simulatorSimulatedRelease.numeroPedido}</strong> | Paciente: <strong className="text-slate-200">{simulatorSimulatedRelease.pacienteNome}</strong> | Formato: <strong className="text-amber-400 font-mono">{simulatorSimulatedRelease.formato}</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      Liberado em: {new Date(simulatorSimulatedRelease.dataHoraLiberacao).toLocaleTimeString()}
+                    </span>
+                  </div>
+
+                  {/* TABELA DE RESULTADOS CLÍNICOS LIBERADOS */}
+                  <div className="overflow-x-auto rounded-xl border border-slate-800">
+                    <table className="w-full text-left text-xs font-mono">
+                      <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                        <tr>
+                          <th className="py-2 px-3">Status</th>
+                          <th className="py-2 px-3">Cód. Aparelho</th>
+                          <th className="py-2 px-3">Exame</th>
+                          <th className="py-2 px-3 text-right">Resultado</th>
+                          <th className="py-2 px-3">Unidade</th>
+                          <th className="py-2 px-3">Valores de Referência</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/80 bg-slate-950/60">
+                        {simulatorSimulatedRelease.resultados.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-900/40 transition">
+                            <td className="py-2 px-3">
+                              {item.status === "NORMAL" ? (
+                                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                  NORMAL
+                                </span>
+                              ) : (
+                                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                  ALTERADO
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-xs font-bold">
+                                {item.codigoEquipamento}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-200 font-sans font-medium">
+                              {item.nomeExame}
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <span className={`text-sm font-black font-mono ${item.status === "NORMAL" ? "text-emerald-400" : "text-rose-400 font-extrabold"}`}>
+                                {item.valor}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-400 text-xs">
+                              {item.unidade}
+                            </td>
+                            <td className="py-2 px-3 text-slate-400 text-xs">
+                              {item.valoresReferencia}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* PACOTE BRUTO (RAW TELEMETRIA / PROTOCOLO HL7 / ASTM / JSON) */}
+                  <details className="text-[11px] bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <summary className="text-purple-300 cursor-pointer font-bold font-sans flex items-center justify-between">
+                      <span>📄 Ver Mensagem Bruta transmitida na porta/arquivo ({simulatorSimulatedRelease.formato})</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Clique para expandir</span>
+                    </summary>
+                    <pre className="mt-2.5 p-3 rounded-lg bg-slate-950 text-cyan-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap border border-slate-800/80 leading-relaxed">
+                      {simulatorSimulatedRelease.rawOutputPayload}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
