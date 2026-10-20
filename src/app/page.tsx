@@ -4774,22 +4774,36 @@ export default function MidwayLabDashboard() {
                         try {
                           // @ts-ignore
                           if (window.showDirectoryPicker) {
+                            const pickerOptions: any = {};
+                            if (handleEntrada) {
+                              pickerOptions.startIn = handleEntrada;
+                            }
                             // @ts-ignore
-                            const handle = await window.showDirectoryPicker();
+                            const handle = await window.showDirectoryPicker(pickerOptions);
                             setHandleEntrada(handle);
                             const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                            const modeloAtual = selectedTargetEquipamento || "CB350";
                             if (activeTenant?.id) {
+                              DirectoryStorageService.salvarHandle(`entrada_${activeTenant.id}_${modeloAtual}`, handle);
                               DirectoryStorageService.salvarHandle(`entrada_${activeTenant.id}`, handle);
                             }
                             // Extrai o nome da pasta selecionada pelo usuário no Windows
-                            const selectedFolder = handle.name || "Pedidos";
-                            // Se o usuário já tinha um caminho digitado (ex: C:\OutraPasta\Subpasta), respeita a base ou usa a pasta escolhida
-                            let pathName = `C:\\Labfacil\\${selectedFolder}`;
-                            if (watcherConfig.diretorioEntrada && !watcherConfig.diretorioEntrada.startsWith("C:\\Labfacil\\")) {
-                              const lastSlash = watcherConfig.diretorioEntrada.lastIndexOf("\\");
-                              if (lastSlash !== -1) {
-                                pathName = `${watcherConfig.diretorioEntrada.slice(0, lastSlash)}\\${selectedFolder}`;
+                            const selectedFolder = handle.name || "Enviados";
+                            
+                            // Reconstitui o caminho exato preservando o equipamento ativo
+                            let pathName = "";
+                            const currentVal = watcherConfig.diretorioEntrada?.trim();
+                            if (currentVal && (currentVal.includes("\\") || currentVal.includes("/"))) {
+                              const separator = currentVal.includes("\\") ? "\\" : "/";
+                              const parts = currentVal.split(separator).filter(Boolean);
+                              if (parts.length > 1) {
+                                parts[parts.length - 1] = selectedFolder;
+                                pathName = parts.join(separator);
+                              } else {
+                                pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                               }
+                            } else {
+                              pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                             }
 
                             setWatcherConfig(prev => {
@@ -4899,20 +4913,37 @@ export default function MidwayLabDashboard() {
                         try {
                           // @ts-ignore
                           if (window.showDirectoryPicker) {
+                            const pickerOptions: any = {};
+                            if (handleProcessados) {
+                              pickerOptions.startIn = handleProcessados;
+                            } else if (handleEntrada) {
+                              pickerOptions.startIn = handleEntrada;
+                            }
                             // @ts-ignore
-                            const handle = await window.showDirectoryPicker();
+                            const handle = await window.showDirectoryPicker(pickerOptions);
                             setHandleProcessados(handle);
                             const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                            const modeloAtual = selectedTargetEquipamento || "CB350";
                             if (activeTenant?.id) {
+                              DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}_${modeloAtual}`, handle);
                               DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}`, handle);
                             }
                             const selectedFolder = handle.name || "Processados";
-                            let pathName = `C:\\Labfacil\\${selectedFolder}`;
-                            if (watcherConfig.diretorioProcessados && !watcherConfig.diretorioProcessados.startsWith("C:\\Labfacil\\")) {
-                              const lastSlash = watcherConfig.diretorioProcessados.lastIndexOf("\\");
-                              if (lastSlash !== -1) {
-                                pathName = `${watcherConfig.diretorioProcessados.slice(0, lastSlash)}\\${selectedFolder}`;
+                            
+                            // Reconstitui o caminho exato preservando o equipamento ativo
+                            let pathName = "";
+                            const currentVal = watcherConfig.diretorioProcessados?.trim();
+                            if (currentVal && (currentVal.includes("\\") || currentVal.includes("/"))) {
+                              const separator = currentVal.includes("\\") ? "\\" : "/";
+                              const parts = currentVal.split(separator).filter(Boolean);
+                              if (parts.length > 1) {
+                                parts[parts.length - 1] = selectedFolder;
+                                pathName = parts.join(separator);
+                              } else {
+                                pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                               }
+                            } else {
+                              pathName = `C:\\Labfacil\\${modeloAtual}\\Enviados\\${selectedFolder}`;
                             }
 
                             setWatcherConfig(prev => {
@@ -5037,20 +5068,37 @@ export default function MidwayLabDashboard() {
                         try {
                           // @ts-ignore
                           if (window.showDirectoryPicker) {
+                            const pickerOptions: any = {};
+                            if (handleErros) {
+                              pickerOptions.startIn = handleErros;
+                            } else if (handleEntrada) {
+                              pickerOptions.startIn = handleEntrada;
+                            }
                             // @ts-ignore
-                            const handle = await window.showDirectoryPicker();
+                            const handle = await window.showDirectoryPicker(pickerOptions);
                             setHandleErros(handle);
                             const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                            const modeloAtual = selectedTargetEquipamento || "CB350";
                             if (activeTenant?.id) {
+                              DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}_${modeloAtual}`, handle);
                               DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}`, handle);
                             }
                             const selectedFolder = handle.name || "Erros";
-                            let pathName = `C:\\Labfacil\\${selectedFolder}`;
-                            if (watcherConfig.diretorioErros && !watcherConfig.diretorioErros.startsWith("C:\\Labfacil\\")) {
-                              const lastSlash = watcherConfig.diretorioErros.lastIndexOf("\\");
-                              if (lastSlash !== -1) {
-                                pathName = `${watcherConfig.diretorioErros.slice(0, lastSlash)}\\${selectedFolder}`;
+                            
+                            // Reconstitui o caminho exato preservando o equipamento ativo
+                            let pathName = "";
+                            const currentVal = watcherConfig.diretorioErros?.trim();
+                            if (currentVal && (currentVal.includes("\\") || currentVal.includes("/"))) {
+                              const separator = currentVal.includes("\\") ? "\\" : "/";
+                              const parts = currentVal.split(separator).filter(Boolean);
+                              if (parts.length > 1) {
+                                parts[parts.length - 1] = selectedFolder;
+                                pathName = parts.join(separator);
+                              } else {
+                                pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                               }
+                            } else {
+                              pathName = `C:\\Labfacil\\Erros`;
                             }
 
                             setWatcherConfig(prev => {
