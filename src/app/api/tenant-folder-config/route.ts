@@ -4,7 +4,7 @@ import { supabase } from '../../../db/supabase';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tenantId, configIngestao } = body;
+    const { tenantId, configIngestao, modeloEquipamento } = body;
 
     if (!tenantId) {
       return NextResponse.json(
@@ -19,6 +19,8 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const modeloKey = (modeloEquipamento || configIngestao.equipamento_destino || 'CB350').toUpperCase().trim();
 
     // 1. Busca configurações atuais do tenant diretamente no Supabase com Service Role Key
     const { data: tenant, error: fetchErr } = await supabase
@@ -36,11 +38,28 @@ export async function POST(request: Request) {
     }
 
     const existingConfigs = tenant?.configuracoes || {};
+    const existingEquipPastas = existingConfigs.equipamentos_pastas || {};
+
+    // Atualiza a pasta específica deste equipamento
+    const updatedEquipPastas = {
+      ...existingEquipPastas,
+      [modeloKey]: {
+        ...(existingEquipPastas[modeloKey] || {}),
+        ...configIngestao,
+        equipamento_destino: modeloKey,
+        atualizado_em: new Date().toISOString()
+      }
+    };
+
     const updatedConfigs = {
       ...existingConfigs,
+      // Grava no mapa de cada equipamento
+      equipamentos_pastas: updatedEquipPastas,
+      // Mantém também como o equipamento ativo atual em ingestao_pastas
       ingestao_pastas: {
         ...(existingConfigs.ingestao_pastas || {}),
         ...configIngestao,
+        equipamento_destino: modeloKey,
         atualizado_em: new Date().toISOString()
       }
     };
@@ -62,7 +81,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       configuracoes: updatedConfigs,
-      message: 'Configurações de pastas salvas com sucesso no banco de dados!'
+      message: `Pastas do equipamento ${modeloKey} salvas com sucesso no banco de dados!`
     });
   } catch (error: any) {
     console.error('[API tenant-folder-config] Erro inesperado:', error);

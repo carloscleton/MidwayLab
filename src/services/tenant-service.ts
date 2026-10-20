@@ -198,15 +198,18 @@ export class TenantService {
   }
   /**
    * Salva configurações específicas de Ingestão de Pastas no JSONB da empresa (Tenant)
+   * Suporta separação por equipamento selecionado (ex: CB350, YUMIZEN, ACCESS, etc.)
    */
-  static async salvarConfigIngestaoPastas(tenantId: string, configIngestao: any): Promise<boolean> {
+  static async salvarConfigIngestaoPastas(tenantId: string, configIngestao: any, modeloEquipamento?: string): Promise<boolean> {
     try {
+      const equipModelo = (modeloEquipamento || configIngestao.equipamento_destino || 'CB350').toUpperCase().trim();
+
       // 1. Tenta salvar via API Route do backend (Garante bypass de RLS e Service Role)
       try {
         const response = await fetch('/api/tenant-folder-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenantId, configIngestao })
+          body: JSON.stringify({ tenantId, configIngestao, modeloEquipamento: equipModelo })
         });
         if (response.ok) {
           const resData = await response.json();
@@ -226,11 +229,25 @@ export class TenantService {
         .single();
 
       const existingConfigs = tenant?.configuracoes || {};
+      const existingEquipPastas = existingConfigs.equipamentos_pastas || {};
+
+      const updatedEquipPastas = {
+        ...existingEquipPastas,
+        [equipModelo]: {
+          ...(existingEquipPastas[equipModelo] || {}),
+          ...configIngestao,
+          equipamento_destino: equipModelo,
+          atualizado_em: new Date().toISOString()
+        }
+      };
+
       const updatedConfigs = {
         ...existingConfigs,
+        equipamentos_pastas: updatedEquipPastas,
         ingestao_pastas: {
           ...(existingConfigs.ingestao_pastas || {}),
           ...configIngestao,
+          equipamento_destino: equipModelo,
           atualizado_em: new Date().toISOString()
         }
       };

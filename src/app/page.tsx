@@ -1688,32 +1688,36 @@ export default function MidwayLabDashboard() {
     };
   }, [isWatcherRunning, handleEntrada, handleProcessados, watcherConfig.diretorioEntrada, watcherConfig.diretorioProcessados, watcherConfig.diretorioErros, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
-  // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT)
-  const loadWatcherConfigForTenant = async (tenantObj: any) => {
+  // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT) POR EQUIPAMENTO
+  const loadWatcherConfigForTenant = async (tenantObj: any, targetEquipModelo?: string) => {
     if (!tenantObj) return;
-    const jsonbConfig = tenantObj.configuracoes?.ingestao_pastas;
+    const modeloAtual = (targetEquipModelo || selectedTargetEquipamento || "CB350").toUpperCase().trim();
+    
+    // 1. Busca configurações específicas deste equipamento (ex: Yumizen, CB350, Access)
+    const equipConfigs = tenantObj.configuracoes?.equipamentos_pastas?.[modeloAtual];
+    const jsonbConfig = equipConfigs || tenantObj.configuracoes?.ingestao_pastas;
 
     // Nome sanitizado da empresa para criar pastas personalizadas por padrão
     const cleanLabName = (tenantObj.nome || "Empresa").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20);
 
     const configPorEmpresa = {
-      diretorioEntrada: jsonbConfig?.diretorio_entrada || `C:\\Labfacil\\${cleanLabName}\\Pedidos`,
-      diretorioProcessados: jsonbConfig?.diretorio_processados || `C:\\Labfacil\\${cleanLabName}\\Processados`,
-      diretorioErros: jsonbConfig?.diretorio_erros || `C:\\Labfacil\\${cleanLabName}\\Erros`,
-      equipamentoDestino: jsonbConfig?.equipamento_destino || "CB350",
+      diretorioEntrada: equipConfigs?.diretorio_entrada || jsonbConfig?.diretorio_entrada || `C:\\Labfacil\\${modeloAtual}\\Pedidos`,
+      diretorioProcessados: equipConfigs?.diretorio_processados || jsonbConfig?.diretorio_processados || `C:\\Labfacil\\${modeloAtual}\\Processados`,
+      diretorioErros: equipConfigs?.diretorio_erros || jsonbConfig?.diretorio_erros || `C:\\Labfacil\\${modeloAtual}\\Erros`,
+      equipamentoDestino: modeloAtual,
       ativo: Boolean(jsonbConfig?.monitor_ativo)
     };
 
     setWatcherConfig(configPorEmpresa);
     setIsWatcherRunning(configPorEmpresa.ativo);
 
-    // Tentar restaurar handles do IndexedDB local se existirem para este tenant
+    // Tentar restaurar handles do IndexedDB local se existirem para este tenant e equipamento
     if (tenantObj.id) {
       try {
         const [savedEntrada, savedProcessados, savedErros] = await Promise.all([
-          DirectoryStorageService.obterHandle(`entrada_${tenantObj.id}`),
-          DirectoryStorageService.obterHandle(`processados_${tenantObj.id}`),
-          DirectoryStorageService.obterHandle(`erros_${tenantObj.id}`)
+          DirectoryStorageService.obterHandle(`entrada_${tenantObj.id}_${modeloAtual}`),
+          DirectoryStorageService.obterHandle(`processados_${tenantObj.id}_${modeloAtual}`),
+          DirectoryStorageService.obterHandle(`erros_${tenantObj.id}_${modeloAtual}`)
         ]);
         setHandleEntrada(savedEntrada || null);
         setHandleProcessados(savedProcessados || null);
@@ -4576,14 +4580,19 @@ export default function MidwayLabDashboard() {
           <div className="space-y-6">
             <div className="bg-slate-900/90 border border-teal-500/40 p-6 rounded-2xl space-y-4 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                <div>
+                <div className="space-y-1">
                   <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                     <RefreshCw className={`w-5 h-5 text-teal-400 ${isWatcherRunning ? "animate-spin" : ""}`} />
-                    Monitoramento Automático de Pastas por Empresa (Gravado em JSONB)
+                    Monitoramento de Pastas por Equipamento (Gravado no Banco Supabase)
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    Caminhos e configurações personalizados gravados no banco Supabase para <strong>{selectedTenant}</strong>.
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="text-slate-400">Empresa: <strong className="text-slate-200">{selectedTenant}</strong></span>
+                    <span className="text-slate-600">|</span>
+                    <span className="text-slate-400">Configuração do Equipamento:</span>
+                    <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded text-[11px] font-mono font-bold">
+                      {selectedTargetEquipamento}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -4622,9 +4631,9 @@ export default function MidwayLabDashboard() {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          equipamento_destino: selectedTargetEquipamento,
                           monitor_ativo: novoEstado
-                        });
+                        }, selectedTargetEquipamento);
                       }
                       showNotification(novoEstado ? "▶️ Monitoramento automático ligado e salvo no banco!" : "⏸️ Monitoramento automático desligado e salvo no banco.");
                     }}
@@ -4699,17 +4708,22 @@ export default function MidwayLabDashboard() {
                         diretorio_entrada: watcherConfig.diretorioEntrada,
                         diretorio_processados: watcherConfig.diretorioProcessados,
                         diretorio_erros: watcherConfig.diretorioErros,
-                        equipamento_destino: watcherConfig.equipamentoDestino,
+                        equipamento_destino: selectedTargetEquipamento,
                         monitor_ativo: isWatcherRunning
                       };
 
-                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb);
+                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb, selectedTargetEquipamento);
                       if (ok) {
+                        const existingEquipPastas = activeTenant.configuracoes?.equipamentos_pastas || {};
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
+                          equipamentos_pastas: {
+                            ...existingEquipPastas,
+                            [selectedTargetEquipamento]: payloadJsonb
+                          },
                           ingestao_pastas: payloadJsonb
                         };
-                        showNotification(`💾 Configurações de pastas salvas no banco Supabase para ${selectedTenant}!`);
+                        showNotification(`💾 Pastas do equipamento ${selectedTargetEquipamento} salvas no banco para ${selectedTenant}!`);
                       } else {
                         showNotification(`Erro ao salvar no banco Supabase.`);
                       }
@@ -4762,24 +4776,22 @@ export default function MidwayLabDashboard() {
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioEntrada: pathName };
                               if (activeTenant) {
-                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                                const payloadEquip = {
                                   diretorio_entrada: pathName,
                                   diretorio_processados: prev.diretorioProcessados,
                                   diretorio_erros: prev.diretorioErros,
-                                  equipamento_destino: prev.equipamentoDestino,
+                                  equipamento_destino: selectedTargetEquipamento,
                                   monitor_ativo: true
-                                });
-                                // Atualiza o cache local do tenant para sincronizar na hora
+                                };
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadEquip, selectedTargetEquipamento);
+                                const existingEquipPastas = activeTenant.configuracoes?.equipamentos_pastas || {};
                                 activeTenant.configuracoes = {
                                   ...(activeTenant.configuracoes || {}),
-                                  ingestao_pastas: {
-                                    ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                                    diretorio_entrada: pathName,
-                                    diretorio_processados: prev.diretorioProcessados,
-                                    diretorio_erros: prev.diretorioErros,
-                                    equipamento_destino: prev.equipamentoDestino,
-                                    monitor_ativo: true
-                                  }
+                                  equipamentos_pastas: {
+                                    ...existingEquipPastas,
+                                    [selectedTargetEquipamento]: payloadEquip
+                                  },
+                                  ingestao_pastas: payloadEquip
                                 };
                               }
                               return updated;
@@ -4879,9 +4891,10 @@ export default function MidwayLabDashboard() {
                                   diretorio_entrada: prev.diretorioEntrada,
                                   diretorio_processados: pathName,
                                   diretorio_erros: prev.diretorioErros,
-                                  equipamento_destino: prev.equipamentoDestino,
+                                  equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
                                   monitor_ativo: isWatcherRunning
-                                });
+                                }, selectedTargetEquipamento);
+                                const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
                                 activeTenant.configuracoes = {
                                   ...(activeTenant.configuracoes || {}),
                                   ingestao_pastas: {
@@ -4889,8 +4902,19 @@ export default function MidwayLabDashboard() {
                                     diretorio_entrada: prev.diretorioEntrada,
                                     diretorio_processados: pathName,
                                     diretorio_erros: prev.diretorioErros,
-                                    equipamento_destino: prev.equipamentoDestino,
+                                    equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
                                     monitor_ativo: isWatcherRunning
+                                  },
+                                  equipamentos_pastas: {
+                                    ...equipConfigs,
+                                    [selectedTargetEquipamento]: {
+                                      diretorio_entrada: prev.diretorioEntrada,
+                                      diretorio_processados: pathName,
+                                      diretorio_erros: prev.diretorioErros,
+                                      equipamento_destino: selectedTargetEquipamento,
+                                      monitor_ativo: isWatcherRunning,
+                                      atualizado_em: new Date().toISOString()
+                                    }
                                   }
                                 };
                               }
@@ -4925,13 +4949,14 @@ export default function MidwayLabDashboard() {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
                           monitor_ativo: isWatcherRunning
-                        }).then((ok) => {
+                        }, selectedTargetEquipamento).then((ok) => {
                           if (ok) {
-                            showNotification(`💾 Caminho de Processados gravado no banco da empresa ${selectedTenant}!`);
+                            showNotification(`💾 Caminho de Processados gravado para ${selectedTargetEquipamento} (${selectedTenant})!`);
                           }
                         });
+                        const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
                           ingestao_pastas: {
@@ -4939,8 +4964,19 @@ export default function MidwayLabDashboard() {
                             diretorio_entrada: watcherConfig.diretorioEntrada,
                             diretorio_processados: watcherConfig.diretorioProcessados,
                             diretorio_erros: watcherConfig.diretorioErros,
-                            equipamento_destino: watcherConfig.equipamentoDestino,
+                            equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
                             monitor_ativo: isWatcherRunning
+                          },
+                          equipamentos_pastas: {
+                            ...equipConfigs,
+                            [selectedTargetEquipamento]: {
+                              diretorio_entrada: watcherConfig.diretorioEntrada,
+                              diretorio_processados: watcherConfig.diretorioProcessados,
+                              diretorio_erros: watcherConfig.diretorioErros,
+                              equipamento_destino: selectedTargetEquipamento,
+                              monitor_ativo: isWatcherRunning,
+                              atualizado_em: new Date().toISOString()
+                            }
                           }
                         };
                       }
@@ -4993,9 +5029,10 @@ export default function MidwayLabDashboard() {
                                   diretorio_entrada: prev.diretorioEntrada,
                                   diretorio_processados: prev.diretorioProcessados,
                                   diretorio_erros: pathName,
-                                  equipamento_destino: prev.equipamentoDestino,
+                                  equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
                                   monitor_ativo: isWatcherRunning
-                                });
+                                }, selectedTargetEquipamento);
+                                const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
                                 activeTenant.configuracoes = {
                                   ...(activeTenant.configuracoes || {}),
                                   ingestao_pastas: {
@@ -5003,8 +5040,19 @@ export default function MidwayLabDashboard() {
                                     diretorio_entrada: prev.diretorioEntrada,
                                     diretorio_processados: prev.diretorioProcessados,
                                     diretorio_erros: pathName,
-                                    equipamento_destino: prev.equipamentoDestino,
+                                    equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
                                     monitor_ativo: isWatcherRunning
+                                  },
+                                  equipamentos_pastas: {
+                                    ...equipConfigs,
+                                    [selectedTargetEquipamento]: {
+                                      diretorio_entrada: prev.diretorioEntrada,
+                                      diretorio_processados: prev.diretorioProcessados,
+                                      diretorio_erros: pathName,
+                                      equipamento_destino: selectedTargetEquipamento,
+                                      monitor_ativo: isWatcherRunning,
+                                      atualizado_em: new Date().toISOString()
+                                    }
                                   }
                                 };
                               }
@@ -5035,13 +5083,14 @@ export default function MidwayLabDashboard() {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: watcherConfig.equipamentoDestino,
+                          equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
                           monitor_ativo: isWatcherRunning
-                        }).then((ok) => {
+                        }, selectedTargetEquipamento).then((ok) => {
                           if (ok) {
-                            showNotification(`💾 Caminho de Erros gravado no banco da empresa ${selectedTenant}!`);
+                            showNotification(`💾 Caminho de Erros gravado para ${selectedTargetEquipamento} (${selectedTenant})!`);
                           }
                         });
+                        const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
                         activeTenant.configuracoes = {
                           ...(activeTenant.configuracoes || {}),
                           ingestao_pastas: {
@@ -5049,8 +5098,19 @@ export default function MidwayLabDashboard() {
                             diretorio_entrada: watcherConfig.diretorioEntrada,
                             diretorio_processados: watcherConfig.diretorioProcessados,
                             diretorio_erros: watcherConfig.diretorioErros,
-                            equipamento_destino: watcherConfig.equipamentoDestino,
+                            equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
                             monitor_ativo: isWatcherRunning
+                          },
+                          equipamentos_pastas: {
+                            ...equipConfigs,
+                            [selectedTargetEquipamento]: {
+                              diretorio_entrada: watcherConfig.diretorioEntrada,
+                              diretorio_processados: watcherConfig.diretorioProcessados,
+                              diretorio_erros: watcherConfig.diretorioErros,
+                              equipamento_destino: selectedTargetEquipamento,
+                              monitor_ativo: isWatcherRunning,
+                              atualizado_em: new Date().toISOString()
+                            }
                           }
                         };
                       }
@@ -5109,7 +5169,15 @@ export default function MidwayLabDashboard() {
                   <label className="text-xs font-semibold text-slate-300">Equipamento Alvo para Mapeamento:</label>
                   <select
                     value={selectedTargetEquipamento}
-                    onChange={(e) => setSelectedTargetEquipamento(e.target.value)}
+                    onChange={(e) => {
+                      const novoEquip = e.target.value;
+                      setSelectedTargetEquipamento(novoEquip);
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (activeTenant) {
+                        loadWatcherConfigForTenant(activeTenant, novoEquip);
+                        showNotification(`🔬 Equipamento alvo alterado para '${novoEquip}'. Carregando suas pastas específicas...`);
+                      }
+                    }}
                     className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-slate-100 text-xs font-semibold focus:outline-none"
                   >
                     <option value="CB350">🔬 Cormay CB350 (Bioquímica)</option>
