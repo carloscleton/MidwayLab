@@ -781,10 +781,22 @@ export default function MidwayLabDashboard() {
       .channel('realtime_pedidos_channel')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, (payload) => {
         const newRecord = payload.new as any;
-        showNotification(`⚡ Novo Pedido SOAP Recebido: ${newRecord.protocolo_autolac || 'PROTO-REQ'} (${newRecord.paciente_nome || 'Paciente'})`);
+        showNotification(`⚡ Novo Pedido Processado pelo Robô: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || 'PROTO'} (${newRecord.paciente_nome || 'Paciente'})`);
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
         
+        // Alimenta em tempo real o histórico da aba Ingestão de Pastas
+        setWatcherLogs(prev => [
+          {
+            id: newRecord.id || `log-${Date.now()}`,
+            timestamp: timeStr,
+            arquivo: newRecord.arquivo_nome || `ARQUIVO_${newRecord.protocolo_autolac || '001'}`,
+            status: newRecord.status || "PROCESSADO",
+            mensagem: `Paciente: ${newRecord.paciente_nome || 'N/I'} | Pedido: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || '-'} (Lido pelo Robô)`
+          },
+          ...prev
+        ]);
+
         setLogs(prev => [
           {
             id: `LOG-${Date.now().toString().slice(-4)}`,
@@ -1708,6 +1720,30 @@ export default function MidwayLabDashboard() {
 
     setWatcherConfig(configPorEmpresa);
     setIsWatcherRunning(configPorEmpresa.ativo);
+
+    // Carregar pedidos reais processados pelo Robô no Supabase para exibir no Histórico da Web
+    if (tenantObj.id) {
+      try {
+        const { data: dbPedidos } = await supabaseBrowser
+          .from('pedidos')
+          .select('*')
+          .eq('tenant_id', tenantObj.id)
+          .order('created_at', { ascending: false })
+          .limit(30);
+
+        if (dbPedidos && dbPedidos.length > 0) {
+          setWatcherLogs(dbPedidos.map((p: any) => ({
+            id: p.id,
+            timestamp: new Date(p.created_at).toLocaleTimeString('pt-BR'),
+            arquivo: p.arquivo_nome || `${p.origem_arquivo || 'ARQUIVO'}_${p.protocolo_autolac || '001'}`,
+            status: p.status || 'PROCESSADO',
+            mensagem: `Paciente: ${p.paciente_nome || 'N/I'} | Pedido: ${p.codigo_pedido_labfacil || p.protocolo_autolac || '-'} (Lido pelo Robô)`
+          })));
+        }
+      } catch (logErr) {
+        console.warn("[WatcherLogs] Falha ao sincronizar pedidos do Supabase:", logErr);
+      }
+    }
 
     // Tentar restaurar handles do IndexedDB local se existirem para este tenant e equipamento
     if (tenantObj.id) {
