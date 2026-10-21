@@ -16,7 +16,7 @@ export interface ISimulatedSampleRelease {
   pacienteNome: string;
   equipamentoModelo: string;
   dataHoraLiberacao: string;
-  formato: 'JSON' | 'ASTM' | 'HL7' | 'CSV';
+  formato: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV';
   resultados: ISimulatedResultItem[];
   rawOutputPayload: string;
 }
@@ -67,12 +67,13 @@ export class EquipamentoSimulatorService {
     PLT: { valMin: 150, valMax: 380, unidade: '10^3/µL', ref: '150 a 450 10^3/µL' },
     RDW: { valMin: 11.5, valMax: 14.5, unidade: '%', ref: '11.5 a 14.5 %' },
 
-    // Imunologia (Access)
+    // Imunologia (Access, etc.)
     TSH: { valMin: 0.4, valMax: 4.0, unidade: 'µUI/mL', ref: '0.40 a 4.50 µUI/mL' },
     T4L: { valMin: 0.8, valMax: 1.7, unidade: 'ng/dL', ref: '0.70 a 1.80 ng/dL' },
     PSA: { valMin: 0.4, valMax: 2.1, unidade: 'ng/mL', ref: '< 4.00 ng/mL' },
     BHCG: { valMin: 1.0, valMax: 4.0, unidade: 'mUI/mL', ref: 'Homens e Não Grávidas < 5.0' },
-    VITD: { valMin: 25.0, valMax: 50.0, unidade: 'ng/mL', ref: '20.0 a 60.0 ng/mL' }
+    VITD: { valMin: 25.0, valMax: 50.0, unidade: 'ng/mL', ref: '20.0 a 60.0 ng/mL' },
+    VITDACCESS: { valMin: 25.0, valMax: 50.0, unidade: 'ng/mL', ref: '20.0 a 60.0 ng/mL' }
   };
 
   /**
@@ -120,22 +121,41 @@ export class EquipamentoSimulatorService {
   }
 
   /**
-   * Monta o pacote de retorno simulado do equipamento (HL7, ASTM ou JSON)
+   * Monta o pacote de retorno simulado do equipamento (HL7, ASTM, XML ou JSON)
    */
   static construirPayloadRetorno(
     pedidoNumero: string,
     pacienteNome: string,
     equipamentoModelo: string,
-    resultados: ISimulatedResultItem[]
+    resultados: ISimulatedResultItem[],
+    formatoForcado?: 'JSON' | 'ASTM' | 'HL7' | 'XML'
   ): ISimulatedSampleRelease {
     const modeloUpper = equipamentoModelo.toUpperCase();
     const dataHoraIso = new Date().toISOString();
     const timestampCompacto = dataHoraIso.replace(/[-:T.]/g, '').slice(0, 14);
 
-    let formato: 'JSON' | 'ASTM' | 'HL7' | 'CSV' = 'JSON';
+    let formato: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV' = formatoForcado || 'JSON';
     let rawOutput = '';
 
-    if (modeloUpper.includes('YUMIZEN') || modeloUpper.includes('ACCESS')) {
+    if (formatoForcado === 'XML' || modeloUpper.includes('XML')) {
+      formato = 'XML';
+      const examesXml = resultados.map(r => `      <Exame>
+        <CodExame>${r.codigoEquipamento}</CodExame>
+        <Secao>
+          <Codigo>${r.codigoEquipamento}</Codigo>
+          <Valor>${r.valor}</Valor>
+        </Secao>
+      </Exame>`).join('\n');
+
+      rawOutput = `<Principal>
+  <Paciente>
+    <Amostra>${pedidoNumero}</Amostra>
+    <Resultado>
+${examesXml}
+    </Resultado>
+  </Paciente>
+</Principal>`;
+    } else if (formatoForcado === 'ASTM' || ((!formatoForcado) && (modeloUpper.includes('YUMIZEN') || modeloUpper.includes('ACCESS')))) {
       // Padrão ASTM E1394
       formato = 'ASTM';
       const lines = [
@@ -146,7 +166,7 @@ export class EquipamentoSimulatorService {
         `L|1|N`
       ];
       rawOutput = lines.join('\r\n');
-    } else if (modeloUpper.includes('BS_240') || modeloUpper.includes('BC_5380') || modeloUpper.includes('MINDRAY')) {
+    } else if (formatoForcado === 'HL7' || ((!formatoForcado) && (modeloUpper.includes('BS_240') || modeloUpper.includes('BC_5380') || modeloUpper.includes('MINDRAY')))) {
       // Padrão HL7 v2.3.1 (ORU^R01)
       formato = 'HL7';
       const hl7Lines = [

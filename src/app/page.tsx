@@ -268,6 +268,7 @@ export default function MidwayLabDashboard() {
 
   // SIMULADOR DE EQUIPAMENTOS (MOCK DE IDA & RETORNO)
   const [simulatorSelectedEquipamento, setSimulatorSelectedEquipamento] = useState<string>("CB350");
+  const [simulatorSelectedFormato, setSimulatorSelectedFormato] = useState<"AUTO" | "XML" | "JSON" | "ASTM" | "HL7">("AUTO");
   const [simulatorPedidoNumero, setSimulatorPedidoNumero] = useState<string>("PED-2026-001");
   const [simulatorPacienteNome, setSimulatorPacienteNome] = useState<string>("MARIA HELENA SANTOS");
   const [simulatorExamesInput, setSimulatorExamesInput] = useState<string>("GLI, URE, CRE, COL, TRI");
@@ -5590,7 +5591,7 @@ export default function MidwayLabDashboard() {
               </div>
 
               {/* CONTROLES DO SIMULADOR */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-xs font-mono">
                 {/* 1. ESCOLHA DO ANALISADOR A SER SIMULADO */}
                 <div className="space-y-1.5">
                   <label className="text-slate-300 font-bold font-sans">1. Analisador Simulado:</label>
@@ -5600,7 +5601,7 @@ export default function MidwayLabDashboard() {
                       const mod = e.target.value;
                       setSimulatorSelectedEquipamento(mod);
                       if (mod === "ACCESS") {
-                        setSimulatorExamesInput("TSH, T4L, PSA, BHCG, VITD");
+                        setSimulatorExamesInput("VITDACCESS, TSH, T4L, PSA");
                       } else if (mod === "BC_3000" || mod === "BC_5380" || mod === "YUMIZEN") {
                         setSimulatorExamesInput("WBC, RBC, HGB, HCT, PLT, NEU%, LYM%");
                       } else {
@@ -5610,35 +5611,52 @@ export default function MidwayLabDashboard() {
                     }}
                     className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none"
                   >
-                    <option value="CB350">Cormay CB350 (Bioquímica - JSON)</option>
-                    <option value="BS_240">Mindray BS 240 (Bioquímica - HL7)</option>
-                    <option value="INVISTAR_300">Invistar 300 (Bioquímica - ASCII/JSON)</option>
-                    <option value="YUMIZEN">Horiba Yumizen (Hematologia - ASTM)</option>
-                    <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part - HL7)</option>
-                    <option value="BC_3000">Mindray BC 3000 Plus (Hematologia 3-Part - ASCII)</option>
-                    <option value="ACCESS">Beckman Coulter ACCESS (Imunologia - ASTM)</option>
+                    <option value="CB350">Cormay CB350 (Bioquímica)</option>
+                    <option value="BS_240">Mindray BS 240 (Bioquímica)</option>
+                    <option value="INVISTAR_300">Invistar 300 (Bioquímica)</option>
+                    <option value="YUMIZEN">Horiba Yumizen (Hematologia)</option>
+                    <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part)</option>
+                    <option value="BC_3000">Mindray BC 3000 Plus (Hematologia 3-Part)</option>
+                    <option value="ACCESS">Beckman Coulter ACCESS (Imunologia)</option>
                   </select>
                   <span className="text-[10px] text-slate-400 font-sans block">
-                    Protocolo: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
+                    Protocolo Padrão: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
                   </span>
                 </div>
 
-                {/* 2. DADOS DO PEDIDO DE TESTE */}
+                {/* 2. FORMATO DA MENSAGEM DE RETORNO */}
                 <div className="space-y-1.5">
-                  <label className="text-slate-300 font-bold font-sans">2. Número do Pedido / Tubo:</label>
+                  <label className="text-slate-300 font-bold font-sans">2. Formato de Transmissão:</label>
+                  <select
+                    value={simulatorSelectedFormato}
+                    onChange={(e) => setSimulatorSelectedFormato(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none"
+                  >
+                    <option value="AUTO">Automático (Padrão do Aparelho)</option>
+                    <option value="XML">XML Estruturado (&lt;Principal&gt;&lt;Paciente&gt;...)</option>
+                    <option value="JSON">JSON (Carga Web/API Midway)</option>
+                    <option value="ASTM">ASTM E1394 (Porta Serial / Arquivo)</option>
+                    <option value="HL7">HL7 v2.3.1 (ORU^R01)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 font-sans block">Estrutura transmitida ao Midway</span>
+                </div>
+
+                {/* 3. DADOS DO PEDIDO DE TESTE */}
+                <div className="space-y-1.5">
+                  <label className="text-slate-300 font-bold font-sans">3. Número Pedido / Tubo:</label>
                   <input
                     type="text"
                     value={simulatorPedidoNumero}
                     onChange={(e) => setSimulatorPedidoNumero(e.target.value.toUpperCase())}
-                    placeholder="Ex: PED-2026-001"
+                    placeholder="Ex: 0142215202"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500"
                   />
-                  <span className="text-[10px] text-slate-400 font-sans block">Identificador do código de barras</span>
+                  <span className="text-[10px] text-slate-400 font-sans block">Código de barras / Amostra</span>
                 </div>
 
-                {/* 3. PACIENTE */}
+                {/* 4. PACIENTE */}
                 <div className="space-y-1.5">
-                  <label className="text-slate-300 font-bold font-sans">3. Nome do Paciente:</label>
+                  <label className="text-slate-300 font-bold font-sans">4. Nome do Paciente:</label>
                   <input
                     type="text"
                     value={simulatorPacienteNome}
@@ -5646,13 +5664,13 @@ export default function MidwayLabDashboard() {
                     placeholder="Ex: Maria Helena Santos"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500 font-sans"
                   />
-                  <span className="text-[10px] text-slate-400 font-sans block">Enviado no pacote de worklist</span>
+                  <span className="text-[10px] text-slate-400 font-sans block">Identificação do paciente</span>
                 </div>
 
-                {/* 4. EXAMES REQUISITADOS */}
+                {/* 5. EXAMES REQUISITADOS */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-slate-300 font-bold font-sans">4. Códigos dos Exames:</label>
+                    <label className="text-slate-300 font-bold font-sans">5. Códigos dos Exames:</label>
                     <button
                       type="button"
                       onClick={() => setSimulatorSimularAlterados(!simulatorSimularAlterados)}
@@ -5661,14 +5679,14 @@ export default function MidwayLabDashboard() {
                       }`}
                       title="Alternar entre gerar todos normais ou alguns alterados"
                     >
-                      {simulatorSimularAlterados ? "⚠️ Simular Alterados" : "✅ Todos Normais"}
+                      {simulatorSimularAlterados ? "⚠️ Alterados" : "✅ Normais"}
                     </button>
                   </div>
                   <input
                     type="text"
                     value={simulatorExamesInput}
                     onChange={(e) => setSimulatorExamesInput(e.target.value.toUpperCase())}
-                    placeholder="GLI, URE, CRE, COL, TRI"
+                    placeholder="VITDACCESS, GLI, URE"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-bold focus:outline-none focus:border-purple-500"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">Separados por vírgula</span>
@@ -5697,15 +5715,17 @@ export default function MidwayLabDashboard() {
                       simulatorSimularAlterados
                     );
 
+                    const formatoFinal = simulatorSelectedFormato === "AUTO" ? undefined : simulatorSelectedFormato;
                     const releasePayload = EquipamentoSimulatorService.construirPayloadRetorno(
                       simulatorPedidoNumero,
                       simulatorPacienteNome,
                       simulatorSelectedEquipamento,
-                      resultados
+                      resultados,
+                      formatoFinal
                     );
 
                     setSimulatorSimulatedRelease(releasePayload);
-                    showNotification(`🧪 [SIMULADOR] Equipamento '${simulatorSelectedEquipamento}' executou a análise do pedido '${simulatorPedidoNumero}' e liberou ${resultados.length} resultados!`);
+                    showNotification(`🧪 [SIMULADOR] Equipamento '${simulatorSelectedEquipamento}' executou a análise do pedido '${simulatorPedidoNumero}' e liberou ${resultados.length} resultados em formato ${releasePayload.formato}!`);
                   }}
                   className="bg-purple-600 hover:bg-purple-500 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-purple-600/30"
                 >
