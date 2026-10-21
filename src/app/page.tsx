@@ -11,6 +11,7 @@ import { DirectoryStorageService } from "../services/DirectoryStorageService";
 import { CATALOGO_EQUIPAMENTOS_DOC, IEquipamentoCatalogDoc } from "../data/equipamentos-catalog";
 import { EquipamentoSimulatorService, ISimulatedSampleRelease } from "../services/equipamento-simulator-service";
 import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
+import ExameResultadosCalculados from "../components/ExameResultadosCalculados";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
@@ -229,6 +230,7 @@ export default function MidwayLabDashboard() {
   const [isSavingExamesAparelho, setIsSavingExamesAparelho] = useState<boolean>(false);
   const [isNovoExameModalOpen, setIsNovoExameModalOpen] = useState<boolean>(false);
   const [editingExameItem, setEditingExameItem] = useState<IExameEquipamentoRecord | null>(null);
+  const [exameExpandidoKey, setExameExpandidoKey] = useState<string | null>(null);
   const [editingInlineCell, setEditingInlineCell] = useState<{ id: string; field: 'codigoEquipamento' | 'codigoLabfacilSugerido' } | null>(null);
   const [novoExameForm, setNovoExameForm] = useState({
     codigoEquipamento: "",
@@ -6495,7 +6497,8 @@ export default function MidwayLabDashboard() {
                       );
                     })
                     .map((ex, exIdx) => (
-                      <tr key={ex.id || exIdx} className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
+                      <React.Fragment key={ex.id || exIdx}>
+                      <tr className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
                         {/* TOGGLE HABILITAR / DESABILITAR */}
                         <td className="py-2.5 px-3 text-center">
                           <button
@@ -6602,6 +6605,15 @@ export default function MidwayLabDashboard() {
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                             <button
+                               type="button"
+                               onClick={() => setExameExpandidoKey(prev => prev === (ex.id || ex.codigoEquipamento) ? null : (ex.id || ex.codigoEquipamento))}
+                               className="px-1.5 py-1 rounded text-[10px] font-bold text-cyan-300 hover:bg-slate-800 cursor-pointer flex items-center gap-0.5"
+                               title="Linhas de resultado e exames calculados"
+                             >
+                               <ChevronRight className={`w-3.5 h-3.5 transition-transform ${exameExpandidoKey === (ex.id || ex.codigoEquipamento) ? "rotate-90" : ""}`} />
+                               Resultados{(ex.linhasResultado?.length || 0) + (ex.calculados?.length || 0) > 0 ? ` (${(ex.linhasResultado?.length || 0)}+${(ex.calculados?.length || 0)}ƒ)` : ""}
+                             </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -6649,7 +6661,21 @@ export default function MidwayLabDashboard() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    {exameExpandidoKey === (ex.id || ex.codigoEquipamento) && (
+                         <tr className="bg-slate-950/60">
+                           <td colSpan={8} className="p-3">
+                             <ExameResultadosCalculados
+                               exame={ex}
+                               todosExames={equipamentoExamesList}
+                               salvando={isSavingExamesAparelho}
+                               onChange={(patch) => setEquipamentoExamesList(prev => prev.map(item => item === ex ? { ...item, ...patch } : item))}
+                               onGravar={() => persistirExamesAparelho(equipamentoExamesList, `💾 Resultados e calculados de ${ex.codigoEquipamento} gravados no banco.`)}
+                             />
+                           </td>
+                         </tr>
+                       )}
+                       </React.Fragment>
+                     ))}
                 </tbody>
               </table>
             </div>
@@ -6706,6 +6732,8 @@ export default function MidwayLabDashboard() {
                   amostraSugerida: novoExameForm.amostraSugerida.trim() || "Soro",
                   unidadePadrao: novoExameForm.unidadePadrao.trim() || "-",
                   ativo: novoExameForm.ativo,
+                  linhasResultado: editingExameItem?.linhasResultado || [],
+                  calculados: editingExameItem?.calculados || [],
                   origem: 'BANCO'
                 };
 

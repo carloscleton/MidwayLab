@@ -16,6 +16,26 @@
 import { supabaseBrowser } from '../lib/supabase-client';
 import { CATALOGO_EQUIPAMENTOS_DOC, IExameEquipamentoDoc } from '../data/equipamentos-catalog';
 
+export interface ILinhaResultado {
+  codigoEquipamento: string;
+  descricao: string;
+  parametroRetorno: string;
+  enviaParaEquip: boolean;
+  mascara: string;
+  fatorMultiplicacao: string;
+}
+
+export interface ICalculadoExame {
+  codigo: string;
+  descricao: string;
+  parametroRetorno: string;
+  formula: string;
+  global: boolean;
+  mascara: string;
+  /** true = o sistema calcula sozinho ao receber os resultados; false = apenas cadastro da fórmula */
+  calcularAutomaticamente: boolean;
+}
+
 export interface IExameEquipamentoRecord extends IExameEquipamentoDoc {
   id?: string;
   equipamento_id?: string | null;
@@ -23,6 +43,8 @@ export interface IExameEquipamentoRecord extends IExameEquipamentoDoc {
   tenant_id?: string | null;
   ativo: boolean;
   origem: 'BANCO' | 'DOC_APARELHO';
+  linhasResultado?: ILinhaResultado[];
+  calculados?: ICalculadoExame[];
 }
 
 export interface ISalvarExamesResultado {
@@ -64,6 +86,8 @@ export class EquipamentoExamesService {
       amostra_sugerida: e.amostraSugerida,
       unidade_padrao: e.unidadePadrao,
       ativo: e.ativo,
+      linhas_resultado: e.linhasResultado || [],
+      calculados: e.calculados || [],
       catalogo_aparelho: true
     };
   }
@@ -82,6 +106,8 @@ export class EquipamentoExamesService {
       codigoLabfacilSugerido: d.codigo_labfacil || '',
       categoria: d.categoria || 'Geral',
       ativo: d.ativo !== undefined && d.ativo !== null ? Boolean(d.ativo) : true,
+      linhasResultado: Array.isArray(d.linhas_resultado) ? d.linhas_resultado : [],
+      calculados: Array.isArray(d.calculados) ? d.calculados : [],
       origem: 'BANCO'
     };
   }
