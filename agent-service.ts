@@ -110,22 +110,26 @@ async function processarPasta(alvo: IFolderTarget) {
       const pastaCargas = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
       assegurarPasta(pastaCargas);
 
-      // Move o arquivo original para a pasta de processados com carimbo de data/hora
-      const nomeBase = path.parse(arquivo).name;
+      // Limita o nome do arquivo para evitar erro MAX_PATH do Windows (> 260 caracteres)
+      const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
       const extensao = path.extname(arquivo);
       const destinoProcessado = path.join(
         alvo.diretorioProcessados,
-        `${nomeBase}_${Date.now()}${extensao}`
+        `${nomeBaseLimpo}_${Date.now()}${extensao}`
       );
 
-      fs.renameSync(caminhoOrigem, destinoProcessado);
-      console.log(`[Agente] ✅ Arquivo original arquivado em: ${destinoProcessado}`);
+      // No Windows, fs.copyFileSync + fs.unlinkSync é muito mais resiliente que rename direto entre pastas/locks
+      fs.copyFileSync(caminhoOrigem, destinoProcessado);
+      fs.unlinkSync(caminhoOrigem);
+      console.log(`[Agente] ✅ Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
 
     } catch (err: any) {
       console.error(`[Agente] ⚠️ Falha ao processar ${arquivo}:`, err.message);
       try {
-        const destinoErro = path.join(alvo.diretorioErros, `${arquivo}_ERRO_${Date.now()}`);
-        fs.renameSync(caminhoOrigem, destinoErro);
+        const nomeCurto = path.parse(arquivo).name.slice(0, 40);
+        const destinoErro = path.join(alvo.diretorioErros, `${nomeCurto}_ERRO_${Date.now()}`);
+        fs.copyFileSync(caminhoOrigem, destinoErro);
+        fs.unlinkSync(caminhoOrigem);
       } catch (_) {}
     }
   }

@@ -22505,19 +22505,22 @@ async function processarPasta(alvo) {
       if (!conteudo.trim()) continue;
       const pastaCargas = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
       assegurarPasta(pastaCargas);
-      const nomeBase = path.parse(arquivo).name;
+      const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
       const extensao = path.extname(arquivo);
       const destinoProcessado = path.join(
         alvo.diretorioProcessados,
-        `${nomeBase}_${Date.now()}${extensao}`
+        `${nomeBaseLimpo}_${Date.now()}${extensao}`
       );
-      fs.renameSync(caminhoOrigem, destinoProcessado);
-      console.log(`[Agente] \u2705 Arquivo original arquivado em: ${destinoProcessado}`);
+      fs.copyFileSync(caminhoOrigem, destinoProcessado);
+      fs.unlinkSync(caminhoOrigem);
+      console.log(`[Agente] \u2705 Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
     } catch (err) {
       console.error(`[Agente] \u26A0\uFE0F Falha ao processar ${arquivo}:`, err.message);
       try {
-        const destinoErro = path.join(alvo.diretorioErros, `${arquivo}_ERRO_${Date.now()}`);
-        fs.renameSync(caminhoOrigem, destinoErro);
+        const nomeCurto = path.parse(arquivo).name.slice(0, 40);
+        const destinoErro = path.join(alvo.diretorioErros, `${nomeCurto}_ERRO_${Date.now()}`);
+        fs.copyFileSync(caminhoOrigem, destinoErro);
+        fs.unlinkSync(caminhoOrigem);
       } catch (_) {
       }
     }
