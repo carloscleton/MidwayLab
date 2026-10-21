@@ -106,7 +106,11 @@ async function processarPasta(alvo: IFolderTarget) {
       const conteudo = fs.readFileSync(caminhoOrigem, 'utf8');
       if (!conteudo.trim()) continue;
 
-      // Move para a pasta de processados com carimbo de data/hora
+      // Cria a subpasta de Cargas para o equipamento correspondente
+      const pastaCargas = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
+      assegurarPasta(pastaCargas);
+
+      // Move o arquivo original para a pasta de processados com carimbo de data/hora
       const nomeBase = path.parse(arquivo).name;
       const extensao = path.extname(arquivo);
       const destinoProcessado = path.join(
@@ -115,7 +119,7 @@ async function processarPasta(alvo: IFolderTarget) {
       );
 
       fs.renameSync(caminhoOrigem, destinoProcessado);
-      console.log(`[Agente] ✅ Arquivo processado e arquivado em: ${destinoProcessado}`);
+      console.log(`[Agente] ✅ Arquivo original arquivado em: ${destinoProcessado}`);
 
     } catch (err: any) {
       console.error(`[Agente] ⚠️ Falha ao processar ${arquivo}:`, err.message);
