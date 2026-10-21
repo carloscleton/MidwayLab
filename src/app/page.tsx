@@ -4621,29 +4621,58 @@ export default function MidwayLabDashboard() {
                   <div className="flex items-center gap-2 flex-wrap text-xs">
                     <span className="text-slate-400">Empresa: <strong className="text-slate-200">{selectedTenant}</strong></span>
                     <span className="text-slate-600">|</span>
-                    <span className="text-slate-400">Configuração do Equipamento:</span>
-                    <select
-                      value={selectedTargetEquipamento}
-                      onChange={(e) => {
-                        const novoEquip = e.target.value;
-                        setSelectedTargetEquipamento(novoEquip);
-                        const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                        if (activeTenant) {
-                          loadWatcherConfigForTenant(activeTenant, novoEquip);
-                          showNotification(`🔬 Pastas alternadas para o equipamento '${novoEquip}'!`);
-                        }
-                      }}
-                      className="bg-slate-950 border border-teal-500/50 rounded-lg px-2.5 py-1 text-teal-300 text-xs font-mono font-bold focus:outline-none cursor-pointer"
-                    >
-                      <option value="CB350">Cormay CB350</option>
-                      <option value="YUMIZEN">Horiba Yumizen</option>
-                      <option value="ACCESS">Beckman Coulter ACCESS</option>
-                      <option value="BC_3000">Mindray BC 3000 Plus</option>
-                      <option value="BC_5380">Mindray BC 5380</option>
-                      <option value="BS_240">Mindray BS 240</option>
-                      <option value="INVISTAR_300">Invistar 300</option>
-                      <option value="GENERICO">Outro Analisador</option>
-                    </select>
+                    <span className="text-slate-400">Equipamento Selecionado:</span>
+                    {(() => {
+                      const activeT = tenants.find(t => t.nome === selectedTenant);
+                      const equipsDoTenant = equipamentosList.filter(eq => activeT ? eq.tenant_id === activeT.id : true);
+
+                      if (equipsDoTenant.length > 0) {
+                        return (
+                          <select
+                            value={selectedTargetEquipamento}
+                            onChange={(e) => {
+                              const novoEquip = e.target.value;
+                              setSelectedTargetEquipamento(novoEquip);
+                              if (activeT) {
+                                loadWatcherConfigForTenant(activeT, novoEquip);
+                                showNotification(`🔬 Aparelho alternado para '${novoEquip}'! Pastas sincronizadas.`);
+                              }
+                            }}
+                            className="bg-slate-950 border border-teal-500/60 rounded-lg px-2.5 py-1 text-teal-300 text-xs font-mono font-bold focus:outline-none cursor-pointer shadow-sm shadow-teal-500/20"
+                          >
+                            {equipsDoTenant.map(eq => (
+                              <option key={eq.id || eq.modelo} value={eq.modelo}>
+                                {eq.nome} ({eq.modelo})
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      }
+
+                      // Fallback com os modelos padrão se a empresa ainda não cadastrou equipamentos
+                      return (
+                        <select
+                          value={selectedTargetEquipamento}
+                          onChange={(e) => {
+                            const novoEquip = e.target.value;
+                            setSelectedTargetEquipamento(novoEquip);
+                            if (activeT) {
+                              loadWatcherConfigForTenant(activeT, novoEquip);
+                              showNotification(`🔬 Pastas alternadas para o modelo '${novoEquip}'!`);
+                            }
+                          }}
+                          className="bg-slate-950 border border-teal-500/50 rounded-lg px-2.5 py-1 text-teal-300 text-xs font-mono font-bold focus:outline-none cursor-pointer"
+                        >
+                          <option value="CB350">Cormay CB350</option>
+                          <option value="YUMIZEN">Horiba Yumizen</option>
+                          <option value="ACCESS">Beckman Coulter ACCESS</option>
+                          <option value="BS_240">Mindray BS 240</option>
+                          <option value="BC_5380">Mindray BC 5380</option>
+                          <option value="INVISTAR_300">Invistar 300</option>
+                          <option value="GENERICO">Outro Analisador</option>
+                        </select>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -5278,29 +5307,22 @@ export default function MidwayLabDashboard() {
               {/* SELEÇÃO DO ARQUIVO E EQUIPAMENTO ALVO */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Equipamento Alvo para Mapeamento:</label>
-                  <select
-                    value={selectedTargetEquipamento}
-                    onChange={(e) => {
-                      const novoEquip = e.target.value;
-                      setSelectedTargetEquipamento(novoEquip);
-                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                      if (activeTenant) {
-                        loadWatcherConfigForTenant(activeTenant, novoEquip);
-                        showNotification(`🔬 Equipamento alvo alterado para '${novoEquip}'. Carregando suas pastas específicas...`);
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-slate-100 text-xs font-semibold focus:outline-none"
-                  >
-                    <option value="CB350">🔬 Cormay CB350 (Bioquímica)</option>
-                    <option value="YUMIZEN">🩸 Horiba Yumizen (Hematologia - ASTM)</option>
-                    <option value="ACCESS">🧪 Beckman Coulter ACCESS (Imunologia - ASTM)</option>
-                    <option value="BC_3000">🩸 Mindray BC 3000 Plus (Hematologia 3-Part)</option>
-                    <option value="BC_5380">🩸 Mindray BC 5380 (Hematologia 5-Part - HL7)</option>
-                    <option value="BS_240">🔬 Mindray BS 240 (Bioquímica - HL7)</option>
-                    <option value="INVISTAR_300">🔬 Invistar 300 (Bioquímica)</option>
-                    <option value="GENERICO">⚙️ Outro Analisador (Carga JSON)</option>
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300">Equipamento Alvo Selecionado:</label>
+                    <span className="text-[10px] text-teal-400 font-mono font-bold">Sincronizado</span>
+                  </div>
+                  <div className="bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 text-xs font-mono font-bold flex items-center justify-between">
+                    <span>
+                      {(() => {
+                        const activeT = tenants.find(t => t.nome === selectedTenant);
+                        const matchEq = equipamentosList.find(eq => (activeT ? eq.tenant_id === activeT.id : true) && eq.modelo === selectedTargetEquipamento);
+                        return matchEq ? `${matchEq.nome} (${matchEq.modelo})` : selectedTargetEquipamento;
+                      })()}
+                    </span>
+                    <span className="bg-teal-500/10 text-teal-300 text-[10px] px-2 py-0.5 rounded font-mono border border-teal-500/20">
+                      Ativo no Monitor
+                    </span>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 space-y-1.5">
