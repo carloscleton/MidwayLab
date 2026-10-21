@@ -9,10 +9,12 @@ import * as dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
-dotenv.config({ path: path.join(process.cwd(), '.env') });
+// Busca o caminho do .env mesmo se o serviço for chamado pelo Agendador do Windows (wscript) em outro diretório
+const rootDir = __dirname.includes('dist-agent') ? path.join(__dirname, '..') : __dirname;
+dotenv.config({ path: path.join(rootDir, '.env') });
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iibwbufbshqiaeorwoja.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpYndidWZic2hxaWFlb3J3b2phIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDA4ODkyOSwiZXhwIjoyMTA1NjY0OTI5fQ.ATJTk9yL22oU2953OB0I956RlxUu2AtW5tdotehyhj0';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -158,32 +160,37 @@ async function processarPasta(alvo: IFolderTarget) {
       // 3. REGISTRA O PEDIDO NO BANCO SUPABASE (PARA APARECER NA INTERFACE WEB EM TEMPO REAL)
       try {
         const { pacienteNome, codigoPedido } = extrairDadosArquivo(conteudo, arquivo);
-        const { error: insErr } = await supabase.from('pedidos').insert([
-          {
-            tenant_id: alvo.tenantId,
-            local_autolac: 'LAB',
-            codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
-            protocolo_autolac: codigoPedido,
-            numero_solicitacao: codigoPedido,
-            paciente_nome: pacienteNome,
-            codigo_pedido_labfacil: codigoPedido,
-            origem_arquivo: path.extname(arquivo).replace('.', '').toUpperCase(),
-            arquivo_nome: arquivo,
-            status: 'PROCESSADO',
-            payload_labfacil_json: {
-              modelo_equipamento: alvo.modeloEquipamento,
-              arquivo_processado: destinoProcessado,
-              processado_em: new Date().toISOString()
-            }
-          }
-        ]);
+        
+        // Garante protocolo único para satisfazer constraint uq_pedido_protocolo (tenant_id, local_autolac, protocolo_autolac)
+        const protocoloUnico = `${codigoPedido}_${Date.now().toString().slice(-4)}`;
+
+        const payloadInsert = {
+          tenant_id: alvo.tenantId,
+          local_autolac: 'LABFACIL',
+          codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
+          protocolo_autolac: protocoloUnico,
+          numero_solicitacao: codigoPedido,
+          paciente_nome: pacienteNome,
+          codigo_pedido_labfacil: codigoPedido,
+          origem_arquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML',
+          arquivo_nome: arquivo,
+          status: 'PROCESSADO',
+          // A coluna payload_labfacil_json na tabela pedidos é do tipo TEXT (necessário JSON.stringify)
+          payload_labfacil_json: JSON.stringify({
+            modelo_equipamento: alvo.modeloEquipamento,
+            arquivo_processado: destinoProcessado,
+            processado_em: new Date().toISOString()
+          })
+        };
+
+        const { error: insErr } = await supabase.from('pedidos').insert([payloadInsert]);
         if (insErr) {
-          console.warn('[Agente] Aviso ao sincronizar pedido com Supabase:', insErr.message);
+          console.error(`[Agente] ❌ Erro ao salvar pedido no Supabase: ${insErr.message} (Código: ${insErr.code})`);
         } else {
-          console.log(`[Agente] 🌐 Pedido '${codigoPedido}' sincronizado no Supabase com sucesso!`);
+          console.log(`[Agente] 🌐 Pedido '${codigoPedido}' gravado com sucesso no Supabase!`);
         }
       } catch (dbErr: any) {
-        console.warn('[Agente] Erro de rede ao sincronizar com Supabase:', dbErr.message);
+        console.error('[Agente] ⚠️ Falha na chamada Supabase:', dbErr.message);
       }
 
     } catch (err: any) {

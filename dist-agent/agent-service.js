@@ -24526,9 +24526,10 @@ if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 20 and b
 
 // agent-service.ts
 var import_fast_xml_parser = __toESM(require_fxp());
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+var rootDir = __dirname.includes("dist-agent") ? path.join(__dirname, "..") : __dirname;
+dotenv.config({ path: path.join(rootDir, ".env") });
 var SUPABASE_URL = process.env.SUPABASE_URL || "https://iibwbufbshqiaeorwoja.supabase.co";
-var SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+var SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpYndidWZic2hxaWFlb3J3b2phIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDA4ODkyOSwiZXhwIjoyMTA1NjY0OTI5fQ.ATJTk9yL22oU2953OB0I956RlxUu2AtW5tdotehyhj0";
 var supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 console.log("====================================================");
 console.log("\u{1F916} MIDWAY AGENT - SERVI\xC7O DE MONITORAMENTO 24/7");
@@ -24633,32 +24634,33 @@ async function processarPasta(alvo) {
       console.log(`[Agente] \u2705 Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
       try {
         const { pacienteNome, codigoPedido } = extrairDadosArquivo(conteudo, arquivo);
-        const { error: insErr } = await supabase.from("pedidos").insert([
-          {
-            tenant_id: alvo.tenantId,
-            local_autolac: "LAB",
-            codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
-            protocolo_autolac: codigoPedido,
-            numero_solicitacao: codigoPedido,
-            paciente_nome: pacienteNome,
-            codigo_pedido_labfacil: codigoPedido,
-            origem_arquivo: path.extname(arquivo).replace(".", "").toUpperCase(),
-            arquivo_nome: arquivo,
-            status: "PROCESSADO",
-            payload_labfacil_json: {
-              modelo_equipamento: alvo.modeloEquipamento,
-              arquivo_processado: destinoProcessado,
-              processado_em: (/* @__PURE__ */ new Date()).toISOString()
-            }
-          }
-        ]);
+        const protocoloUnico = `${codigoPedido}_${Date.now().toString().slice(-4)}`;
+        const payloadInsert = {
+          tenant_id: alvo.tenantId,
+          local_autolac: "LABFACIL",
+          codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
+          protocolo_autolac: protocoloUnico,
+          numero_solicitacao: codigoPedido,
+          paciente_nome: pacienteNome,
+          codigo_pedido_labfacil: codigoPedido,
+          origem_arquivo: path.extname(arquivo).toLowerCase().includes("json") ? "LABFACIL_JSON" : "LABFACIL_XML",
+          arquivo_nome: arquivo,
+          status: "PROCESSADO",
+          // A coluna payload_labfacil_json na tabela pedidos é do tipo TEXT (necessário JSON.stringify)
+          payload_labfacil_json: JSON.stringify({
+            modelo_equipamento: alvo.modeloEquipamento,
+            arquivo_processado: destinoProcessado,
+            processado_em: (/* @__PURE__ */ new Date()).toISOString()
+          })
+        };
+        const { error: insErr } = await supabase.from("pedidos").insert([payloadInsert]);
         if (insErr) {
-          console.warn("[Agente] Aviso ao sincronizar pedido com Supabase:", insErr.message);
+          console.error(`[Agente] \u274C Erro ao salvar pedido no Supabase: ${insErr.message} (C\xF3digo: ${insErr.code})`);
         } else {
-          console.log(`[Agente] \u{1F310} Pedido '${codigoPedido}' sincronizado no Supabase com sucesso!`);
+          console.log(`[Agente] \u{1F310} Pedido '${codigoPedido}' gravado com sucesso no Supabase!`);
         }
       } catch (dbErr) {
-        console.warn("[Agente] Erro de rede ao sincronizar com Supabase:", dbErr.message);
+        console.error("[Agente] \u26A0\uFE0F Falha na chamada Supabase:", dbErr.message);
       }
     } catch (err) {
       console.error(`[Agente] \u26A0\uFE0F Falha ao processar ${arquivo}:`, err.message);
