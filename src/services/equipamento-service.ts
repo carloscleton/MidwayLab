@@ -46,7 +46,7 @@ export class EquipamentoService {
         nome: equipamento.nome,
         modelo: equipamento.modelo || 'CB350',
         codigo_identificador: String((equipamento.codigo_identificador || equipamento.nome || "").replace(/\|FORMAT:[^|]+/g, "")) + "|FORMAT:" + (equipamento.formato_arquivo || "JSON"),
-        formato_arquivo: equipamento.formato_arquivo || "JSON",
+        // formato_arquivo mantido via codigo_identificador para compatibilidade com schema Supabase
         fabricante: equipamento.fabricante || (equipamento.modelo?.includes('YUMIZEN') ? 'Horiba' : 'Cormay'),
         tipo_comunicacao: equipamento.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
         ip_host: equipamento.ip_host || '',
@@ -75,7 +75,14 @@ export class EquipamentoService {
         } as IEquipamentoRecord;
       }
 
-      return data as IEquipamentoRecord;
+      let formato = (data as any).formato_arquivo;
+      if (!formato && data.codigo_identificador && data.codigo_identificador.includes("FORMAT:")) {
+        formato = data.codigo_identificador.split("FORMAT:")[1].trim();
+      }
+      return {
+        ...data,
+        formato_arquivo: formato || "JSON"
+      } as IEquipamentoRecord;
     } catch (err: any) {
       console.error('[EquipamentoService] Falha ao salvar equipamento:', err);
       return null;
