@@ -241,6 +241,32 @@ export default function MidwayLabDashboard() {
     ativo: true
   });
 
+  // Grava a lista de exames do aparelho em public.depara_exames e recarrega do banco (para obter os ids reais)
+  const persistirExamesAparelho = async (lista: IExameEquipamentoRecord[], msgSucesso: string) => {
+    setEquipamentoExamesList(lista);
+    const modelo = viewDocEquipamentoModal?.modelo || "CB350";
+    setIsSavingExamesAparelho(true);
+    const res = await EquipamentoExamesService.salvarExamesNoBanco(
+      lista,
+      modelo,
+      activeEquipamentoForDoc?.id,
+      activeEquipamentoForDoc?.tenant_id
+    );
+    if (res.ok) {
+      const atualizado = await EquipamentoExamesService.obterExamesDoAparelho(
+        modelo,
+        activeEquipamentoForDoc?.id,
+        activeEquipamentoForDoc?.tenant_id
+      );
+      setEquipamentoExamesList(atualizado.exames);
+      setOrigemExamesAparelho(atualizado.origem);
+      showNotification(msgSucesso);
+    } else {
+      showNotification(`⚠️ Não foi possível gravar no banco: ${res.erro || "erro desconhecido"}`);
+    }
+    setIsSavingExamesAparelho(false);
+  };
+
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
   // FOLDER WATCHER AUTOMÁTICO (MONITORAMENTO DE PASTAS)
   const [watcherConfig, setWatcherConfig] = useState({
@@ -6432,23 +6458,7 @@ export default function MidwayLabDashboard() {
                 <button
                   type="button"
                   disabled={isSavingExamesAparelho}
-                  onClick={async () => {
-                    setIsSavingExamesAparelho(true);
-                    showNotification(`💾 Gravando catálogo do equipamento no Supabase...`);
-                    const ok = await EquipamentoExamesService.salvarExamesNoBanco(
-                      equipamentoExamesList,
-                      viewDocEquipamentoModal.modelo,
-                      activeEquipamentoForDoc?.id,
-                      activeEquipamentoForDoc?.tenant_id
-                    );
-                    if (ok) {
-                      setOrigemExamesAparelho('BANCO');
-                      showNotification(`✅ ${equipamentoExamesList.length} Exames gravados no Banco de Dados com sucesso!`);
-                    } else {
-                      showNotification(`⚠️ Salvo na memória da sessão. Verifique as permissões da tabela.`);
-                    }
-                    setIsSavingExamesAparelho(false);
-                  }}
+                  onClick={() => persistirExamesAparelho(equipamentoExamesList, `✅ ${equipamentoExamesList.length} exames gravados no Banco de Dados com sucesso!`)}
                   className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
@@ -6492,8 +6502,8 @@ export default function MidwayLabDashboard() {
                             type="button"
                             onClick={() => {
                               const novoStatus = !ex.ativo;
-                              setEquipamentoExamesList(prev => prev.map(item => item.codigoEquipamento === ex.codigoEquipamento ? { ...item, ativo: novoStatus } : item));
-                              showNotification(`${novoStatus ? "🟢 Exame ativado:" : "⚪ Exame desativado:"} ${ex.codigoEquipamento}`);
+                              const novaLista = equipamentoExamesList.map(item => item === ex ? { ...item, ativo: novoStatus } : item);
+                              persistirExamesAparelho(novaLista, `${novoStatus ? "🟢 Exame ativado:" : "⚪ Exame desativado:"} ${ex.codigoEquipamento} (gravado no banco)`);
                             }}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
                               ex.ativo
@@ -6517,10 +6527,13 @@ export default function MidwayLabDashboard() {
                                 const novoCodigo = e.target.value.toUpperCase();
                                 setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoEquipamento: novoCodigo } : item));
                               }}
-                              onBlur={() => setEditingInlineCell(null)}
+                              onBlur={() => {
+                                setEditingInlineCell(null);
+                                persistirExamesAparelho(equipamentoExamesList, `💾 Código ${ex.codigoEquipamento} gravado no banco.`);
+                              }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === "Escape") {
-                                  setEditingInlineCell(null);
+                                  e.currentTarget.blur();
                                 }
                               }}
                               className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none ring-2 ring-amber-400/50"
@@ -6551,10 +6564,13 @@ export default function MidwayLabDashboard() {
                                 const novoCodLab = e.target.value.toUpperCase();
                                 setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
                               }}
-                              onBlur={() => setEditingInlineCell(null)}
+                              onBlur={() => {
+                                setEditingInlineCell(null);
+                                persistirExamesAparelho(equipamentoExamesList, `💾 Código Labfacil de ${ex.codigoEquipamento} gravado no banco.`);
+                              }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === "Escape") {
-                                  setEditingInlineCell(null);
+                                  e.currentTarget.blur();
                                 }
                               }}
                               className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none ring-2 ring-cyan-400/50"
@@ -6609,13 +6625,20 @@ export default function MidwayLabDashboard() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (confirm(`Deseja remover o exame ${ex.codigoEquipamento} (${ex.nomeExame})?`)) {
-                                  setEquipamentoExamesList(prev => prev.filter(item => item.codigoEquipamento !== ex.codigoEquipamento));
-                                  if (ex.id && !ex.id.startsWith("doc-")) {
-                                    EquipamentoExamesService.excluirExame(ex.id);
+                                  const restante = equipamentoExamesList.filter(item => item !== ex);
+                                  if (origemExamesAparelho === 'BANCO') {
+                                    setEquipamentoExamesList(restante);
+                                    if (ex.id && !ex.id.startsWith("doc-") && !ex.id.startsWith("user-")) {
+                                      const okDel = await EquipamentoExamesService.excluirExame(ex.id);
+                                      showNotification(okDel ? `🗑️ Exame ${ex.codigoEquipamento} removido do banco.` : `⚠️ Falha ao remover ${ex.codigoEquipamento} do banco.`);
+                                    } else {
+                                      showNotification(`Exame ${ex.codigoEquipamento} removido da lista.`);
+                                    }
+                                  } else {
+                                    persistirExamesAparelho(restante, `🗑️ Exame ${ex.codigoEquipamento} removido.`);
                                   }
-                                  showNotification(`Exame ${ex.codigoEquipamento} removido da lista.`);
                                 }
                               }}
                               className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 cursor-pointer"
@@ -6686,14 +6709,19 @@ export default function MidwayLabDashboard() {
                   origem: 'BANCO'
                 };
 
+                let novaLista: IExameEquipamentoRecord[];
                 if (editingExameItem) {
-                  setEquipamentoExamesList(prev => prev.map(item => item.codigoEquipamento === editingExameItem.codigoEquipamento ? novoRegistro : item));
-                  showNotification(`Exame ${novoRegistro.codigoEquipamento} atualizado! Clique em 'Gravar no Banco' para persistir.`);
+                  novaLista = equipamentoExamesList.map(item => (item.id && item.id === editingExameItem.id) || (!item.id && item.codigoEquipamento === editingExameItem.codigoEquipamento) ? novoRegistro : item);
                 } else {
-                  setEquipamentoExamesList(prev => [novoRegistro, ...prev]);
-                  showNotification(`Novo exame ${novoRegistro.codigoEquipamento} incluído na lista! Clique em 'Gravar no Banco' para persistir.`);
+                  novaLista = [novoRegistro, ...equipamentoExamesList.filter(item => item.codigoEquipamento !== novoRegistro.codigoEquipamento)];
                 }
                 setIsNovoExameModalOpen(false);
+                persistirExamesAparelho(
+                  novaLista,
+                  editingExameItem
+                    ? `Exame ${novoRegistro.codigoEquipamento} atualizado no banco!`
+                    : `Novo exame ${novoRegistro.codigoEquipamento} gravado no banco!`
+                );
               }}
               className="space-y-3 text-xs"
             >
