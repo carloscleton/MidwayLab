@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS public.equipamentos (
     modelo VARCHAR(100) NOT NULL, -- 'CB350', 'YUMIZEN', 'HORIBA_YUMIZEN', etc.
     codigo_identificador VARCHAR(100),
     fabricante VARCHAR(100),
+    formato_arquivo VARCHAR(50) DEFAULT 'JSON',
     tipo_comunicacao VARCHAR(50) DEFAULT 'ARQUIVO_COMPARTILHADO', -- 'SERIAL', 'TCP_IP', 'ARQUIVO_COMPARTILHADO', 'API'
     ip_host VARCHAR(100),
     porta INTEGER,
