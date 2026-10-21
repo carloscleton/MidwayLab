@@ -9,15 +9,12 @@ echo   MIDWAYLAB AGENT - INICIALIZADOR AUTOMATICO WINDOWS
 echo ========================================================
 echo.
 
-:: 1. Cria a tarefa no Agendador de Tarefas do Windows Nativo (sem depender de pm2)
+:: 1. Registra o VBS nativo para iniciar no Logon
 echo [1/2] Registrando o Robo no Windows para ligar no logon...
 schtasks /create /tn "MidwayAgent" /tr "wscript.exe \"%~dp0iniciar-invisivel.vbs\"" /sc onlogon /rl highest /f >nul 2>&1
 
-if %errorLevel% neq 0 (
-    :: Se falhar permissao de schtasks, adiciona na pasta Inicializar do usuario atual
-    echo [Fallback] Adicionando na pasta de Inicializacao do Usuario...
-    copy /y "%~dp0iniciar-invisivel.vbs" "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\MidwayAgent.vbs" >nul
-)
+:: Adiciona tambem na pasta Inicializar do Windows
+copy /y "%~dp0iniciar-invisivel.vbs" "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\MidwayAgent.vbs" >nul 2>&1
 
 echo [2/2] Iniciando o Robo Midway agora em segundo plano...
 wscript.exe "%~dp0iniciar-invisivel.vbs"

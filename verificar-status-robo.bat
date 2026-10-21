@@ -11,15 +11,15 @@ echo.
 echo [1] Verificando servico automatico no Windows...
 schtasks /query /tn "MidwayAgent" >nul 2>&1
 if %errorLevel% equ 0 (
-    echo     [OK] Servico 'MidwayAgent' esta REGISTRADO para iniciar no logon!
+    echo     [OK] Servico 'MidwayAgent' esta REGISTRADO no Windows!
 ) else (
-    echo     [AVISO] Servico automatico ainda nao registrado no Agendador.
+    echo     [AVISO] Servico automatico nao encontrado.
 )
 echo.
 
 :: 2. Verifica se o processo Node do robo esta rodando agora na memoria
 echo [2] Verificando se o Robo esta RODANDO na memoria do computador...
-powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*agent-service*' } | Select-Object ProcessId, CommandLine" > "%TEMP%\midway_check.tmp" 2>&1
+powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*dist-agent*' -or $_.CommandLine -like '*agent-service*' } | Select-Object ProcessId, CommandLine" > "%TEMP%\midway_check.tmp" 2>&1
 
 findstr /i "agent-service" "%TEMP%\midway_check.tmp" >nul 2>&1
 if %errorLevel% equ 0 (
@@ -32,7 +32,6 @@ if %errorLevel% equ 0 (
     echo     ========================================================
     echo     ⚪ O ROBO NAO ESTA RODANDO NO MOMENTO.
     echo     ========================================================
-    echo     Para iniciar agora, execute: iniciar-robo.bat
 )
 
 if exist "%TEMP%\midway_check.tmp" del "%TEMP%\midway_check.tmp"
@@ -40,7 +39,7 @@ if exist "%TEMP%\midway_check.tmp" del "%TEMP%\midway_check.tmp"
 echo.
 echo ========================================================
 echo Opcoes rapidas:
-echo   [1] Iniciar Robo Agora
+echo   [1] Iniciar Robo Agora em Segundo Plano
 echo   [2] Parar Robo
 echo   [3] Sair
 echo ========================================================
@@ -61,4 +60,3 @@ if "%opt%"=="2" (
     pause
     exit /b 0
 )
-

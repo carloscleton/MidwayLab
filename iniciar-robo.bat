@@ -10,17 +10,10 @@ echo       MIDWAYLAB - ROBO AGENTE DE MONITORAMENTO 24/7
 echo ========================================================
 echo.
 echo Local da pasta: %CD%
-echo Conectando ao MidwayLab e verificando pastas locais...
+echo Conectando ao MidwayLab e iniciando varredura...
 echo.
 
-:: Executa o agente compilado via node diretamente
-node -r ts-node/register agent-service.ts
-
-if %errorLevel% neq 0 (
-    echo.
-    echo [AVISO] Tentando iniciar via npx...
-    npx ts-node agent-service.ts
-)
+node dist-agent\agent-service.js
 
 echo.
 pause
