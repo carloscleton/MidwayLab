@@ -84,6 +84,7 @@ export interface IEquipamentoRecord {
   modelo: string;             // Ex: "CB350", "YUMIZEN", "HORIBA_YUMIZEN", "GENERICO"
   codigo_identificador?: string; // Ex: "CB350-01"
   fabricante?: string;        // Ex: "Cormay", "Horiba"
+  formato_arquivo?: 'XML' | 'JSON' | 'ASTM' | 'HL7' | 'CSV';
   tipo_comunicacao?: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' | 'API';
   ip_host?: string;
   porta?: number;

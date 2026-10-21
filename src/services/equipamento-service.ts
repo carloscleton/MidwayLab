@@ -17,7 +17,19 @@ export class EquipamentoService {
         console.warn('[EquipamentoService] Aviso ao buscar do Supabase, retornando fallback local ou vazio:', error?.message);
         return [];
       }
-      return data as IEquipamentoRecord[];
+      return data.map((item: any) => {
+        let formato = item.formato_arquivo;
+        if (!formato && item.codigo_identificador && item.codigo_identificador.includes("FORMAT:")) {
+          formato = item.codigo_identificador.split("FORMAT:")[1].trim();
+        }
+        if (!formato) {
+          formato = item.modelo === "CB350" ? "JSON" : (item.modelo === "YUMIZEN" || item.modelo === "ACCESS") ? "ASTM" : "HL7";
+        }
+        return {
+          ...item,
+          formato_arquivo: formato
+        };
+      }) as IEquipamentoRecord[];
     } catch (e: any) {
       console.error('[EquipamentoService] Erro ao listar equipamentos:', e);
       return [];
@@ -33,7 +45,8 @@ export class EquipamentoService {
         tenant_id: equipamento.tenant_id,
         nome: equipamento.nome,
         modelo: equipamento.modelo || 'CB350',
-        codigo_identificador: equipamento.codigo_identificador || equipamento.nome,
+        codigo_identificador: String((equipamento.codigo_identificador || equipamento.nome || "").replace(/\|FORMAT:[^|]+/g, "")) + "|FORMAT:" + (equipamento.formato_arquivo || "JSON"),
+        formato_arquivo: equipamento.formato_arquivo || "JSON",
         fabricante: equipamento.fabricante || (equipamento.modelo?.includes('YUMIZEN') ? 'Horiba' : 'Cormay'),
         tipo_comunicacao: equipamento.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
         ip_host: equipamento.ip_host || '',

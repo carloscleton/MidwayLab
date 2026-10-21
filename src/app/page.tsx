@@ -4530,9 +4530,14 @@ export default function MidwayLabDashboard() {
                         Modelo: {eq.modelo} ({eq.fabricante || "Fabricante Padrão"})
                       </span>
                     </div>
-                    <span className="bg-slate-950 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded">
-                      {eq.tipo_comunicacao}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
+                        {eq.formato_arquivo || "JSON"}
+                      </span>
+                      <span className="bg-slate-950 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
+                        {eq.tipo_comunicacao}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono">
@@ -6144,6 +6149,30 @@ export default function MidwayLabDashboard() {
                   >
                     🔌 Serial (RS-232)
                   </button>
+                </div>
+
+                {/* DEFINIÇÃO DO FORMATO DE ARQUIVO / PROTOCOLO */}
+                <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-amber-300 font-bold flex items-center gap-1.5 text-xs">
+                      📄 Formato do Arquivo / Mensagem do Equipamento
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-mono">Padrão de Ida & Retorno</span>
+                  </div>
+                  <select
+                    value={equipamentoForm.formato_arquivo || "JSON"}
+                    onChange={(e) => setEquipamentoForm({ ...equipamentoForm, formato_arquivo: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none text-xs"
+                  >
+                    <option value="XML">XML Estruturado (&lt;Principal&gt;&lt;Paciente&gt;&lt;Amostra&gt;&lt;Resultado&gt;...)</option>
+                    <option value="JSON">JSON (Carga Web/API Midway - Ex: CB350)</option>
+                    <option value="ASTM">ASTM E1394 (Mensagem Serial / Arquivo - Ex: Yumizen, Access)</option>
+                    <option value="HL7">HL7 v2.3.1 (ORU^R01 / OML^O21 - Ex: Mindray BS/BC)</option>
+                    <option value="CSV">CSV / TXT Delimitado</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 block">
+                    Define a estrutura exata do arquivo gravado na Pasta de Carga e lido na Pasta de Resultados.
+                  </span>
                 </div>
 
                 {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP */}
