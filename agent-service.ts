@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import { XMLParser } from 'fast-xml-parser';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
@@ -40,6 +41,37 @@ function assegurarPasta(dirPath: string) {
   } catch (err: any) {
     console.error(`[Agente] Erro ao criar pasta ${dirPath}:`, err.message);
   }
+}
+
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '',
+  textNodeName: 'text',
+  trimValues: true,
+});
+
+// Extrai dados básicos do arquivo para registrar no Supabase
+function extrairDadosArquivo(conteudo: string, nomeArquivo: string) {
+  let pacienteNome = 'PACIENTE IMPORTADO';
+  let codigoPedido = `PED-${Date.now().toString().slice(-6)}`;
+  let examesList: string[] = [];
+
+  try {
+    if (nomeArquivo.toLowerCase().endsWith('.xml') || conteudo.trim().startsWith('<')) {
+      const parsed = xmlParser.parse(conteudo);
+      const root = parsed.Principal || parsed.root || parsed.PEDIDO || parsed;
+      const pac = root.Paciente || root.paciente || {};
+      pacienteNome = pac.Nome || pac.nome || pac.NomePaciente || 'PACIENTE XML';
+      codigoPedido = String(pac.Amostra || pac.amostra || pac.Codigo || root.NumeroPedido || codigoPedido);
+    } else {
+      const parsed = JSON.parse(conteudo);
+      const obj = Array.isArray(parsed) ? parsed[0] : parsed;
+      pacienteNome = obj.cliente?.nome || obj.paciente || obj.nome || 'PACIENTE JSON';
+      codigoPedido = String(obj.numeroPedido || obj.pedido || codigoPedido);
+    }
+  } catch (e) {}
+
+  return { pacienteNome, codigoPedido };
 }
 
 // Busca dinamicamente todas as pastas cadastradas para todas as empresas ativas
@@ -122,6 +154,37 @@ async function processarPasta(alvo: IFolderTarget) {
       fs.copyFileSync(caminhoOrigem, destinoProcessado);
       fs.unlinkSync(caminhoOrigem);
       console.log(`[Agente] ✅ Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
+
+      // 3. REGISTRA O PEDIDO NO BANCO SUPABASE (PARA APARECER NA INTERFACE WEB EM TEMPO REAL)
+      try {
+        const { pacienteNome, codigoPedido } = extrairDadosArquivo(conteudo, arquivo);
+        const { error: insErr } = await supabase.from('pedidos').insert([
+          {
+            tenant_id: alvo.tenantId,
+            local_autolac: 'LAB',
+            codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
+            protocolo_autolac: codigoPedido,
+            numero_solicitacao: codigoPedido,
+            paciente_nome: pacienteNome,
+            codigo_pedido_labfacil: codigoPedido,
+            origem_arquivo: path.extname(arquivo).replace('.', '').toUpperCase(),
+            arquivo_nome: arquivo,
+            status: 'PROCESSADO',
+            payload_labfacil_json: {
+              modelo_equipamento: alvo.modeloEquipamento,
+              arquivo_processado: destinoProcessado,
+              processado_em: new Date().toISOString()
+            }
+          }
+        ]);
+        if (insErr) {
+          console.warn('[Agente] Aviso ao sincronizar pedido com Supabase:', insErr.message);
+        } else {
+          console.log(`[Agente] 🌐 Pedido '${codigoPedido}' sincronizado no Supabase com sucesso!`);
+        }
+      } catch (dbErr: any) {
+        console.warn('[Agente] Erro de rede ao sincronizar com Supabase:', dbErr.message);
+      }
 
     } catch (err: any) {
       console.error(`[Agente] ⚠️ Falha ao processar ${arquivo}:`, err.message);
