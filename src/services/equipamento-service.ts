@@ -46,7 +46,7 @@ export class EquipamentoService {
         nome: equipamento.nome,
         modelo: equipamento.modelo || 'CB350',
         codigo_identificador: String((equipamento.codigo_identificador || equipamento.nome || "").replace(/\|FORMAT:[^|]+/g, "")) + "|FORMAT:" + (equipamento.formato_arquivo || "JSON"),
-        // formato_arquivo mantido via codigo_identificador para compatibilidade com schema Supabase
+        formato_arquivo: equipamento.formato_arquivo || "JSON",
         fabricante: equipamento.fabricante || (equipamento.modelo?.includes('YUMIZEN') ? 'Horiba' : 'Cormay'),
         tipo_comunicacao: equipamento.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
         ip_host: equipamento.ip_host || '',
