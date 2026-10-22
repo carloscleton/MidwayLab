@@ -321,7 +321,7 @@ export default function MidwayLabDashboard() {
   const [simulatorSimulatedRelease, setSimulatorSimulatedRelease] = useState<ISimulatedSampleRelease | null>(null);
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
 
-  // HANDLE FILE SELECTION & PARSING (CSV / JSON)
+  // HANDLE FILE SELECTION & PARSING (XML / JSON / CSV)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -333,7 +333,57 @@ export default function MidwayLabDashboard() {
       if (!content) return;
 
       try {
-        if (file.name.endsWith(".json")) {
+        if (file.name.toLowerCase().endsWith(".xml") || content.trim().startsWith("<?xml") || content.trim().startsWith("<")) {
+          // PARSER XML NATIVO (LABFACIL / EXAMES / TABELAS)
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(content, "text/xml");
+          const parseError = xmlDoc.querySelector("parsererror");
+          if (parseError) {
+            alert("Erro ao interpretar o arquivo XML: formato inválido ou corrompido.");
+            return;
+          }
+
+          let nodes = Array.from(xmlDoc.querySelectorAll("exame, Exame, EXAME, item, Item, ITEM, test, Test, TEST, pedido_item"));
+          if (nodes.length === 0) {
+            const allElems = Array.from(xmlDoc.querySelectorAll("*"));
+            nodes = allElems.filter(el => el.querySelector("codigo, Code, CODIGO, cod, Cod, sigla, id"));
+          }
+
+          const items = nodes.map((node, i) => {
+            const getText = (tags: string[]) => {
+              for (const tag of tags) {
+                const found = node.querySelector(tag);
+                if (found && found.textContent?.trim()) return found.textContent.trim();
+                const attr = node.getAttribute(tag);
+                if (attr && attr.trim()) return attr.trim();
+              }
+              return "";
+            };
+
+            const codigo = getText(["codigo", "Codigo", "CODIGO", "cod", "Cod", "code", "Code", "id", "mnemonico", "sigla"]) || `EX_${i + 1}`;
+            const descricao = getText(["descricao", "Descricao", "DESCRICAO", "nome", "Nome", "NOME", "name", "titulo"]) || codigo;
+            const abreviacao = getText(["abreviacao", "Abreviacao", "sigla", "Sigla", "mnemonico"]) || codigo;
+            const tipo = getText(["tipo", "Tipo", "tipo_resultado"]) || "PDF";
+            const autolac = getText(["autolac", "codigo_autolac", "codigo_equipamento", "aparelho"]);
+
+            return {
+              codigo: codigo.toUpperCase(),
+              descricao: descricao.toUpperCase(),
+              abreviacao: abreviacao.toUpperCase(),
+              codigo_labfacil: codigo.toUpperCase(),
+              descricao_labfacil: descricao,
+              codigo_autolac: autolac ? autolac.toUpperCase() : "",
+              tipo: tipo
+            };
+          });
+
+          if (items.length === 0) {
+            alert("Nenhum exame identificado nas tags do XML. Verifique a estrutura do arquivo.");
+            return;
+          }
+
+          setParsedImportItems(items);
+        } else if (file.name.toLowerCase().endsWith(".json")) {
           const parsed = JSON.parse(content);
           const items = Array.isArray(parsed) ? parsed : [parsed];
           setParsedImportItems(items);
@@ -1127,9 +1177,21 @@ export default function MidwayLabDashboard() {
   // DE-PARA Status Filter (Default to "pendentes" so unmapped exams display first)
   const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("pendentes");
 
-  // Selection state for Dual Matcher
+  // Selection state for Dual Matcher (Labfacil ↔ Equipamento Escolhido)
   const [selectedLabfacilExam, setSelectedLabfacilExam] = useState<any | null>(null);
   const [selectedAutolacExam, setSelectedAutolacExam] = useState<any | null>(null);
+  const [selectedDeparaEquipId, setSelectedDeparaEquipId] = useState<string>("");
+  const [selectedEquipamentoExam, setSelectedEquipamentoExam] = useState<IExameEquipamentoRecord | null>(null);
+
+  // CRUD Labfacil State
+  const [isNovoExameLabfacilModalOpen, setIsNovoExameLabfacilModalOpen] = useState(false);
+  const [editingLabfacilItem, setEditingLabfacilItem] = useState<any | null>(null);
+  const [novoExameLabfacilForm, setNovoExameLabfacilForm] = useState({
+    codigo: "",
+    descricao: "",
+    abreviacao: "",
+    tipo: "PDF"
+  });
 
   // Modals state
   const [isNewTenantModalOpen, setIsNewTenantModalOpen] = useState(false);
@@ -1704,6 +1766,81 @@ export default function MidwayLabDashboard() {
     }
   };
 
+  // SINCRONIZAÇÃO DE EXAMES DO EQUIPAMENTO ESCOLHIDO NO DE-PARA
+  useEffect(() => {
+    const activeT = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+    const equipsDoTenant = equipamentosList.filter(eq => activeT ? eq.tenant_id === activeT.id : true);
+    const equip = (equipsDoTenant.length > 0
+      ? (equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0])
+      : (equipamentosList.find(e => e.id === selectedDeparaEquipId) || equipamentosList[0])) || null;
+
+    if (equip && activeTab === "depara") {
+      setActiveEquipamentoForDoc(equip);
+      EquipamentoExamesService.obterExamesDoAparelho(
+        equip.modelo,
+        equip.id,
+        equip.tenant_id
+      ).then(res => {
+        setEquipamentoExamesList(res.exames);
+        setOrigemExamesAparelho(res.origem);
+      }).catch(err => console.warn("Erro ao obter exames do equipamento:", err));
+    }
+  }, [selectedDeparaEquipId, selectedTenant, activeTab, equipamentosList]);
+
+  // CRUD LABFACIL: SALVAR OU ATUALIZAR EXAME
+  const handleSalvarExameLabfacil = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoExameLabfacilForm.codigo.trim() || !novoExameLabfacilForm.descricao.trim()) {
+      alert("Código e descrição são obrigatórios.");
+      return;
+    }
+    const codFormatado = novoExameLabfacilForm.codigo.trim().toUpperCase();
+    const descFormatada = novoExameLabfacilForm.descricao.trim().toUpperCase();
+    const abrevFormatada = (novoExameLabfacilForm.abreviacao.trim() || codFormatado).toUpperCase();
+
+    const novoItem: ILabfacilExamItem = {
+      codigo: codFormatado,
+      descricao: descFormatada,
+      abreviacao: abrevFormatada,
+      tipo: novoExameLabfacilForm.tipo || "PDF",
+      autolacMapped: editingLabfacilItem?.autolacMapped || "",
+      blocked: false
+    };
+
+    let novaLista: ILabfacilExamItem[];
+    if (editingLabfacilItem) {
+      novaLista = labfacilExames.map(item => item.codigo === editingLabfacilItem.codigo ? novoItem : item);
+    } else {
+      novaLista = [novoItem, ...labfacilExames.filter(item => item.codigo !== codFormatado)];
+    }
+
+    setLabfacilExames(novaLista);
+    setIsNovoExameLabfacilModalOpen(false);
+    setEditingLabfacilItem(null);
+
+    try {
+      await DeparaService.salvarCatalogoLabfacil(novaLista.map(i => ({
+        codigo: i.codigo,
+        descricao: i.descricao,
+        abreviacao: i.abreviacao,
+        tipo_resultado: i.tipo
+      })));
+    } catch (err) {
+      console.warn("Salvo localmente");
+    }
+
+    showNotification(editingLabfacilItem ? `✓ Exame ${codFormatado} atualizado no Labfacil!` : `✓ Exame ${codFormatado} cadastrado no Labfacil!`);
+  };
+
+  // CRUD LABFACIL: EXCLUIR EXAME
+  const handleExcluirExameLabfacil = (codigo: string) => {
+    if (confirm(`Deseja realmente remover o exame [${codigo}] do catálogo do Labfacil?`)) {
+      const restante = labfacilExames.filter(e => e.codigo !== codigo);
+      setLabfacilExames(restante);
+      showNotification(`🗑️ Exame ${codigo} removido do catálogo do Labfacil.`);
+    }
+  };
+
   // LOOP DE MONITORAMENTO HÍBRIDO (FRONTEND COM FILE SYSTEM ACCESS API + BACKEND FS)
   useEffect(() => {
     let interval: any = null;
@@ -1971,36 +2108,52 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (LABFACIL ↔ AUTOLAC)
+  // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (LABFACIL ↔ EQUIPAMENTO ESCOLHIDO)
   const handleLinkSelectedPair = async () => {
-    if (!selectedLabfacilExam || !selectedAutolacExam) {
-      alert("Por favor, selecione um exame no painel do Labfacil e um exame no painel do Autolac!");
+    const equipTarget = selectedEquipamentoExam || (selectedAutolacExam ? { codigoEquipamento: selectedAutolacExam.codigo, nomeExame: selectedAutolacExam.nome } : null);
+    if (!selectedLabfacilExam || !equipTarget) {
+      alert("Por favor, selecione um exame no painel do Labfacil e um exame no painel do Equipamento!");
       return;
     }
 
     const activeTenant = tenants.find(t => t.nome === selectedTenant) || tenants[0];
     const tenantId = activeTenant?.id || "11111111-1111-1111-1111-111111111111";
     const labfacilCode = selectedLabfacilExam.codigo;
-    const autolacCode = selectedAutolacExam.codigo;
+    const equipCode = equipTarget.codigoEquipamento.toUpperCase();
+    const equipNome = equipTarget.nomeExame || equipCode;
 
+    // 1. Atualizar mapeamento no Labfacil local
     setLabfacilExames(prev => prev.map(item => item.codigo === labfacilCode ? {
       ...item,
-      autolacMapped: autolacCode
+      autolacMapped: equipCode
     } : item));
 
+    // 2. Atualizar código Labfacil sugerido no equipamento
+    const novaListaEquip = equipamentoExamesList.map(item =>
+      item.codigoEquipamento.toUpperCase() === equipCode
+        ? { ...item, codigoLabfacilSugerido: labfacilCode }
+        : item
+    );
+    setEquipamentoExamesList(novaListaEquip);
+
+    // 3. Persistir tanto em depara_exames quanto no catálogo do aparelho
     try {
       await DeparaService.salvarMapeamento({
         tenant_id: tenantId,
-        codigo_autolac: autolacCode,
-        descricao_autolac: selectedAutolacExam.nome || autolacCode,
+        codigo_autolac: equipCode,
+        descricao_autolac: equipNome,
         codigo_labfacil: labfacilCode,
         descricao_labfacil: selectedLabfacilExam.descricao || labfacilCode,
         tipo_resultado: selectedLabfacilExam.tipo || 'PDF'
       });
-      showNotification(`⚡ Vínculo criado com sucesso: ${labfacilCode} (Labfacil) ↔ ${autolacCode} (Autolac)!`);
+      const equip = activeEquipamentoForDoc || (equipamentosList.find(e => e.id === selectedDeparaEquipId) || equipamentosList[0]);
+      if (equip) {
+        await EquipamentoExamesService.salvarExamesNoBanco(novaListaEquip, equip.modelo, equip.id, equip.tenant_id);
+      }
+      showNotification(`⚡ Vínculo salvo: ${labfacilCode} (Labfacil) ↔ ${equipCode} (${equip?.nome || 'Equipamento'})!`);
     } catch (err: any) {
       console.warn("Mapeamento salvo localmente:", err.message);
-      showNotification(`⚡ Vínculo associado com sucesso: ${labfacilCode} ↔ ${autolacCode}!`);
+      showNotification(`⚡ Vínculo associado com sucesso: ${labfacilCode} ↔ ${equipCode}!`);
     }
 
     // Clear search inputs upon linking
@@ -2014,6 +2167,7 @@ export default function MidwayLabDashboard() {
     } else {
       setSelectedLabfacilExam(null);
       setSelectedAutolacExam(null);
+      setSelectedEquipamentoExam(null);
     }
   };
 
@@ -2488,8 +2642,8 @@ export default function MidwayLabDashboard() {
       const matchesSearch =
         normalizeText(e.codigo).includes(searchClean) || 
         normalizeText(e.descricao).includes(searchClean) ||
-        normalizeText(e.abreviacao).includes(searchClean) ||
-        normalizeText(e.autolacMapped).includes(searchClean);
+        normalizeText(e.abreviacao || "").includes(searchClean) ||
+        normalizeText(e.autolacMapped || "").includes(searchClean);
       
       if (deparaFilter === "mapeados") return matchesSearch && Boolean(e.autolacMapped);
       if (deparaFilter === "pendentes") return matchesSearch && !Boolean(e.autolacMapped);
@@ -2497,42 +2651,51 @@ export default function MidwayLabDashboard() {
     })
     .map(e => ({
       ...e,
-      similarity: selectedAutolacExam ? calculateExamSimilarity(e, selectedAutolacExam) : 0
+      similarity: (selectedEquipamentoExam || selectedAutolacExam)
+        ? calculateExamSimilarity(e, {
+            codigo: selectedEquipamentoExam?.codigoEquipamento || selectedAutolacExam?.codigo,
+            nome: selectedEquipamentoExam?.nomeExame || selectedAutolacExam?.nome
+          })
+        : 0
     }))
     .sort((a, b) => {
-      if (selectedAutolacExam) {
+      if (selectedEquipamentoExam || selectedAutolacExam) {
         return b.similarity - a.similarity;
       }
       return a.codigo.localeCompare(b.codigo);
     });
 
-  // Filtered Autolac List with Accent-Insensitive Search & Smart Similarity Ranking
-  // Excludes Autolac exams that are already linked to a Labfacil exam
-  const alreadyMappedAutolacCodes = new Set(
-    labfacilExames.filter(e => Boolean(e.autolacMapped)).map(e => e.autolacMapped.toUpperCase())
-  );
-
-  const filteredAutolacCatalog = autolacCatalog
-    .filter(a => {
-      // Hide already-linked Autolac exams from the matching panel
-      if (alreadyMappedAutolacCodes.has(a.codigo.toUpperCase())) return false;
+  // Filtered Equipamento List with Accent-Insensitive Search & Smart Similarity Ranking
+  const filteredEquipamentoExames = equipamentoExamesList
+    .filter(e => {
       const searchClean = normalizeText(searchAutolac);
       if (!searchClean) return true;
       return (
-        normalizeText(a.codigo).includes(searchClean) ||
-        normalizeText(a.nome).includes(searchClean)
+        normalizeText(e.codigoEquipamento).includes(searchClean) ||
+        normalizeText(e.nomeExame).includes(searchClean) ||
+        normalizeText(e.codigoLabfacilSugerido || "").includes(searchClean) ||
+        normalizeText(e.categoria || "").includes(searchClean) ||
+        normalizeText(e.metodoOuPrincipio || "").includes(searchClean)
       );
     })
-    .map(a => ({
-      ...a,
-      similarity: selectedLabfacilExam ? calculateExamSimilarity(selectedLabfacilExam, a) : 0
+    .map(e => ({
+      ...e,
+      similarity: selectedLabfacilExam
+        ? calculateExamSimilarity(selectedLabfacilExam, { codigo: e.codigoEquipamento, nome: e.nomeExame })
+        : 0
     }))
     .sort((a, b) => {
       if (selectedLabfacilExam) {
         return b.similarity - a.similarity;
       }
-      return a.codigo.localeCompare(b.codigo);
+      return a.codigoEquipamento.localeCompare(b.codigoEquipamento);
     });
+
+  const filteredAutolacCatalog = filteredEquipamentoExames.map(e => ({
+    codigo: e.codigoEquipamento,
+    nome: e.nomeExame,
+    ...e
+  }));
 
   // IF NOT LOGGED IN: RENDER BRANDED LOGIN & REGISTRATION PORTAL
   if (!currentUser) {
@@ -3200,25 +3363,60 @@ export default function MidwayLabDashboard() {
       {/* Main Content Area */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
         {/* TAB DE-PARA: ULTRA DYNAMIC DUAL-SEARCH EXAM MATCHER */}
-        {activeTab === "depara" && (
+        {activeTab === "depara" && (() => {
+          const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+          const equipsDoTenant = equipamentosList.filter(eq => activeTenantObj ? eq.tenant_id === activeTenantObj.id : true);
+          const currentDeparaEquip = (equipsDoTenant.length > 0
+            ? (equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0])
+            : (equipamentosList.find(e => e.id === selectedDeparaEquipId) || equipamentosList[0])) || null;
+
+          return (
           <div className="space-y-6">
             {/* Header & Productivity Actions */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico DE-PARA (Labfacil Apoio ↔ Autolac)
+                  <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico DE-PARA (Labfacil Apoio ↔ Equipamento do Laboratório)
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                  Pesquise lado a lado nos catálogos do Labfacil ({labfacilExames.length} exames) e do Autolac ({autolacCatalog.length} exames) para relacionar exames instantaneamente com 1 clique!
+                  Pesquise lado a lado nos catálogos do Labfacil ({labfacilExames.length} exames) e do equipamento ({currentDeparaEquip?.nome || 'Equipamento'} com {equipamentoExamesList.length} testes) associado à empresa <strong className="text-teal-300">{selectedTenant}</strong> para relacionar exames instantaneamente!
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5 w-full pt-2 lg:pt-0">
+              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto pt-2 lg:pt-0">
+                {/* SELETOR DO EQUIPAMENTO ASSOCIADO À EMPRESA */}
+                <div className="flex items-center gap-2 bg-slate-950 border border-cyan-500/30 px-3 py-2 rounded-xl text-xs">
+                  <Server className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="text-slate-400 font-semibold shrink-0">Equipamento:</span>
+                  <select
+                    value={currentDeparaEquip?.id || ""}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      setSelectedDeparaEquipId(newId);
+                      const found = equipamentosList.find(eq => eq.id === newId);
+                      if (found) {
+                        setActiveEquipamentoForDoc(found);
+                        EquipamentoExamesService.obterExamesDoAparelho(found.modelo, found.id, found.tenant_id).then(res => {
+                          setEquipamentoExamesList(res.exames);
+                          setOrigemExamesAparelho(res.origem);
+                        });
+                      }
+                    }}
+                    className="bg-transparent text-cyan-300 font-mono font-bold focus:outline-none cursor-pointer"
+                  >
+                    {(equipsDoTenant.length > 0 ? equipsDoTenant : equipamentosList).map(eq => (
+                      <option key={eq.id} value={eq.id} className="bg-slate-900 text-slate-200">
+                        {eq.nome} ({eq.modelo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* BUTTON 1: NOVO MAPEAMENTO */}
                 <button
                   type="button"
                   onClick={() => handleOpenMapExam(labfacilExames[0])}
-                  className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-extrabold bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 cursor-pointer whitespace-nowrap text-center"
+                  className="px-3.5 h-10 rounded-xl text-xs font-extrabold bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 cursor-pointer whitespace-nowrap text-center"
                 >
                   <Plus className="w-4 h-4 text-slate-950" /> Novo Mapeamento
                 </button>
@@ -3227,44 +3425,16 @@ export default function MidwayLabDashboard() {
                 <button
                   type="button"
                   onClick={() => setIsMappedExamsModalOpen(true)}
-                  className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-emerald-500/10 cursor-pointer whitespace-nowrap text-center"
+                  className="px-3.5 h-10 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-emerald-500/10 cursor-pointer whitespace-nowrap text-center"
                 >
                   <Eye className="w-4 h-4 text-emerald-400" /> Ver Mapeados ({labfacilExames.filter(e => Boolean(e.autolacMapped)).length})
                 </button>
 
-                {/* BUTTON 3: IMPORTAR PLANILHA DE-PARA */}
-                <button
-                  type="button"
-                  onClick={() => { setImportTarget("depara"); setIsImportModalOpen(true); }}
-                  className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-teal-500/10 cursor-pointer whitespace-nowrap text-center"
-                >
-                  <Upload className="w-4 h-4 text-teal-400" /> Importar Planilha
-                </button>
-
-                {/* BUTTON 4: SINCRONIZAR API LABFACIL */}
-                <button
-                  type="button"
-                  onClick={handleLabfacilApiSync}
-                  disabled={isSyncingLabfacilApi}
-                  className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-cyan-500/10 cursor-pointer whitespace-nowrap text-center"
-                >
-                  <RefreshCw className={`w-4 h-4 text-cyan-400 ${isSyncingLabfacilApi ? "animate-spin" : ""}`} /> Sincronizar API
-                </button>
-
-                {/* BUTTON 5: AUTO-MAPEAR */}
-                <button
-                  type="button"
-                  onClick={handleAutoMapAll}
-                  className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white border border-cyan-400/30 transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer whitespace-nowrap text-center"
-                >
-                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300" /> Auto-Mapear
-                </button>
-
-                {/* BUTTON 6: EXPORTAR CSV */}
+                {/* BUTTON 3: EXPORTAR CSV */}
                 <button
                   type="button"
                   onClick={handleExportCsv}
-                  className="flex-1 min-w-[150px] h-10 px-3.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-2 shadow cursor-pointer whitespace-nowrap text-center"
+                  className="px-3.5 h-10 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-2 shadow cursor-pointer whitespace-nowrap text-center"
                 >
                   <Download className="w-4 h-4 text-cyan-400" /> Exportar CSV
                 </button>
@@ -3284,8 +3454,21 @@ export default function MidwayLabDashboard() {
                       type="button"
                       onClick={() => { setImportTarget("labfacil"); setIsImportModalOpen(true); }}
                       className="text-[10px] font-bold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer"
+                      title="Importar catálogo em XML, JSON ou CSV"
                     >
-                      <Upload className="w-3 h-3" /> Importar CSV/JSON
+                      <Upload className="w-3 h-3" /> Importar (XML / JSON / CSV)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingLabfacilItem(null);
+                        setNovoExameLabfacilForm({ codigo: "", descricao: "", abreviacao: "", tipo: "PDF" });
+                        setIsNovoExameLabfacilModalOpen(true);
+                      }}
+                      className="text-[10px] font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded border border-slate-700 transition flex items-center gap-1 cursor-pointer"
+                      title="Cadastrar novo exame no Labfacil da empresa (CRUD)"
+                    >
+                      <Plus className="w-3 h-3 text-teal-400" /> + Novo Exame
                     </button>
                     <span className="text-[11px] font-mono bg-teal-500/10 text-teal-300 px-2 py-0.5 rounded border border-teal-500/20">
                       {filteredLabfacilExames.length} Encontrados
@@ -3306,7 +3489,6 @@ export default function MidwayLabDashboard() {
 
                 {/* CATALOG STATUS BANNER (GLOBAL VS CUSTOM) */}
                 {(() => {
-                  const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
                   const isCustom = Boolean(activeTenantObj?.usarCatalogoProprio || activeTenantObj?.usar_catalogo_proprio);
                   return isCustom ? (
                     <div className="bg-teal-500/10 border border-teal-500/30 text-teal-300 p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2">
@@ -3328,7 +3510,6 @@ export default function MidwayLabDashboard() {
                 {/* ACTION BUTTONS: FETCH API & SAVE TO SUPABASE */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   {(() => {
-                    const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
                     const isCustom = Boolean(activeTenantObj?.usarCatalogoProprio || activeTenantObj?.usar_catalogo_proprio);
                     return (
                       <>
@@ -3367,27 +3548,72 @@ export default function MidwayLabDashboard() {
                     );
                   })()}
                 </div>
-
-
               </div>
 
-              {/* AUTOLAC SEARCH COLUMN */}
+              {/* EQUIPAMENTO ESCOLHIDO SEARCH COLUMN */}
               <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Building2 className="w-4 h-4 text-cyan-400" /> Catálogo Exames Autolac ({autolacCatalog.length})
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
+                    <Server className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+                      Catálogo do Equipamento:
+                    </span>
+                    <select
+                      value={currentDeparaEquip?.id || ""}
+                      onChange={(e) => {
+                        const newId = e.target.value;
+                        setSelectedDeparaEquipId(newId);
+                        const found = equipamentosList.find(eq => eq.id === newId);
+                        if (found) {
+                          setActiveEquipamentoForDoc(found);
+                          EquipamentoExamesService.obterExamesDoAparelho(found.modelo, found.id, found.tenant_id).then(res => {
+                            setEquipamentoExamesList(res.exames);
+                            setOrigemExamesAparelho(res.origem);
+                          });
+                        }
+                      }}
+                      className="bg-slate-950 border border-cyan-500/40 rounded-lg px-2.5 py-1 text-xs text-cyan-300 font-bold font-mono focus:outline-none focus:border-cyan-400 cursor-pointer"
+                    >
+                      {(equipsDoTenant.length > 0 ? equipsDoTenant : equipamentosList).map(eq => (
+                        <option key={eq.id} value={eq.id}>
+                          {eq.nome} ({eq.modelo})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-mono bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/20">
+                      {filteredEquipamentoExames.length} Encontrados ({equipamentoExamesList.length} Total)
+                    </span>
                     <button
                       type="button"
-                      onClick={() => { setImportTarget("autolac"); setIsImportModalOpen(true); }}
-                      className="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded border border-cyan-500/30 transition flex items-center gap-1 cursor-pointer"
+                      onClick={() => {
+                        setEditingExameItem(null);
+                        setNovoExameForm({
+                          codigoEquipamento: "",
+                          nomeExame: "",
+                          categoria: currentDeparaEquip?.modelo === "YUMIZEN" ? "Hematologia" : "Bioquímica",
+                          metodoOuPrincipio: "Enzimático / Cinético",
+                          codigoLabfacilSugerido: "",
+                          amostraSugerida: currentDeparaEquip?.modelo === "YUMIZEN" ? "Sangue Total EDTA" : "Soro",
+                          unidadePadrao: currentDeparaEquip?.modelo === "YUMIZEN" ? "10^3/µL" : "mg/dL",
+                          ativo: true
+                        });
+                        setIsNovoExameModalOpen(true);
+                      }}
+                      className="text-[10px] font-bold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded border border-teal-500/30 transition flex items-center gap-1 cursor-pointer"
                     >
-                      <Upload className="w-3 h-3" /> Importar CSV/JSON
+                      <Plus className="w-3 h-3" /> + Incluir Exame
                     </button>
-                    <span className="text-[11px] font-mono bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/20">
-                      {filteredAutolacCatalog.length} Encontrados
-                    </span>
+                    <button
+                      type="button"
+                      disabled={isSavingExamesAparelho}
+                      onClick={() => persistirExamesAparelho(equipamentoExamesList, `✅ ${equipamentoExamesList.length} exames do equipamento gravados no Banco de Dados!`)}
+                      className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1 rounded border border-emerald-500/30 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Save className="w-3 h-3" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
+                    </button>
                   </div>
                 </div>
 
@@ -3395,7 +3621,7 @@ export default function MidwayLabDashboard() {
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
                     type="text"
-                    placeholder="🔍 Pesquisar código/exame no Autolac..."
+                    placeholder={`🔍 Pesquisar código/exame no ${currentDeparaEquip?.nome || 'equipamento'}...`}
                     value={searchAutolac}
                     onChange={(e) => setSearchAutolac(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
@@ -3410,7 +3636,7 @@ export default function MidwayLabDashboard() {
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] text-slate-400 font-semibold">1. Selecione um exame do Labfacil Apoio:</p>
-                  {selectedAutolacExam && (
+                  {(selectedEquipamentoExam || selectedAutolacExam) && (
                     <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                       ✨ Ordenado por Similaridade
                     </span>
@@ -3428,20 +3654,20 @@ export default function MidwayLabDashboard() {
                           : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
                       }`}
                     >
-                      <div>
+                      <div className="min-w-0 pr-2">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-teal-300">{item.codigo}</span>
-                          {selectedAutolacExam && item.similarity > 0 && (
+                          {(selectedEquipamentoExam || selectedAutolacExam) && item.similarity > 0 && (
                             <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
                               ✨ Match {item.similarity}%
                             </span>
                           )}
                         </div>
-                        <span className="font-semibold text-slate-100">{item.descricao}</span>
+                        <span className="font-semibold text-slate-100 block truncate">{item.descricao}</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {selectedAutolacExam && isSelected && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(selectedEquipamentoExam || selectedAutolacExam) && isSelected && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -3467,6 +3693,37 @@ export default function MidwayLabDashboard() {
                           <Info className="w-3 h-3" /> Detalhes
                         </button>
 
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingLabfacilItem(item);
+                            setNovoExameLabfacilForm({
+                              codigo: item.codigo,
+                              descricao: item.descricao,
+                              abreviacao: item.abreviacao || item.codigo,
+                              tipo: item.tipo || "PDF"
+                            });
+                            setIsNovoExameLabfacilModalOpen(true);
+                          }}
+                          className="p-1 text-slate-400 hover:text-teal-300 rounded hover:bg-slate-800 cursor-pointer"
+                          title="Editar este exame no Labfacil (CRUD)"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExcluirExameLabfacil(item.codigo);
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-800 cursor-pointer"
+                          title="Excluir exame do Labfacil (CRUD)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
                         {item.autolacMapped ? (
                           <span className="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-bold block">
                             Mapped: {item.autolacMapped}
@@ -3482,56 +3739,156 @@ export default function MidwayLabDashboard() {
                 })}
               </div>
 
-              {/* RIGHT PANEL: AUTOLAC LIST (SMART RANKED) */}
+              {/* RIGHT PANEL: EQUIPAMENTO EXAMS LIST */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] text-slate-400 font-semibold">2. Selecione o exame correspondente no Autolac:</p>
+                  <p className="text-[11px] text-slate-400 font-semibold">2. Selecione o exame correspondente no {currentDeparaEquip?.nome || 'Equipamento'}:</p>
                   {selectedLabfacilExam && (
                     <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                       ✨ Ordenado por Similaridade
                     </span>
                   )}
                 </div>
-                {filteredAutolacCatalog.map((item) => {
-                  const isSelected = selectedAutolacExam?.codigo === item.codigo;
+                {filteredEquipamentoExames.map((item, eqIdx) => {
+                  const isSelected = (selectedEquipamentoExam?.codigoEquipamento === item.codigoEquipamento) || (selectedAutolacExam?.codigo === item.codigoEquipamento);
+                  const isExpanded = exameExpandidoKey === (item.id || item.codigoEquipamento);
                   return (
                     <div
-                      key={item.codigo}
-                      onClick={() => handleSelectAutolacExam(item)}
-                      className={`p-3.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                      key={item.id || item.codigoEquipamento}
+                      className={`rounded-xl border transition overflow-hidden ${
                         isSelected
-                          ? "bg-cyan-500/20 border-cyan-500 text-cyan-200 font-bold shadow-lg shadow-cyan-500/10"
-                          : "bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
+                          ? "bg-cyan-500/15 border-cyan-500 shadow-lg shadow-cyan-500/10"
+                          : "bg-slate-950 border-slate-800/80 hover:border-slate-700"
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-cyan-300">{item.codigo}</span>
-                          {selectedLabfacilExam && item.similarity > 0 && (
-                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
-                              ✨ Match {item.similarity}%
-                            </span>
-                          )}
+                      <div
+                        onClick={() => {
+                          setSelectedEquipamentoExam(item);
+                          setSelectedAutolacExam({ codigo: item.codigoEquipamento, nome: item.nomeExame, ...item });
+                        }}
+                        className="p-3 cursor-pointer space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* CÓDIGO DO APARELHO (DUPLO CLIQUE PARA ALTERAR) */}
+                            {editingInlineCell?.id === (item.id || String(eqIdx)) && editingInlineCell?.field === 'codigoEquipamento' ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                value={item.codigoEquipamento}
+                                onFocus={(e) => e.target.select()}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  const novoCod = e.target.value.toUpperCase();
+                                  setEquipamentoExamesList(prev => prev.map((it, idx) => (idx === eqIdx || (item.id && it.id === item.id)) ? { ...it, codigoEquipamento: novoCod } : it));
+                                }}
+                                onBlur={() => {
+                                  setEditingInlineCell(null);
+                                  persistirExamesAparelho(equipamentoExamesList, `💾 Código ${item.codigoEquipamento} gravado no banco.`);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === "Escape") {
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                                className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none"
+                              />
+                            ) : (
+                              <span
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingInlineCell({ id: item.id || String(eqIdx), field: 'codigoEquipamento' });
+                                }}
+                                className="font-mono text-xs font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded cursor-pointer"
+                                title="Duplo clique para alterar o código do aparelho"
+                              >
+                                {item.codigoEquipamento}
+                              </span>
+                            )}
+
+                            {/* CÓDIGO LABFACIL SUGERIDO / VINCULADO (DUPLO CLIQUE PARA ALTERAR) */}
+                            {editingInlineCell?.id === (item.id || String(eqIdx)) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                value={item.codigoLabfacilSugerido || ""}
+                                onFocus={(e) => e.target.select()}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  const novoLab = e.target.value.toUpperCase();
+                                  setEquipamentoExamesList(prev => prev.map((it, idx) => (idx === eqIdx || (item.id && it.id === item.id)) ? { ...it, codigoLabfacilSugerido: novoLab } : it));
+                                }}
+                                onBlur={() => {
+                                  setEditingInlineCell(null);
+                                  persistirExamesAparelho(equipamentoExamesList, `💾 Código Labfacil de ${item.codigoEquipamento} gravado no banco.`);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === "Escape") {
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                                className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none"
+                              />
+                            ) : (
+                              <span
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingInlineCell({ id: item.id || String(eqIdx), field: 'codigoLabfacilSugerido' });
+                                }}
+                                className="text-[10px] font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-2 py-0.5 rounded cursor-pointer"
+                                title="Duplo clique para alterar o código Labfacil"
+                              >
+                                Cód. Lab: {item.codigoLabfacilSugerido || "-"}
+                              </span>
+                            )}
+
+                            {selectedLabfacilExam && item.similarity > 0 && (
+                              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                                ✨ Match {item.similarity}%
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExameExpandidoKey(prev => prev === (item.id || item.codigoEquipamento) ? null : (item.id || item.codigoEquipamento));
+                              }}
+                              className="text-[10px] font-bold text-cyan-300 bg-slate-900 hover:bg-slate-800 border border-cyan-500/30 px-2 py-0.5 rounded transition flex items-center gap-1"
+                              title="Configurar Linhas de Resultado e Fórmulas Calculadas (Imagem 3)"
+                            >
+                              <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                              Resultados{(item.linhasResultado?.length || 0) + (item.calculados?.length || 0) > 0 ? ` (${(item.linhasResultado?.length || 0)}+${(item.calculados?.length || 0)}ƒ)` : ""}
+                            </button>
+                            <Check className={`w-4 h-4 text-cyan-400 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                          </div>
                         </div>
-                        <span className="font-semibold text-slate-100">{item.nome}</span>
+
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-100 truncate pr-2">{item.nomeExame}</span>
+                          <span className="text-[10px] text-slate-400 font-mono shrink-0">{item.categoria}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/60">
+                          <span>{item.metodoOuPrincipio || "-"}</span>
+                          <span>{item.amostraSugerida || "Soro"} ({item.unidadePadrao || "-"})</span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {selectedLabfacilExam && isSelected && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleLinkSelectedPair();
-                            }}
-                            className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-3 py-1 rounded-lg text-xs shadow-md shadow-teal-500/20 transition flex items-center gap-1 cursor-pointer animate-pulse"
-                            title="Vincular estes dois exames agora"
-                          >
-                            <Zap className="w-3.5 h-3.5" /> Vincular Agora
-                          </button>
-                        )}
-                        <Check className={`w-4 h-4 text-cyan-400 ${isSelected ? "opacity-100" : "opacity-0"}`} />
-                      </div>
+                      {/* SEÇÃO EXPANDIDA DE RESULTADOS E CALCULADOS (IMAGEM 3) */}
+                      {isExpanded && (
+                        <div className="p-3 bg-slate-900/90 border-t border-slate-800">
+                          <ExameResultadosCalculados
+                            exame={item}
+                            todosExames={equipamentoExamesList}
+                            salvando={isSavingExamesAparelho}
+                            onChange={(patch) => setEquipamentoExamesList(prev => prev.map(it => it === item ? { ...it, ...patch } : it))}
+                            onGravar={() => persistirExamesAparelho(equipamentoExamesList, `💾 Resultados e calculados de ${item.codigoEquipamento} gravados no banco.`)}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3539,21 +3896,22 @@ export default function MidwayLabDashboard() {
             </div>
 
             {/* QUICK LINK ACTION BAR */}
-            {(selectedLabfacilExam || selectedAutolacExam) && (
+            {(selectedLabfacilExam || selectedEquipamentoExam || selectedAutolacExam) && (
               <div className="bg-gradient-to-r from-slate-900 via-teal-950/60 to-slate-900 border border-teal-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
                 <div className="flex items-center gap-3 text-xs">
                   <ArrowLeftRight className="w-5 h-5 text-teal-400" />
                   <span>
                     Vincular: <strong className="text-teal-300 font-mono">{selectedLabfacilExam ? selectedLabfacilExam.codigo : "Selecione no Labfacil"}</strong>
                     {" ↔ "}
-                    <strong className="text-cyan-300 font-mono">{selectedAutolacExam ? selectedAutolacExam.codigo : "Selecione no Autolac"}</strong>
+                    <strong className="text-cyan-300 font-mono">{selectedEquipamentoExam ? selectedEquipamentoExam.codigoEquipamento : (selectedAutolacExam ? selectedAutolacExam.codigo : "Selecione no Equipamento")}</strong>
+                    {selectedEquipamentoExam && <span className="text-slate-400"> ({selectedEquipamentoExam.nomeExame})</span>}
                   </span>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleLinkSelectedPair}
-                  disabled={!selectedLabfacilExam || !selectedAutolacExam}
+                  disabled={!selectedLabfacilExam || (!selectedEquipamentoExam && !selectedAutolacExam)}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-teal-500/30 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   <Link className="w-4 h-4" /> Confirmar Vínculo DE-PARA
@@ -3561,16 +3919,26 @@ export default function MidwayLabDashboard() {
               </div>
             )}
 
-            {/* FULL RELATIONAL TABLE */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+            {/* FULL RELATIONAL TABLE (SEGUINDO A MESMA LÓGICA DA IMAGEM 3) */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-2">
+              <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
                 <div>
-                  <span className="font-bold text-slate-200">Tabela de Relacionamentos DE-PARA: </span>
-                  <strong className="text-teal-300 font-semibold">{selectedTenant}</strong>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-slate-100 text-sm">
+                      Catálogo do Equipamento: {currentDeparaEquip?.nome} ({currentDeparaEquip?.modelo})
+                    </span>
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                      {origemExamesAparelho === 'BANCO' ? 'Sincronizado no Banco (Supabase)' : 'Documentação do Modelo'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Fabricante: <strong className="text-slate-300">{currentDeparaEquip?.fabricante || 'Padrão'}</strong> | Empresa: <strong className="text-teal-300">{selectedTenant}</strong> | Duplo clique para alterar código do equipamento ou do sistema (Labfacil).
+                  </p>
                 </div>
 
-                {/* DE-PARA STATUS FILTER BUTTONS */}
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* FILTROS */}
                   <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
                     <button
                       type="button"
@@ -3579,7 +3947,7 @@ export default function MidwayLabDashboard() {
                         deparaFilter === "mapeados" ? "bg-emerald-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Somente Mapeados ({labfacilExames.filter(e => Boolean(e.autolacMapped)).length})
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Mapeados ({equipamentoExamesList.filter(e => Boolean(e.codigoLabfacilSugerido)).length})
                     </button>
                     <button
                       type="button"
@@ -3588,7 +3956,7 @@ export default function MidwayLabDashboard() {
                         deparaFilter === "pendentes" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      <AlertCircle className="w-3.5 h-3.5" /> Pendentes ({labfacilExames.filter(e => !e.autolacMapped).length})
+                      <AlertCircle className="w-3.5 h-3.5" /> Pendentes ({equipamentoExamesList.filter(e => !e.codigoLabfacilSugerido).length})
                     </button>
                     <button
                       type="button"
@@ -3597,123 +3965,289 @@ export default function MidwayLabDashboard() {
                         deparaFilter === "todos" ? "bg-teal-500 text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      Todos ({labfacilExames.length})
+                      Todos ({equipamentoExamesList.length})
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingExameItem(null);
+                      setNovoExameForm({
+                        codigoEquipamento: "",
+                        nomeExame: "",
+                        categoria: currentDeparaEquip?.modelo === "YUMIZEN" ? "Hematologia" : "Bioquímica",
+                        metodoOuPrincipio: "Enzimático / Cinético",
+                        codigoLabfacilSugerido: "",
+                        amostraSugerida: currentDeparaEquip?.modelo === "YUMIZEN" ? "Sangue Total EDTA" : "Soro",
+                        unidadePadrao: currentDeparaEquip?.modelo === "YUMIZEN" ? "10^3/µL" : "mg/dL",
+                        ativo: true
+                      });
+                      setIsNovoExameModalOpen(true);
+                    }}
+                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Incluir Novo Exame
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSavingExamesAparelho}
+                    onClick={() => persistirExamesAparelho(equipamentoExamesList, `✅ ${equipamentoExamesList.length} exames gravados no Banco de Dados com sucesso!`)}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
+                  </button>
                 </div>
               </div>
 
+              {/* TABELA DE EXAMES DO EQUIPAMENTO FORMATO IMAGEM 3 */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
                     <tr>
-                      <th className="py-3.5 px-5">Código Labfacil</th>
-                      <th className="py-3.5 px-5">Descrição do Exame (Labfacil Apoio)</th>
-                      <th className="py-3.5 px-5">Código Autolac (Vinculado)</th>
-                      <th className="py-3.5 px-5">Tipo de Resultado</th>
-                      <th className="py-3.5 px-5">Status Mapeamento</th>
-                      <th className="py-3.5 px-5 text-right">Ação Dinâmica</th>
+                      <th className="py-2.5 px-3 w-10 text-center font-mono">Nº</th>
+                      <th className="py-2.5 px-3 w-16 text-center">Status</th>
+                      <th className="py-2.5 px-3">Código Aparelho</th>
+                      <th className="py-2.5 px-3">Cód. Labfacil</th>
+                      <th className="py-2.5 px-3">Nome do Exame</th>
+                      <th className="py-2.5 px-3">Categoria</th>
+                      <th className="py-2.5 px-3">Princípio / Método</th>
+                      <th className="py-2.5 px-3">Amostra & Unidade</th>
+                      <th className="py-2.5 px-3 text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {filteredLabfacilExames
-                      .filter((exam) => {
-                        if (deparaFilter === "mapeados") return Boolean(exam.autolacMapped);
-                        if (deparaFilter === "pendentes") return !exam.autolacMapped;
-                        return true;
+                  <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
+                    {equipamentoExamesList
+                      .filter((ex) => {
+                        if (deparaFilter === "mapeados" && !ex.codigoLabfacilSugerido) return false;
+                        if (deparaFilter === "pendentes" && Boolean(ex.codigoLabfacilSugerido)) return false;
+                        if (!searchAutolac.trim()) return true;
+                        const term = searchAutolac.toLowerCase();
+                        return (
+                          ex.codigoEquipamento.toLowerCase().includes(term) ||
+                          ex.nomeExame.toLowerCase().includes(term) ||
+                          (ex.categoria || "").toLowerCase().includes(term) ||
+                          (ex.codigoLabfacilSugerido || "").toLowerCase().includes(term) ||
+                          (ex.metodoOuPrincipio || "").toLowerCase().includes(term)
+                        );
                       })
-                      .map((exam) => (
-                        <tr key={exam.codigo} className="hover:bg-slate-800/30 transition">
-                          <td className="py-4 px-5 font-mono text-xs font-bold text-teal-300">{exam.codigo}</td>
-                          <td className="py-4 px-5 font-medium text-slate-200">
-                            {exam.descricao}
-                            <span className="block text-xs text-slate-500">{exam.abreviacao}</span>
-                          </td>
-                          <td className="py-4 px-5">
-                            {exam.autolacMapped ? (
-                              <span className="font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5">
-                                <Link className="w-3 h-3 text-cyan-400" /> {exam.autolacMapped}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-slate-500 italic">Não mapeado</span>
-                            )}
-                          </td>
-                          <td className="py-4 px-5">
-                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                              exam.tipo === "PDF"
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                            }`}>
-                              {exam.tipo}
-                            </span>
-                          </td>
-                          <td className="py-4 px-5">
-                            {exam.blocked ? (
-                              <span className="text-xs text-rose-400 font-bold bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-full flex items-center gap-1 w-fit">
-                                <Lock className="w-3.5 h-3.5 text-rose-400" /> Bloqueado
-                              </span>
-                            ) : exam.autolacMapped ? (
-                              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
-                              </span>
-                            ) : (
-                              <span className="text-xs text-amber-400 font-semibold flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5" /> Pendente
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-4 px-5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* 1. EDITAR / MAPEAR */}
-                              <button 
-                                type="button"
-                                onClick={() => handleOpenMapExam(exam)}
-                                className="p-1.5 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-lg transition cursor-pointer"
-                                title={exam.autolacMapped ? "Editar Vínculo DE-PARA" : "Relacionar Exame Agora"}
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
+                      .map((ex, exIdx) => {
+                        const realIdx = equipamentoExamesList.indexOf(ex);
+                        const isExpanded = exameExpandidoKey === (ex.id || ex.codigoEquipamento);
+                        return (
+                          <React.Fragment key={ex.id || ex.codigoEquipamento}>
+                            <tr className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
+                              {/* Nº E MOVER */}
+                              <td className="py-2 px-2 text-center">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-slate-500 font-mono text-[10px] tabular-nums">{realIdx + 1}</span>
+                                  <button
+                                    type="button"
+                                    disabled={realIdx === 0}
+                                    onClick={() => {
+                                      const nova = [...equipamentoExamesList];
+                                      [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
+                                      persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
+                                    }}
+                                    className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
+                                    title="Mover para cima"
+                                  >▲</button>
+                                  <button
+                                    type="button"
+                                    disabled={realIdx === equipamentoExamesList.length - 1}
+                                    onClick={() => {
+                                      const nova = [...equipamentoExamesList];
+                                      [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
+                                      persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
+                                    }}
+                                    className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
+                                    title="Mover para baixo"
+                                  >▼</button>
+                                </div>
+                              </td>
 
-                              {/* 2. BLOQUEAR / DESBLOQUEAR EXAME */}
-                              <button 
-                                type="button"
-                                onClick={() => handleToggleBlockExam(exam.codigo)}
-                                className={`p-1.5 rounded-lg border transition cursor-pointer ${
-                                  exam.blocked
-                                    ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                                    : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
-                                }`}
-                                title={exam.blocked ? "Desbloquear Exame" : "Bloquear Exame para Integração"}
-                              >
-                                {exam.blocked ? <Lock className="w-3.5 h-3.5 text-rose-400" /> : <Unlock className="w-3.5 h-3.5 text-amber-400" />}
-                              </button>
+                              {/* STATUS */}
+                              <td className="py-2.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const novoStatus = !ex.ativo;
+                                    const novaLista = equipamentoExamesList.map(item => item === ex ? { ...item, ativo: novoStatus } : item);
+                                    persistirExamesAparelho(novaLista, `${novoStatus ? "🟢 Exame ativado:" : "⚪ Exame desativado:"} ${ex.codigoEquipamento}`);
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                                    ex.ativo
+                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                      : "bg-slate-800 text-slate-500 border border-slate-700"
+                                  }`}
+                                  title={ex.ativo ? "Clique para desativar este exame" : "Clique para ativar este exame"}
+                                >
+                                  {ex.ativo ? "ATIVO" : "INATIVO"}
+                                </button>
+                              </td>
 
-                              {/* 3. APAGAR / REMOVER VÍNCULO DE-PARA */}
-                              <button 
-                                type="button"
-                                onClick={() => handleRemoveExamMapping(exam.codigo)}
-                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg transition cursor-pointer"
-                                title="Apagar Vínculo DE-PARA do Banco Supabase"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    {filteredLabfacilExames.filter((exam) => deparaFilter === "mapeados" ? Boolean(exam.autolacMapped) : deparaFilter === "pendentes" ? !exam.autolacMapped : true).length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                          Nenhum exame encontrado para este filtro no momento.
-                        </td>
-                      </tr>
-                    )}
+                              {/* CÓDIGO APARELHO (DUPLO CLIQUE PARA EDITAR) */}
+                              <td className="py-2 px-3">
+                                {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoEquipamento' ? (
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={ex.codigoEquipamento}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => {
+                                      const novoCodigo = e.target.value.toUpperCase();
+                                      setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoEquipamento: novoCodigo } : item));
+                                    }}
+                                    onBlur={() => {
+                                      setEditingInlineCell(null);
+                                      persistirExamesAparelho(equipamentoExamesList, `💾 Código ${ex.codigoEquipamento} gravado no banco.`);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === "Escape") {
+                                        e.currentTarget.blur();
+                                      }
+                                    }}
+                                    className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none"
+                                  />
+                                ) : (
+                                  <div
+                                    onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoEquipamento' })}
+                                    className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
+                                    title="Duplo clique para alterar o código do aparelho"
+                                  >
+                                    <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 group-hover/badge:border-amber-400 group-hover/badge:text-amber-300 group-hover/badge:bg-amber-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
+                                      {ex.codigoEquipamento}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* CÓDIGO LABFACIL (DUPLO CLIQUE PARA EDITAR) */}
+                              <td className="py-2 px-3">
+                                {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={ex.codigoLabfacilSugerido || ""}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => {
+                                      const novoCodLab = e.target.value.toUpperCase();
+                                      setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
+                                    }}
+                                    onBlur={() => {
+                                      setEditingInlineCell(null);
+                                      persistirExamesAparelho(equipamentoExamesList, `💾 Código Labfacil de ${ex.codigoEquipamento} gravado no banco.`);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === "Escape") {
+                                        e.currentTarget.blur();
+                                      }
+                                    }}
+                                    className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none"
+                                  />
+                                ) : (
+                                  <div
+                                    onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoLabfacilSugerido' })}
+                                    className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
+                                    title="Duplo clique para alterar o código do Labfacil"
+                                  >
+                                    <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 group-hover/badge:border-cyan-400 group-hover/badge:text-cyan-300 group-hover/badge:bg-cyan-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
+                                      {ex.codigoLabfacilSugerido || "-"}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-2.5 px-3 font-sans font-medium text-slate-100">
+                                {ex.nomeExame}
+                              </td>
+
+                              <td className="py-2.5 px-3 text-slate-400 text-[10px]">
+                                {ex.categoria}
+                              </td>
+
+                              <td className="py-2.5 px-3 text-slate-400 font-sans text-[10px]">
+                                {ex.metodoOuPrincipio}
+                              </td>
+
+                              <td className="py-2.5 px-3 text-slate-400 text-[10px]">
+                                {ex.amostraSugerida} ({ex.unidadePadrao})
+                              </td>
+
+                              <td className="py-2.5 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExameExpandidoKey(prev => prev === (ex.id || ex.codigoEquipamento) ? null : (ex.id || ex.codigoEquipamento))}
+                                    className="px-1.5 py-1 rounded text-[10px] font-bold text-cyan-300 hover:bg-slate-800 cursor-pointer flex items-center gap-0.5"
+                                    title="Linhas de resultado e exames calculados (Imagem 3)"
+                                  >
+                                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                    Resultados{(ex.linhasResultado?.length || 0) + (ex.calculados?.length || 0) > 0 ? ` (${(ex.linhasResultado?.length || 0)}+${(ex.calculados?.length || 0)}ƒ)` : ""}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingExameItem(ex);
+                                      setNovoExameForm({
+                                        codigoEquipamento: ex.codigoEquipamento,
+                                        nomeExame: ex.nomeExame,
+                                        categoria: ex.categoria,
+                                        metodoOuPrincipio: ex.metodoOuPrincipio,
+                                        codigoLabfacilSugerido: ex.codigoLabfacilSugerido,
+                                        amostraSugerida: ex.amostraSugerida,
+                                        unidadePadrao: ex.unidadePadrao,
+                                        ativo: ex.ativo
+                                      });
+                                      setIsNovoExameModalOpen(true);
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 cursor-pointer"
+                                    title="Editar este exame"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (confirm(`Deseja remover o exame ${ex.codigoEquipamento} (${ex.nomeExame})?`)) {
+                                        const restante = equipamentoExamesList.filter(item => item !== ex);
+                                        persistirExamesAparelho(restante, `🗑️ Exame ${ex.codigoEquipamento} removido.`);
+                                      }
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 cursor-pointer"
+                                    title="Excluir exame"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {isExpanded && (
+                              <tr className="bg-slate-950/60">
+                                <td colSpan={9} className="p-3">
+                                  <ExameResultadosCalculados
+                                    exame={ex}
+                                    todosExames={equipamentoExamesList}
+                                    salvando={isSavingExamesAparelho}
+                                    onChange={(patch) => setEquipamentoExamesList(prev => prev.map(item => item === ex ? { ...item, ...patch } : item))}
+                                    onGravar={() => persistirExamesAparelho(equipamentoExamesList, `💾 Resultados e calculados de ${ex.codigoEquipamento} gravados no banco.`)}
+                                  />
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
-        )}
+        ); })()}
 
         {/* TAB DASHBOARD */}
         {activeTab === "dashboard" && (
@@ -7162,6 +7696,94 @@ export default function MidwayLabDashboard() {
         </div>
       )}
 
+      {/* MODAL CRUD: INCLUIR OU EDITAR EXAME LABFACIL */}
+      {isNovoExameLabfacilModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                {editingLabfacilItem ? "Editar Exame no Catálogo Labfacil" : "Cadastrar Novo Exame no Labfacil"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsNovoExameLabfacilModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarExameLabfacil} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Código Labfacil *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: GLI_JEJ, TSH01"
+                    value={novoExameLabfacilForm.codigo}
+                    onChange={(e) => setNovoExameLabfacilForm({ ...novoExameLabfacilForm, codigo: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono uppercase font-bold focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Abreviação / Mnemônico</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: GLICOSE, TSH"
+                    value={novoExameLabfacilForm.abreviacao}
+                    onChange={(e) => setNovoExameLabfacilForm({ ...novoExameLabfacilForm, abreviacao: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono uppercase focus:outline-none focus:border-teal-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Descrição Completa do Exame *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Glicose Dosagem em Jejum / TSH Ultra Sensível"
+                  value={novoExameLabfacilForm.descricao}
+                  onChange={(e) => setNovoExameLabfacilForm({ ...novoExameLabfacilForm, descricao: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Tipo de Resultado</label>
+                <select
+                  value={novoExameLabfacilForm.tipo}
+                  onChange={(e) => setNovoExameLabfacilForm({ ...novoExameLabfacilForm, tipo: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                >
+                  <option value="PDF">PDF (Laudo Formatado em PDF)</option>
+                  <option value="ESTRUTURADO">ESTRUTURADO (Valores Numéricos / Parâmetros)</option>
+                  <option value="TEXTO">TEXTO (Laudo Textual)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsNovoExameLabfacilModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl transition cursor-pointer shadow-lg shadow-teal-500/20"
+                >
+                  {editingLabfacilItem ? "Salvar Alterações" : "Cadastrar Exame"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: CREATE / EDIT TENANT */}
       {isNewTenantModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -8998,8 +9620,8 @@ P1`}
             <div className="space-y-4 text-xs">
               <p className="text-slate-300">
                 {importTarget === "depara"
-                  ? "Selecione um arquivo .csv ou .json contendo as colunas 'codigo_autolac' e 'codigo_labfacil' para importar o mapeamento em lote diretamente para o Supabase."
-                  : "Selecione um arquivo .csv ou .json com a lista de exames para carregar no catálogo."}
+                  ? "Selecione um arquivo XML, JSON ou CSV contendo as colunas 'codigo_autolac' e 'codigo_labfacil' para importar o mapeamento em lote diretamente para o Supabase."
+                  : "Selecione um arquivo XML (tags <exame> ou <item>), JSON ou CSV para importar a relação de exames para a empresa selecionada."}
               </p>
 
               {/* FILE SELECTOR DROPZONE */}
@@ -9007,12 +9629,12 @@ P1`}
                 <Upload className="w-10 h-10 text-teal-400 mx-auto" />
                 <div>
                   <label htmlFor="file-upload-input" className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition cursor-pointer inline-flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Selecionar Arquivo CSV ou JSON
+                    <FileText className="w-4 h-4" /> Selecionar Arquivo (XML, JSON ou CSV)
                   </label>
                   <input
                     id="file-upload-input"
                     type="file"
-                    accept=".csv,.json,.txt"
+                    accept=".xml,.json,.csv,.txt"
                     onChange={handleFileSelect}
                     className="hidden"
                   />
@@ -9020,7 +9642,7 @@ P1`}
                 {importFileName ? (
                   <p className="font-mono text-teal-300 font-bold text-xs">📄 Arquivo Selecionado: {importFileName}</p>
                 ) : (
-                  <p className="text-[11px] text-slate-500">Aceita arquivos .csv (separados por vírgula ou ;) e .json</p>
+                  <p className="text-[11px] text-slate-500">Aceita arquivos .xml (estrutura de exames), .json e .csv delimitados por vírgula ou ponto-e-vírgula</p>
                 )}
               </div>
 
