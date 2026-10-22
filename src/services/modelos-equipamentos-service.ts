@@ -9,6 +9,7 @@ export interface IModeloEquipamentoRecord {
   tipo_analise: string;
   protocolo_comunicacao: string;
   descricao?: string;
+  imagem_url?: string;
   configuracoes: {
     tipo_comunicacao?: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' | 'API';
     formato_arquivo?: 'XML' | 'JSON' | 'ASTM' | 'HL7' | 'CSV';
@@ -20,6 +21,8 @@ export interface IModeloEquipamentoRecord {
     parity?: 'none' | 'even' | 'odd';
     diretorio_carga?: string;
     diretorio_resultados?: string;
+    imagem_url?: string;
+    protocolos_suportados?: string[];
     [key: string]: any;
   };
   exames: IExameEquipamentoDoc[];

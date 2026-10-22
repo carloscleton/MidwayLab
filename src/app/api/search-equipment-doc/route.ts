@@ -28,6 +28,8 @@ interface IFoundModelData {
     parity?: 'none' | 'even' | 'odd';
     diretorio_carga?: string;
     diretorio_resultados?: string;
+    imagem_url?: string;
+    protocolos_suportados?: string[];
   };
   exames: IExamDoc[];
 }
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
     const tUpper = t.toUpperCase();
 
     // 1. Base de conhecimento heurística de especificações laboratoriais de mercado
-    // (Mindray, Sysmex, Roche, Beckman, Horiba, Biocon, Wiener, Abbott, Siemens, Dymind, Snibe, etc.)
+    // (Sysmex, Mindray, Roche, Beckman, Horiba, Biocon, Wiener, Snibe, Dymind, Stago, etc.)
     let fabricante = 'Fabricante Laboratorial';
     let tipoAnalise = 'Bioquímica Clínica';
     let tipoComunicacao: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' = 'TCP_IP';
@@ -53,15 +55,69 @@ export async function POST(req: NextRequest) {
     }
     let formatoArquivo: 'XML' | 'JSON' | 'ASTM' | 'HL7' | 'CSV' = 'HL7';
     let protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Bidirecional)';
+    let protocolosSuportados: string[] = [
+      'HL7 v2.3.1 (TCP/IP Bidirecional)',
+      'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+    ];
     let porta: number | undefined = 5100;
     let baudRate: number | undefined = undefined;
+    let imagemUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=500&q=80';
     let exames: IExamDoc[] = [];
 
-    if (tUpper.includes('MINDRAY')) {
+    // Detecção por fabricante / modelo
+    if (tUpper.includes('SYSMEX') || tUpper.includes('UF') || tUpper.includes('XN') || tUpper.includes('XP') || tUpper.includes('XS') || tUpper.includes('KX')) {
+      fabricante = 'Sysmex Corporation';
+      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500&q=80';
+      
+      if (tUpper.includes('UF') || tUpper.includes('URINA') || tUpper.includes('SEDIMENTO') || tUpper.includes('1500') || tUpper.includes('5000') || tUpper.includes('4000')) {
+        tipoAnalise = 'Urinálise Automatizada & Citometria de Fluxo Fluorescente';
+        protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)';
+        protocolosSuportados = [
+          'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)',
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+          'HL7 v2.5 (TCP/IP Bidirecional)'
+        ];
+        tipoComunicacao = 'TCP_IP';
+        formatoArquivo = 'ASTM';
+        porta = 5100;
+        exames = [
+          { codigoEquipamento: 'RBC', nomeExame: 'Hemácias na Urina (Eritrócitos)', metodoOuPrincipio: 'Citometria de Fluxo com Laser Semicondutor', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'HEM_URINA', categoria: 'Elementos Formados' },
+          { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos na Urina', metodoOuPrincipio: 'Citometria de Fluxo Fluorescente', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'LEUCO_URINA', categoria: 'Elementos Formados' },
+          { codigoEquipamento: 'EC', nomeExame: 'Células Epiteliais Totais', metodoOuPrincipio: 'Citometria de Fluxo com Laser', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'CEL_EPIT', categoria: 'Elementos Formados' },
+          { codigoEquipamento: 'CAST', nomeExame: 'Cilindros Hialinos / Patológicos', metodoOuPrincipio: 'Dispersão de Luz Polarizada', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'CILINDROS', categoria: 'Cilindros' },
+          { codigoEquipamento: 'BACT', nomeExame: 'Bactérias Urinárias', metodoOuPrincipio: 'Citometria Fluorescente de Ácidos Nucleicos', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'BACTERIAS', categoria: 'Microbiologia' },
+          { codigoEquipamento: 'XTAL', nomeExame: 'Cristais', metodoOuPrincipio: 'Dispersão de Luz Despolarizada', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'CRISTAIS', categoria: 'Cristais' },
+          { codigoEquipamento: 'YLC', nomeExame: 'Leveduras / Fungos', metodoOuPrincipio: 'Citometria Fluorescente', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'LEVEDURAS', categoria: 'Microbiologia' }
+        ];
+      } else {
+        tipoAnalise = 'Hematologia Automatizada com Citometria Fluorescente';
+        protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)';
+        protocolosSuportados = [
+          'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)',
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+          'HL7 v2.5 (TCP/IP Porta 5100)'
+        ];
+        tipoComunicacao = 'TCP_IP';
+        formatoArquivo = 'ASTM';
+        porta = 5100;
+        exames = [
+          { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Citometria de Fluxo Fluorescente', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
+          { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Foco Hidrodinâmico', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
+          { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'SLS Livre de Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
+          { codigoEquipamento: 'HCT', nomeExame: 'Hematócrito', metodoOuPrincipio: 'Detecção de Altura de Pulsos', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '%', codigoLabfacilSugerido: 'HT', categoria: 'Série Vermelha' },
+          { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância com Foco Hidrodinâmico', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
+        ];
+      }
+    } else if (tUpper.includes('MINDRAY')) {
       fabricante = 'Shenzhen Mindray Bio-Medical Electronics';
+      imagemUrl = 'https://images.unsplash.com/photo-1530497610245-94d3c16cda28?auto=format&fit=crop&w=500&q=80';
       if (tUpper.includes('BC') || tUpper.includes('5000') || tUpper.includes('6000') || tUpper.includes('5150') || tUpper.includes('5300')) {
         tipoAnalise = 'Hematologia Completa (5 Part-Diff)';
-        protocoloComunicacao = 'HL7 v2.3.1 / TCP-IP Porta 5100';
+        protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
+        protocolosSuportados = [
+          'HL7 v2.3.1 (TCP/IP Porta 5100)',
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+        ];
         tipoComunicacao = 'TCP_IP';
         formatoArquivo = 'HL7';
         porta = 5100;
@@ -77,9 +133,13 @@ export async function POST(req: NextRequest) {
           { codigoEquipamento: 'HCT', nomeExame: 'Hematócrito', metodoOuPrincipio: 'Integração Cumulativa', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '%', codigoLabfacilSugerido: 'HT', categoria: 'Série Vermelha' },
           { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
         ];
-      } else if (tUpper.includes('BS') || tUpper.includes('200') || tUpper.includes('300') || tUpper.includes('380') || tUpper.includes('400')) {
+      } else {
         tipoAnalise = 'Bioquímica Clínica & Turbidimetria';
-        protocoloComunicacao = 'HL7 v2.3.1 / TCP-IP Porta 5100';
+        protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
+        protocolosSuportados = [
+          'HL7 v2.3.1 (TCP/IP Porta 5100)',
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+        ];
         tipoComunicacao = 'TCP_IP';
         formatoArquivo = 'HL7';
         porta = 5100;
@@ -93,24 +153,16 @@ export async function POST(req: NextRequest) {
           { codigoEquipamento: 'AST', nomeExame: 'TGO / AST', metodoOuPrincipio: 'IFCC UV', amostraSugerida: 'Soro', unidadePadrao: 'U/L', codigoLabfacilSugerido: 'TGO', categoria: 'Hepático' }
         ];
       }
-    } else if (tUpper.includes('SYSMEX')) {
-      fabricante = 'Sysmex Corporation';
-      tipoAnalise = 'Hematologia Automatizada com Citometria Fluorescente';
-      protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100 ou Serial RS232)';
-      tipoComunicacao = 'TCP_IP';
-      formatoArquivo = 'ASTM';
-      porta = 5100;
-      exames = [
-        { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Citometria de Fluxo Fluorescente', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
-        { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Foco Hidrodinâmico', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'SLS Livre de Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'HCT', nomeExame: 'Hematócrito', metodoOuPrincipio: 'Detecção de Altura de Pulsos', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '%', codigoLabfacilSugerido: 'HT', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância com Foco Hidrodinâmico', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
-      ];
     } else if (tUpper.includes('ROCHE') || tUpper.includes('COBAS')) {
       fabricante = 'Roche Diagnostics';
+      imagemUrl = 'https://images.unsplash.com/photo-1581093588401-fbb62a02f120?auto=format&fit=crop&w=500&q=80';
       tipoAnalise = tUpper.includes('E411') || tUpper.includes('E601') ? 'Imunologia por Eletroquimioluminescência (ECLIA)' : 'Bioquímica Clínica & Turbidimetria';
-      protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (Serial RS-232 ou TCP/IP)';
+      protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)';
+      protocolosSuportados = [
+        'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)',
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+        'HL7 v2.5 (TCP/IP Bidirecional)'
+      ];
       tipoComunicacao = 'TCP_IP';
       formatoArquivo = 'ASTM';
       porta = 5100;
@@ -123,8 +175,13 @@ export async function POST(req: NextRequest) {
       ];
     } else if (tUpper.includes('SNIBE') || tUpper.includes('MAGLUMI')) {
       fabricante = 'Snibe Diagnostic (Shenzhen New Industries)';
+      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500&q=80';
       tipoAnalise = 'Imunoensaio por Quimioluminescência (CLIA)';
-      protocoloComunicacao = 'ASTM E1394 / TCP-IP ou Serial RS232';
+      protocoloComunicacao = 'ASTM E1394-97 (TCP/IP Porta 5100)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (TCP/IP Porta 5100)',
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+      ];
       tipoComunicacao = 'TCP_IP';
       formatoArquivo = 'ASTM';
       porta = 5100;
@@ -136,8 +193,13 @@ export async function POST(req: NextRequest) {
       ];
     } else if (tUpper.includes('DYMIND')) {
       fabricante = 'Dymind Biotechnology';
+      imagemUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=500&q=80';
       tipoAnalise = 'Hematologia Automatizada';
       protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
+      protocolosSuportados = [
+        'HL7 v2.3.1 (TCP/IP Porta 5100)',
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+      ];
       tipoComunicacao = 'TCP_IP';
       formatoArquivo = 'HL7';
       porta = 5100;
@@ -149,8 +211,13 @@ export async function POST(req: NextRequest) {
       ];
     } else if (tUpper.includes('COAGULA') || tUpper.includes('STAGO') || tUpper.includes('IL') || tUpper.includes('ACL')) {
       fabricante = 'Instrumentation Laboratory / Stago';
+      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500&q=80';
       tipoAnalise = 'Coagulação Automatizada';
-      protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1 ou TCP/IP)';
+      protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+        'ASTM E1394-97 (TCP/IP Porta 5100)'
+      ];
       tipoComunicacao = 'SERIAL';
       formatoArquivo = 'ASTM';
       baudRate = 9600;
@@ -161,10 +228,14 @@ export async function POST(req: NextRequest) {
         { codigoEquipamento: 'FIB', nomeExame: 'Fibrinogênio (Clauss)', metodoOuPrincipio: 'Método de Clauss', amostraSugerida: 'Plasma Citratado', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'FIBRI', categoria: 'Coagulação' }
       ];
     } else {
-      // Padrão Geral / Inteligente: Analisa palavras chaves
+      imagemUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=500&q=80';
       if (tUpper.includes('HEM') || tUpper.includes('BLOOD') || tUpper.includes('DIFF')) {
         tipoAnalise = 'Hematologia Clínica';
-        protocoloComunicacao = 'HL7 v2.3.1 / ASTM E1394 (TCP-IP ou Serial)';
+        protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
+        protocolosSuportados = [
+          'HL7 v2.3.1 (TCP/IP Porta 5100)',
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+        ];
         formatoArquivo = 'HL7';
         exames = [
           { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância / Óptico', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
@@ -175,7 +246,13 @@ export async function POST(req: NextRequest) {
         ];
       } else {
         tipoAnalise = 'Bioquímica Clínica & Turbidimetria';
-        protocoloComunicacao = 'ASTM E1394-97 / HL7 v2.3.1 (TCP/IP Porta 5100)';
+        protocoloComunicacao = 'ASTM E1394-97 (TCP/IP Porta 5100)';
+        protocolosSuportados = [
+          'ASTM E1394-97 (TCP/IP Porta 5100)',
+          'HL7 v2.3.1 (TCP/IP Porta 5100)',
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+          'Arquivo Compartilhado (Carga JSON / Retorno)'
+        ];
         formatoArquivo = 'ASTM';
         exames = [
           { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'Enzimático Colorimétrico', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Glicídios' },
@@ -210,7 +287,9 @@ export async function POST(req: NextRequest) {
         stop_bits: tipoComunicacao === 'SERIAL' ? 1 : undefined,
         parity: tipoComunicacao === 'SERIAL' ? 'none' : undefined,
         diretorio_carga: tipoComunicacao === 'ARQUIVO_COMPARTILHADO' ? `C:\\Equipamentos\\${codigoModelo}\\Carga` : undefined,
-        diretorio_resultados: tipoComunicacao === 'ARQUIVO_COMPARTILHADO' ? `C:\\Equipamentos\\${codigoModelo}\\Resultados` : undefined
+        diretorio_resultados: tipoComunicacao === 'ARQUIVO_COMPARTILHADO' ? `C:\\Equipamentos\\${codigoModelo}\\Resultados` : undefined,
+        imagem_url: imagemUrl,
+        protocolos_suportados: protocolosSuportados
       },
       exames
     };
