@@ -4727,12 +4727,17 @@ export default function MidwayLabDashboard() {
                           }}
                           className="bg-slate-950 border border-teal-500/50 rounded-lg px-2.5 py-1 text-teal-300 text-xs font-mono font-bold focus:outline-none cursor-pointer"
                         >
-                          <option value="CB350">Cormay CB350</option>
-                          <option value="YUMIZEN">Horiba Yumizen</option>
+                          <option value="CB350">Cormay CB350 (Bioquímica)</option>
+                          <option value="YUMIZEN">Horiba Yumizen (Hematologia)</option>
+                          <option value="ZYBIO_Z3">Zybio Z3 (Hematologia 3-Part)</option>
+                          <option value="ZYBIO_Z5">Zybio Z5 (Hematologia 5-Part Laser)</option>
+                          <option value="CM250">Wiener CM 250 (Bioquímica)</option>
+                          <option value="FIAPRESTO_1AC">FIAPresto 1AC Biocon (HbA1c FIA)</option>
+                          <option value="HUMACLOT_JR">HumaClot Junior (Coagulação)</option>
+                          <option value="BS_240">Mindray BS 240 (Bioquímica)</option>
+                          <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part)</option>
+                          <option value="INVISTAR_300">Invistar 300 (Bioquímica)</option>
                           <option value="ACCESS">Beckman Coulter ACCESS</option>
-                          <option value="BS_240">Mindray BS 240</option>
-                          <option value="BC_5380">Mindray BC 5380</option>
-                          <option value="INVISTAR_300">Invistar 300</option>
                           <option value="GENERICO">Outro Analisador</option>
                         </select>
                       );
@@ -6158,21 +6163,99 @@ export default function MidwayLabDashboard() {
                       const mod = e.target.value;
                       let fab = "Fabricante Geral";
                       let tipoCom = equipamentoForm.tipo_comunicacao || "TCP_IP";
-                      if (mod === "CB350") { fab = "Cormay"; tipoCom = "ARQUIVO_COMPARTILHADO"; }
-                      else if (mod === "YUMIZEN") { fab = "Horiba Medical"; tipoCom = "TCP_IP"; }
-                      else if (mod === "ACCESS") { fab = "Beckman Coulter"; tipoCom = "SERIAL"; }
-                      else if (mod === "BC_3000") { fab = "Mindray"; tipoCom = "SERIAL"; }
-                      else if (mod === "BC_5380") { fab = "Mindray"; tipoCom = "TCP_IP"; }
-                      else if (mod === "BS_240") { fab = "Mindray"; tipoCom = "TCP_IP"; }
-                      else if (mod === "INVISTAR_300") { fab = "Invistar / Genrui"; tipoCom = "SERIAL"; }
-                      else if (mod === "SYSMEX") { fab = "Sysmex"; tipoCom = "TCP_IP"; }
-                      else if (mod === "ROCHE_COBAS") { fab = "Roche Diagnostics"; tipoCom = "TCP_IP"; }
-                      setEquipamentoForm({ ...equipamentoForm, modelo: mod, fabricante: fab, tipo_comunicacao: tipoCom as any });
+                      let fmt: "XML" | "JSON" | "ASTM" | "HL7" | "CSV" = "ASTM";
+                      let porta: number | undefined = undefined;
+                      let ip: string | undefined = undefined;
+
+                      if (mod === "CB350") { 
+                        fab = "Cormay"; 
+                        tipoCom = "ARQUIVO_COMPARTILHADO"; 
+                        fmt = "JSON"; 
+                      } else if (mod === "YUMIZEN") { 
+                        fab = "Horiba Medical"; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "ASTM"; 
+                        porta = 5100;
+                        ip = "192.168.1.100";
+                      } else if (mod === "ZYBIO_Z3") { 
+                        fab = "Zybio Inc."; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "HL7"; 
+                        porta = 5100;
+                        ip = "192.168.1.70";
+                      } else if (mod === "ZYBIO_Z5") { 
+                        fab = "Zybio Inc."; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "HL7"; 
+                        porta = 5100;
+                        ip = "192.168.1.75";
+                      } else if (mod === "CM250") { 
+                        fab = "Wiener lab."; 
+                        tipoCom = "SERIAL"; 
+                        fmt = "ASTM"; 
+                      } else if (mod === "FIAPRESTO_1AC") { 
+                        fab = "Biocon / Wondfo"; 
+                        tipoCom = "SERIAL"; 
+                        fmt = "ASTM"; 
+                      } else if (mod === "HUMACLOT_JR") { 
+                        fab = "HUMAN Diagnostics Worldwide"; 
+                        tipoCom = "SERIAL"; 
+                        fmt = "CSV"; 
+                      } else if (mod === "ACCESS") { 
+                        fab = "Beckman Coulter"; 
+                        tipoCom = "SERIAL"; 
+                        fmt = "ASTM"; 
+                      } else if (mod === "BC_3000") { 
+                        fab = "Mindray"; 
+                        tipoCom = "SERIAL"; 
+                        fmt = "ASTM"; 
+                      } else if (mod === "BC_5380") { 
+                        fab = "Mindray"; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "HL7"; 
+                        porta = 5100;
+                        ip = "192.168.1.50";
+                      } else if (mod === "BS_240") { 
+                        fab = "Mindray"; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "HL7"; 
+                        porta = 5100;
+                        ip = "192.168.1.60";
+                      } else if (mod === "INVISTAR_300") { 
+                        fab = "Invistar / Genrui"; 
+                        tipoCom = "SERIAL"; 
+                        fmt = "ASTM"; 
+                      } else if (mod === "SYSMEX") { 
+                        fab = "Sysmex"; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "ASTM"; 
+                        porta = 5100; 
+                      } else if (mod === "ROCHE_COBAS") { 
+                        fab = "Roche Diagnostics"; 
+                        tipoCom = "TCP_IP"; 
+                        fmt = "ASTM"; 
+                        porta = 5100; 
+                      }
+
+                      setEquipamentoForm({ 
+                        ...equipamentoForm, 
+                        modelo: mod, 
+                        fabricante: fab, 
+                        tipo_comunicacao: tipoCom as any,
+                        formato_arquivo: fmt,
+                        porta: porta ?? equipamentoForm.porta,
+                        ip_host: ip ?? equipamentoForm.ip_host
+                      });
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   >
                     <option value="CB350">CB350 (Bioquímica - Cormay)</option>
                     <option value="YUMIZEN">YUMIZEN H500/H550 (Hematologia - Horiba)</option>
+                    <option value="ZYBIO_Z3">Zybio Z3 (Hematologia 3-Part)</option>
+                    <option value="ZYBIO_Z5">Zybio Z5 (Hematologia 5-Part Laser)</option>
+                    <option value="CM250">Wiener CM 250 (Bioquímica)</option>
+                    <option value="FIAPRESTO_1AC">FIAPresto 1AC / Biocon (HbA1c FIA)</option>
+                    <option value="HUMACLOT_JR">HumaClot Junior (Coagulação)</option>
                     <option value="ACCESS">ACCESS / Access 2 (Imunologia - Beckman Coulter)</option>
                     <option value="BC_3000">BC 3000 Plus (Hematologia 3-Part - Mindray)</option>
                     <option value="BC_5380">BC 5380 (Hematologia 5-Part - Mindray)</option>
