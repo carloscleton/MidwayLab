@@ -248,32 +248,233 @@ export default function NovoModeloModal({
               </div>
 
               {/* CONFIGURAÇÃO JSONB */}
-              <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800 space-y-3">
                 <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 font-mono">
-                  <Cpu className="w-3.5 h-3.5 text-teal-400" /> Parâmetros de Conexão (JSONB)
+                  <Cpu className="w-3.5 h-3.5 text-teal-400" /> Parâmetros de Conexão Recomendados (JSONB)
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[10px] text-slate-500 block">Tipo Conexão</span>
-                    <span className="text-slate-200 font-mono font-bold">{searchedModeloResult.configuracoes?.tipo_comunicacao || "TCP_IP"}</span>
+                    <label className="block text-[10px] text-slate-400 mb-1">Tipo de Comunicação</label>
+                    <select
+                      value={searchedModeloResult.configuracoes?.tipo_comunicacao || "TCP_IP"}
+                      onChange={(e) =>
+                        setSearchedModeloResult({
+                          ...searchedModeloResult,
+                          configuracoes: {
+                            ...searchedModeloResult.configuracoes,
+                            tipo_comunicacao: e.target.value as any
+                          }
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500"
+                    >
+                      <option value="TCP_IP">🌐 TCP_IP (Rede Local / Ethernet)</option>
+                      <option value="SERIAL">🔌 SERIAL (RS-232 / COM)</option>
+                      <option value="ARQUIVO_COMPARTILHADO">📁 ARQUIVO_COMPARTILHADO (Pastas)</option>
+                    </select>
                   </div>
+
                   <div>
-                    <span className="text-[10px] text-slate-500 block">Formato Mensagem</span>
-                    <span className="text-slate-200 font-mono font-bold">{searchedModeloResult.configuracoes?.formato_arquivo || "ASTM"}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">Porta / Baud</span>
-                    <span className="text-slate-200 font-mono font-bold">
-                      {searchedModeloResult.configuracoes?.porta
-                        ? `Porta ${searchedModeloResult.configuracoes.porta}`
-                        : (searchedModeloResult.configuracoes?.baud_rate ? `${searchedModeloResult.configuracoes.baud_rate} bps` : "N/D")}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">IP Padrão</span>
-                    <span className="text-slate-200 font-mono font-bold">{searchedModeloResult.configuracoes?.ip_host || "192.168.1.150"}</span>
+                    <label className="block text-[10px] text-slate-400 mb-1">Formato do Protocolo / Mensagem</label>
+                    <select
+                      value={searchedModeloResult.configuracoes?.formato_arquivo || "ASTM"}
+                      onChange={(e) =>
+                        setSearchedModeloResult({
+                          ...searchedModeloResult,
+                          configuracoes: {
+                            ...searchedModeloResult.configuracoes,
+                            formato_arquivo: e.target.value as any
+                          }
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500"
+                    >
+                      <option value="ASTM">ASTM E1394-97 / E1381</option>
+                      <option value="HL7">HL7 v2.3.1 / v2.5</option>
+                      <option value="JSON">JSON (Worklist API)</option>
+                      <option value="CSV">CSV / TXT Delimitado</option>
+                      <option value="XML">XML Estruturado</option>
+                    </select>
                   </div>
                 </div>
+
+                {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP */}
+                {(searchedModeloResult.configuracoes?.tipo_comunicacao || "TCP_IP") === "TCP_IP" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] text-teal-300 font-semibold mb-1">
+                        Endereço IP Padrão do Analisador na Rede (Host IP)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 192.168.1.150"
+                        value={searchedModeloResult.configuracoes?.ip_host ?? "192.168.1.150"}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              ip_host: e.target.value
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-teal-500/40 rounded-lg px-2.5 py-1.5 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-teal-300 font-semibold mb-1">Porta TCP</label>
+                      <input
+                        type="number"
+                        placeholder="5100"
+                        value={searchedModeloResult.configuracoes?.porta ?? 5100}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              porta: parseInt(e.target.value) || 5100
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-teal-500/40 rounded-lg px-2.5 py-1.5 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* CAMPOS ESPECÍFICOS DE SERIAL RS-232 */}
+                {searchedModeloResult.configuracoes?.tipo_comunicacao === "SERIAL" && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Baud Rate</label>
+                      <select
+                        value={searchedModeloResult.configuracoes?.baud_rate || 9600}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              baud_rate: Number(e.target.value)
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 font-mono text-xs"
+                      >
+                        <option value={9600}>9600</option>
+                        <option value={19200}>19200</option>
+                        <option value={38400}>38400</option>
+                        <option value={57600}>57600</option>
+                        <option value={115200}>115200</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Data Bits</label>
+                      <select
+                        value={searchedModeloResult.configuracoes?.data_bits || 8}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              data_bits: Number(e.target.value)
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 font-mono text-xs"
+                      >
+                        <option value={8}>8 bits</option>
+                        <option value={7}>7 bits</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Paridade</label>
+                      <select
+                        value={searchedModeloResult.configuracoes?.parity || "none"}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              parity: e.target.value as any
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 font-mono text-xs"
+                      >
+                        <option value="none">None</option>
+                        <option value="even">Even</option>
+                        <option value="odd">Odd</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Stop Bits</label>
+                      <select
+                        value={searchedModeloResult.configuracoes?.stop_bits || 1}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              stop_bits: Number(e.target.value)
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 font-mono text-xs"
+                      >
+                        <option value={1}>1 bit</option>
+                        <option value={2}>2 bits</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* CAMPOS ESPECÍFICOS DE ARQUIVO COMPARTILHADO */}
+                {searchedModeloResult.configuracoes?.tipo_comunicacao === "ARQUIVO_COMPARTILHADO" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Diretório de Carga</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: C:\Equipamentos\Carga"
+                        value={searchedModeloResult.configuracoes?.diretorio_carga || "C:\\Equipamentos\\Carga"}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              diretorio_carga: e.target.value
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Diretório de Resultados</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: C:\Equipamentos\Resultados"
+                        value={searchedModeloResult.configuracoes?.diretorio_resultados || "C:\\Equipamentos\\Resultados"}
+                        onChange={(e) =>
+                          setSearchedModeloResult({
+                            ...searchedModeloResult,
+                            configuracoes: {
+                              ...searchedModeloResult.configuracoes,
+                              diretorio_resultados: e.target.value
+                            }
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* PREVIEW DE TESTES MAPEADOS */}

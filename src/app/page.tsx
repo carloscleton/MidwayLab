@@ -4587,13 +4587,20 @@ export default function MidwayLabDashboard() {
                   type="button"
                   onClick={() => {
                     setEditingEquipamento(null);
+                    const modObj = catalogoModelos[0];
+                    const cfg = modObj?.configuracoes || {};
+                    const tipoCom = (cfg.tipo_comunicacao || "ARQUIVO_COMPARTILHADO") as any;
+                    const cod = modObj?.codigo_modelo || "CB350";
                     setEquipamentoForm({
                       nome: "",
-                      modelo: catalogoModelos[0]?.codigo_modelo || "CB350",
-                      fabricante: catalogoModelos[0]?.fabricante || "Cormay",
-                      tipo_comunicacao: (catalogoModelos[0]?.configuracoes?.tipo_comunicacao || "ARQUIVO_COMPARTILHADO") as any,
-                      diretorio_carga: "C:\\Equipamentos\\Carga",
-                      diretorio_resultados: "C:\\Equipamentos\\Resultados",
+                      modelo: cod,
+                      fabricante: modObj?.fabricante || "Cormay",
+                      tipo_comunicacao: tipoCom,
+                      formato_arquivo: (cfg.formato_arquivo || (tipoCom === "ARQUIVO_COMPARTILHADO" ? "JSON" : "ASTM")) as any,
+                      ip_host: cfg.ip_host || (tipoCom === "SERIAL" ? "COM1" : "192.168.1.150"),
+                      porta: cfg.porta ?? (tipoCom === "SERIAL" ? (cfg.baud_rate || 9600) : 5100),
+                      diretorio_carga: cfg.diretorio_carga || `C:\\Equipamentos\\${cod}\\Carga`,
+                      diretorio_resultados: cfg.diretorio_resultados || `C:\\Equipamentos\\${cod}\\Resultados`,
                       ativo: true
                     });
                     setIsEquipamentoModalOpen(true);
@@ -6353,7 +6360,17 @@ export default function MidwayLabDashboard() {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setEquipamentoForm({ ...equipamentoForm, tipo_comunicacao: "TCP_IP" })}
+                    onClick={() => {
+                      const modObj = catalogoModelos.find(m => m.codigo_modelo === equipamentoForm.modelo);
+                      const cfg = modObj?.configuracoes || {};
+                      setEquipamentoForm({
+                        ...equipamentoForm,
+                        tipo_comunicacao: "TCP_IP",
+                        ip_host: (equipamentoForm.ip_host && !equipamentoForm.ip_host.startsWith("COM")) ? equipamentoForm.ip_host : (cfg.ip_host || "192.168.1.150"),
+                        porta: (equipamentoForm.porta && equipamentoForm.porta > 1000) ? equipamentoForm.porta : (cfg.porta || 5100),
+                        formato_arquivo: equipamentoForm.formato_arquivo === "JSON" ? "ASTM" : (equipamentoForm.formato_arquivo || "ASTM")
+                      });
+                    }}
                     className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer font-bold ${
                       equipamentoForm.tipo_comunicacao === "TCP_IP"
                         ? "bg-teal-500/15 border-teal-500/40 text-teal-300 shadow-sm"
@@ -6377,7 +6394,17 @@ export default function MidwayLabDashboard() {
 
                   <button
                     type="button"
-                    onClick={() => setEquipamentoForm({ ...equipamentoForm, tipo_comunicacao: "SERIAL" })}
+                    onClick={() => {
+                      const modObj = catalogoModelos.find(m => m.codigo_modelo === equipamentoForm.modelo);
+                      const cfg = modObj?.configuracoes || {};
+                      setEquipamentoForm({
+                        ...equipamentoForm,
+                        tipo_comunicacao: "SERIAL",
+                        ip_host: equipamentoForm.ip_host?.startsWith("COM") ? equipamentoForm.ip_host : "COM1",
+                        porta: cfg.baud_rate || 9600,
+                        formato_arquivo: equipamentoForm.formato_arquivo === "JSON" ? "ASTM" : (equipamentoForm.formato_arquivo || "ASTM")
+                      });
+                    }}
                     className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer font-bold ${
                       equipamentoForm.tipo_comunicacao === "SERIAL"
                         ? "bg-teal-500/15 border-teal-500/40 text-teal-300 shadow-sm"
