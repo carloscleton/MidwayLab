@@ -85,6 +85,7 @@ export interface ILabfacilExamItem {
   autolacMapped: string;
   tipo: string;
   blocked?: boolean;
+  equipamentoId?: string | null;
 }
 
 
@@ -577,15 +578,17 @@ export default function MidwayLabDashboard() {
       // 1. Prioridade máxima: carregar todas as definições da tabela depara_exames (Dados Reais do Banco)
       dbMappings.forEach(m => {
         const cleanCode = (m.codigo_labfacil || m.codigo_softlab || '').trim().toUpperCase();
-        if (cleanCode && !uniqueLabfacilMap.has(cleanCode)) {
+        const equipKey = m.equipamento_id ? `${m.equipamento_id}:${cleanCode}` : cleanCode;
+        if (cleanCode && !uniqueLabfacilMap.has(equipKey)) {
           const rawAutolac = m.codigo_equipamento || m.codigo_autolac || "";
           const cleanAutolac = m.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
-          uniqueLabfacilMap.set(cleanCode, {
+          uniqueLabfacilMap.set(equipKey, {
             codigo: cleanCode,
             descricao: m.descricao_labfacil || m.descricao_autolac || cleanCode,
             abreviacao: cleanCode,
             autolacMapped: cleanAutolac || "",
-            tipo: m.tipo_resultado || "PDF"
+            tipo: m.tipo_resultado || "PDF",
+            equipamentoId: m.equipamento_id || null
           });
         }
       });
@@ -602,7 +605,8 @@ export default function MidwayLabDashboard() {
             descricao: item.descricao,
             abreviacao: item.abreviacao || item.codigo,
             autolacMapped: cleanAutolac || "",
-            tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
+            tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF",
+            equipamentoId: foundMapping?.equipamento_id || null
           });
         }
       });
@@ -2677,9 +2681,22 @@ export default function MidwayLabDashboard() {
     setMappingExamModal(null);
   };
 
-  // Filtered Labfacil List with Accent-Insensitive Search & Bidirectional Smart Similarity Ranking
+  // Helper para identificar o equipamento ativo no DE-PARA
+  const activeTenantForDepara = tenants.find(t => t.nome === selectedTenant);
+  const equipsDoTenantForDepara = activeTenantForDepara ? equipamentosList.filter(eq => eq.tenant_id === activeTenantForDepara.id) : [];
+  const activeDeparaEquip = equipsDoTenantForDepara.find(e => e.id === selectedDeparaEquipId) || equipsDoTenantForDepara[0] || null;
+
+  // Filtered Labfacil List: FILTRADO PELO EQUIPAMENTO ESCOLHIDO & BUSCA TEXTUAL
   const filteredLabfacilExames = labfacilExames
     .filter(e => {
+      // 1. Filtro estrito pelo equipamento selecionado
+      if (activeDeparaEquip?.id) {
+        if (e.equipamentoId && e.equipamentoId !== activeDeparaEquip.id) {
+          return false;
+        }
+      }
+
+      // 2. Busca textual
       const searchClean = normalizeText(searchLabfacil);
       if (!searchClean) return true;
       return (
@@ -3469,7 +3486,7 @@ export default function MidwayLabDashboard() {
               <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-teal-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <CheckCircle2 className="w-4 h-4 text-teal-400" /> Catálogo Labfacil Apoio ({labfacilExames.length} Exames)
+                    <CheckCircle2 className="w-4 h-4 text-teal-400" /> Catálogo Labfacil Apoio ({currentDeparaEquip ? currentDeparaEquip.nome : 'Empresa'}) ({filteredLabfacilExames.length} Exames)
                   </span>
                   <div className="flex items-center gap-2">
                     <button
@@ -3493,7 +3510,7 @@ export default function MidwayLabDashboard() {
                       <Plus className="w-3 h-3 text-teal-400" /> + Novo Exame
                     </button>
                     <span className="text-[11px] font-mono bg-teal-500/10 text-teal-300 px-2 py-0.5 rounded border border-teal-500/20">
-                      {filteredLabfacilExames.length} Encontrados ({labfacilExames.length} Total)
+                      {filteredLabfacilExames.length} Encontrados ({currentDeparaEquip ? currentDeparaEquip.nome : 'Todos'})
                     </span>
                   </div>
                 </div>
