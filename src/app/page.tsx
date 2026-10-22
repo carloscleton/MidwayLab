@@ -13,6 +13,7 @@ import { EquipamentoSimulatorService, ISimulatedSampleRelease } from "../service
 import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
 import ExameResultadosCalculados from "../components/ExameResultadosCalculados";
 import NovoModeloModal from "../components/NovoModeloModal";
+import GerenciarModelosModal from "../components/GerenciarModelosModal";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
@@ -218,6 +219,7 @@ export default function MidwayLabDashboard() {
   // CATALOGO DINAMICO DE MODELOS DE EQUIPAMENTOS (SUPABASE + PESQUISA NA WEB)
   const [catalogoModelos, setCatalogoModelos] = useState<IModeloEquipamentoRecord[]>([]);
   const [isNovoModeloModalOpen, setIsNovoModeloModalOpen] = useState(false);
+  const [isGerenciarModelosModalOpen, setIsGerenciarModelosModalOpen] = useState(false);
 
   const recarregarCatalogoModelos = async () => {
     try {
@@ -4567,6 +4569,14 @@ export default function MidwayLabDashboard() {
               <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
                 <button
                   type="button"
+                  onClick={() => setIsGerenciarModelosModalOpen(true)}
+                  className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 text-xs border border-slate-700 cursor-pointer shadow-md"
+                  title="Listar, editar, desativar (deixar off) ou excluir modelos de equipamentos gravados no banco"
+                >
+                  <Server className="w-4 h-4 text-teal-400" /> Gerenciar Modelos ({catalogoModelos.length})
+                </button>
+                <button
+                  type="button"
                   onClick={() => setIsNovoModeloModalOpen(true)}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-indigo-600/20 cursor-pointer"
                   title="Pesquisar novo analisador na internet/documentacao e adicionar ao catalogo do sistema"
@@ -5728,12 +5738,15 @@ export default function MidwayLabDashboard() {
                 {/* 1. ESCOLHA DO ANALISADOR A SER SIMULADO */}
                 <div className="space-y-1.5">
                   <label className="text-slate-300 font-bold font-sans">1. Analisador Simulado:</label>
-                  <select
+                                    <select
                     value={simulatorSelectedEquipamento}
                     onChange={(e) => {
                       const mod = e.target.value;
                       setSimulatorSelectedEquipamento(mod);
-                      if (mod === "ACCESS") {
+                      const modObj = catalogoModelos.find(m => m.codigo_modelo === mod);
+                      if (modObj && modObj.exames && modObj.exames.length > 0) {
+                        setSimulatorExamesInput(modObj.exames.slice(0, 6).map(x => x.codigoEquipamento).join(", "));
+                      } else if (mod === "ACCESS") {
                         setSimulatorExamesInput("VITDACCESS, TSH, T4L, PSA");
                       } else if (mod === "BC_3000" || mod === "BC_5380" || mod === "YUMIZEN") {
                         setSimulatorExamesInput("WBC, RBC, HGB, HCT, PLT, NEU%, LYM%");
@@ -5742,20 +5755,13 @@ export default function MidwayLabDashboard() {
                       }
                       setSimulatorSimulatedRelease(null);
                     }}
-                    className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none"
+                    className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none cursor-pointer"
                   >
-                    <option value="CB350">Cormay CB350 (Bioquímica)</option>
-                    <option value="BS_240">Mindray BS 240 (Bioquímica)</option>
-                    <option value="INVISTAR_300">Invistar 300 (Bioquímica)</option>
-                    <option value="YUMIZEN">Horiba Yumizen (Hematologia)</option>
-                    <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part)</option>
-                    <option value="BC_3000">Mindray BC 3000 Plus (Hematologia 3-Part)</option>
-                    <option value="ACCESS">Beckman Coulter ACCESS (Imunologia)</option>
-                    <option value="ZYBIO_Z3">Zybio Z3 (Hematologia 3-Part)</option>
-                    <option value="ZYBIO_Z5">Zybio Z5 (Hematologia 5-Part Laser)</option>
-                    <option value="CM250">Wiener CM 250 (Bioquímica)</option>
-                    <option value="FIAPRESTO_1AC">FIAPresto 1AC Biocon (HbA1c FIA)</option>
-                    <option value="HUMACLOT_JR">HumaClot Junior (Coagulação)</option>
+                    {catalogoModelos.filter(m => m.ativo !== false).map(m => (
+                      <option key={m.codigo_modelo} value={m.codigo_modelo}>
+                        {m.nome_completo}
+                      </option>
+                    ))}
                   </select>
                   <span className="text-[10px] text-slate-400 font-sans block">
                     Protocolo Padrão: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
@@ -6445,6 +6451,15 @@ export default function MidwayLabDashboard() {
         onModeloSalvo={async () => {
           await recarregarCatalogoModelos();
         }}
+        showNotification={showNotification}
+      />
+
+      <GerenciarModelosModal
+        isOpen={isGerenciarModelosModalOpen}
+        onClose={() => setIsGerenciarModelosModalOpen(false)}
+        catalogoModelos={catalogoModelos}
+        onAtualizarCatalogo={recarregarCatalogoModelos}
+        onAbrirNovoModeloWeb={() => setIsNovoModeloModalOpen(true)}
         showNotification={showNotification}
       />
 
