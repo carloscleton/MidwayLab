@@ -145,18 +145,55 @@ export class ModelosEquipamentosService {
   }
 
   /**
-   * Remove um modelo de analisador do banco
+   * Remove um modelo de analisador do banco Supabase
    */
-  static async excluirModelo(idOuCodigo: string): Promise<boolean> {
+  static async excluirModelo(
+    identificador: { id?: string; codigo_modelo?: string } | string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabaseBrowser
-        .from('modelos_equipamentos')
-        .delete()
-        .or(`id.eq.${idOuCodigo},codigo_modelo.eq.${idOuCodigo}`);
+      let id: string | undefined;
+      let codigo: string | undefined;
 
-      return !error;
-    } catch {
-      return false;
+      const isUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (typeof identificador === 'string') {
+        const val = identificador.trim();
+        if (isUUIDRegex.test(val)) {
+          id = val;
+        } else {
+          codigo = val;
+        }
+      } else if (identificador && typeof identificador === 'object') {
+        if (identificador.id && isUUIDRegex.test(identificador.id.trim())) {
+          id = identificador.id.trim();
+        }
+        if (identificador.codigo_modelo) {
+          codigo = identificador.codigo_modelo.trim();
+        }
+      }
+
+      let query = supabaseBrowser.from('modelos_equipamentos').delete();
+
+      // Deleta prioritariamente pelo ID (UUID) se válido, ou pelo codigo_modelo único
+      if (id) {
+        query = query.eq('id', id);
+      } else if (codigo) {
+        query = query.eq('codigo_modelo', codigo);
+      } else {
+        return { success: false, error: 'Identificador do modelo (ID ou Código) não informado ou inválido.' };
+      }
+
+      const { error } = await query;
+
+      if (error) {
+        console.error('[ModelosEquipamentosService] Erro ao excluir modelo:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[ModelosEquipamentosService] Exceção ao excluir modelo:', err);
+      return { success: false, error: err.message };
     }
   }
 }

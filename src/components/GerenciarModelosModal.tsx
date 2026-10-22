@@ -75,12 +75,15 @@ export default function GerenciarModelosModal({
 
     setIsDeleting(modelo.codigo_modelo);
     try {
-      const ok = await ModelosEquipamentosService.excluirModelo(modelo.codigo_modelo);
-      if (ok) {
+      const res = await ModelosEquipamentosService.excluirModelo({
+        id: modelo.id,
+        codigo_modelo: modelo.codigo_modelo
+      });
+      if (res.success) {
         showNotification(`🗑️ Modelo '${modelo.nome_completo}' removido do banco com sucesso!`);
         await onAtualizarCatalogo();
       } else {
-        showNotification(`⚠️ Não foi possível excluir o modelo do banco de dados.`);
+        showNotification(`⚠️ Não foi possível excluir o modelo: ${res.error || "Erro no banco de dados."}`);
       }
     } catch (err: any) {
       showNotification(`⚠️ Erro ao excluir: ${err.message}`);
