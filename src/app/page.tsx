@@ -2193,23 +2193,31 @@ export default function MidwayLabDashboard() {
     }
   };
 
-  // SMART SELECTION HANDLER FOR AUTOLAC EXAM PANEL (BIDIRECTIONAL)
-  const handleSelectAutolacExam = (exam: any) => {
-    setSelectedAutolacExam(exam);
+  // SELEÇÃO DO EXAME DO EQUIPAMENTO: LOCALIZA VÍNCULO NO LABFACIL (BIDIRECIONAL)
+  const handleSelectEquipamentoExam = (item: any) => {
+    setSelectedEquipamentoExam(item);
+    setSelectedAutolacExam({ codigo: item.codigoEquipamento || item.codigo, nome: item.nomeExame || item.nome, ...item });
 
-    const rankedLabfacil = labfacilExames
-      .map(softItem => ({
-        ...softItem,
-        similarity: calculateExamSimilarity(softItem, exam)
-      }))
-      .sort((a, b) => b.similarity - a.similarity);
+    const codLabSugerido = (item.codigoLabfacilSugerido || "").trim().toUpperCase();
+    const codEquip = (item.codigoEquipamento || item.codigo || "").trim().toUpperCase();
 
-    if (rankedLabfacil.length > 0 && rankedLabfacil[0].similarity >= 30) {
-      setSelectedLabfacilExam(rankedLabfacil[0]);
+    // 1. Procura o exame vinculado no catálogo do Labfacil
+    const vinculo = labfacilExames.find(l => {
+      const lCod = (l.codigo || "").trim().toUpperCase();
+      const lMap = (l.autolacMapped || "").trim().toUpperCase();
+      return (codLabSugerido && lCod === codLabSugerido) || (codEquip && lMap === codEquip);
+    });
+
+    if (vinculo) {
+      setSelectedLabfacilExam(vinculo);
+      showNotification(`🔬 Vínculo encontrado: ${vinculo.codigo} (${vinculo.descricao}) ↔ ${codEquip} (${item.nomeExame || item.nome})!`);
     } else {
       setSelectedLabfacilExam(null);
+      showNotification(`⚠️ Não existe vínculo com o Labfacil para o exame '${codEquip}' (${item.nomeExame || item.nome}).`);
     }
   };
+
+  const handleSelectAutolacExam = handleSelectEquipamentoExam;
 
   // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (LABFACIL ↔ EQUIPAMENTO ESCOLHIDO)
   const handleLinkSelectedPair = async () => {
@@ -3896,10 +3904,7 @@ export default function MidwayLabDashboard() {
                       }`}
                     >
                       <div
-                        onClick={() => {
-                          setSelectedEquipamentoExam(item);
-                          setSelectedAutolacExam({ codigo: item.codigoEquipamento, nome: item.nomeExame, ...item });
-                        }}
+                        onClick={() => handleSelectEquipamentoExam(item)}
                         className="p-3 cursor-pointer space-y-1.5"
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -4191,7 +4196,16 @@ export default function MidwayLabDashboard() {
                         const isExpanded = exameExpandidoKey === (ex.id || ex.codigoEquipamento);
                         return (
                           <React.Fragment key={ex.id || ex.codigoEquipamento}>
-                            <tr className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
+                            <tr
+                              onClick={() => handleSelectEquipamentoExam(ex)}
+                              className={`hover:bg-slate-800/40 transition cursor-pointer ${
+                                selectedEquipamentoExam?.codigoEquipamento === ex.codigoEquipamento
+                                  ? "bg-cyan-500/15"
+                                  : !ex.ativo
+                                  ? "opacity-50 bg-slate-950/40"
+                                  : ""
+                              }`}
+                            >
                               {/* Nº E MOVER */}
                               <td className="py-2 px-2 text-center">
                                 <div className="flex flex-col items-center gap-0.5">
