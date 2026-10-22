@@ -6277,6 +6277,78 @@ export default function MidwayLabDashboard() {
                     <RefreshCw className="w-3 h-3" /> Buscar Comunicação Padrão
                   </button>
                 </div>
+                {/* PROTOCOLO HOMOLOGADO DO MODELO */}
+                {(() => {
+                  const modObj = catalogoModelos.find(m => m.codigo_modelo === equipamentoForm.modelo);
+                  const protos = modObj?.configuracoes?.protocolos_suportados && modObj.configuracoes.protocolos_suportados.length > 0
+                    ? modObj.configuracoes.protocolos_suportados
+                    : [
+                        modObj?.protocolo_comunicacao || "ASTM E1394-97 (TCP/IP Porta 5100)",
+                        "ASTM E1394-97 (Serial RS-232 9600 8N1)",
+                        "HL7 v2.3.1 (TCP/IP Porta 5100)",
+                        "Arquivo Compartilhado (JSON Worklist)"
+                      ].filter((v, i, a) => a.indexOf(v) === i);
+
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] text-slate-300 font-semibold">
+                          Protocolo Homologado do Fabricante
+                        </label>
+                        <span className="text-[10px] text-teal-400 font-mono">
+                          {modObj ? `${modObj.fabricante} • ${modObj.codigo_modelo}` : "Padrão Internacional"}
+                        </span>
+                      </div>
+                      <select
+                        value={
+                          protos.find(p => {
+                            if (equipamentoForm.tipo_comunicacao === "SERIAL" && (p.includes("Serial") || p.includes("RS-232"))) return true;
+                            if (equipamentoForm.tipo_comunicacao === "ARQUIVO_COMPARTILHADO" && p.includes("Arquivo")) return true;
+                            if (equipamentoForm.tipo_comunicacao === "TCP_IP" && !p.includes("Serial") && !p.includes("Arquivo")) return true;
+                            return false;
+                          }) || protos[0]
+                        }
+                        onChange={(e) => {
+                          const selProto = e.target.value;
+                          let tipoCom: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' = 'TCP_IP';
+                          let fmt: 'XML' | 'JSON' | 'ASTM' | 'HL7' | 'CSV' = 'ASTM';
+                          let porta = modObj?.configuracoes?.porta || 5100;
+                          let ipHost = modObj?.configuracoes?.ip_host || "192.168.1.150";
+
+                          if (selProto.includes('Serial') || selProto.includes('RS-232')) {
+                            tipoCom = 'SERIAL';
+                            fmt = selProto.includes('HL7') ? 'HL7' : 'ASTM';
+                            porta = modObj?.configuracoes?.baud_rate || 9600;
+                            ipHost = "COM1";
+                          } else if (selProto.includes('Arquivo')) {
+                            tipoCom = 'ARQUIVO_COMPARTILHADO';
+                            fmt = 'JSON';
+                          } else {
+                            tipoCom = 'TCP_IP';
+                            fmt = selProto.includes('HL7') ? 'HL7' : 'ASTM';
+                            porta = modObj?.configuracoes?.porta || 5100;
+                            ipHost = modObj?.configuracoes?.ip_host || "192.168.1.150";
+                          }
+
+                          setEquipamentoForm({
+                            ...equipamentoForm,
+                            tipo_comunicacao: tipoCom,
+                            formato_arquivo: fmt,
+                            porta: porta,
+                            ip_host: ipHost
+                          });
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs font-bold focus:outline-none focus:border-teal-500 cursor-pointer"
+                      >
+                        {protos.map((p, idx) => (
+                          <option key={idx} value={p}>
+                            {idx === 0 ? `⭐ [Padrão Default] ${p}` : p}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -6331,65 +6403,132 @@ export default function MidwayLabDashboard() {
                   >
                     <option value="XML">XML Estruturado (&lt;Principal&gt;&lt;Paciente&gt;&lt;Amostra&gt;&lt;Resultado&gt;...)</option>
                     <option value="JSON">JSON (Carga Web/API Midway - Ex: CB350)</option>
-                    <option value="ASTM">ASTM E1394 (Mensagem Serial / Arquivo - Ex: Yumizen, Access)</option>
+                    <option value="ASTM">ASTM E1394 (Mensagem Serial / Arquivo - Ex: Yumizen, Access, Sysmex)</option>
                     <option value="HL7">HL7 v2.3.1 (ORU^R01 / OML^O21 - Ex: Mindray BS/BC)</option>
                     <option value="CSV">CSV / TXT Delimitado</option>
                   </select>
                   <span className="text-[10px] text-slate-400 block">
-                    Define a estrutura exata do arquivo gravado na Pasta de Carga e lido na Pasta de Resultados.
+                    Define a estrutura exata do pacote gravado na Pasta de Carga ou transmitido no socket/serial.
                   </span>
                 </div>
 
                 {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP */}
                 {equipamentoForm.tipo_comunicacao === "TCP_IP" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
                     <div className="sm:col-span-2">
-                      <label className="block text-slate-300 font-semibold mb-1">Endereço IP do Analisador</label>
+                      <label className="block text-teal-300 font-semibold mb-1 text-xs">
+                        Endereço IP do Analisador na Rede (Host IP)
+                      </label>
                       <input
                         type="text"
-                        placeholder="Ex: 192.168.1.50"
+                        placeholder="Ex: 192.168.1.150"
                         value={equipamentoForm.ip_host || ""}
                         onChange={(e) => setEquipamentoForm({ ...equipamentoForm, ip_host: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs"
+                        className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
                       />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Endereço IPv4 atribuído na placa de rede do analisador para conexão de socket TCP.
+                      </span>
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Porta TCP</label>
+                      <label className="block text-teal-300 font-semibold mb-1 text-xs">Porta TCP</label>
                       <input
                         type="number"
                         placeholder="Ex: 5100"
-                        value={equipamentoForm.porta || ""}
-                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || undefined })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs"
+                        value={equipamentoForm.porta ?? 5100}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || 5100 })}
+                        className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
                       />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Porta padrão de escuta/transmissão.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* CAMPOS ESPECÍFICOS DE SERIAL RS-232 */}
+                {equipamentoForm.tipo_comunicacao === "SERIAL" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+                    <div>
+                      <label className="block text-teal-300 font-semibold mb-1 text-xs">
+                        Porta Serial / COM
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: COM1 ou COM3"
+                        value={equipamentoForm.ip_host || "COM1"}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, ip_host: e.target.value })}
+                        className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Porta serial do computador/conversor USB.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-teal-300 font-semibold mb-1 text-xs">Baud Rate (Velocidade)</label>
+                      <select
+                        value={equipamentoForm.porta || 9600}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || 9600 })}
+                        className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500 cursor-pointer"
+                      >
+                        <option value={9600}>9600 bps (Padrão ASTM)</option>
+                        <option value={19200}>19200 bps</option>
+                        <option value={38400}>38400 bps</option>
+                        <option value={57600}>57600 bps</option>
+                        <option value={115200}>115200 bps</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Taxa em bits por segundo.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-teal-300 font-semibold mb-1 text-xs">Quadro Serial (8N1)</label>
+                      <div className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono text-xs flex items-center justify-between">
+                        <span>8 Data Bits</span>
+                        <span>•</span>
+                        <span>None</span>
+                        <span>•</span>
+                        <span>1 Stop</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Norma internacional para analisadores.
+                      </span>
                     </div>
                   </div>
                 )}
 
                 {/* CAMPOS ESPECÍFICOS DE PASTA COMPARTILHADA */}
                 {equipamentoForm.tipo_comunicacao === "ARQUIVO_COMPARTILHADO" && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-3 pt-2 border-t border-slate-800/80">
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Diretório de Carga (Pasta Compartilhada)</label>
+                      <label className="block text-slate-300 font-semibold mb-1 text-xs">Diretório de Carga (Pasta Compartilhada)</label>
                       <input
                         type="text"
                         placeholder="C:\Equipamentos\Carga"
                         value={equipamentoForm.diretorio_carga || ""}
                         onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_carga: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500"
                       />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Pasta onde os arquivos de worklist e pedidos são gravados para o analisador ler.
+                      </span>
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Diretório de Resultados do Equipamento</label>
+                      <label className="block text-slate-300 font-semibold mb-1 text-xs">Diretório de Resultados do Equipamento</label>
                       <input
                         type="text"
                         placeholder="C:\Equipamentos\Resultados"
                         value={equipamentoForm.diretorio_resultados || ""}
                         onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_resultados: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500"
                       />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Pasta onde o analisador grava os arquivos de resultados processados.
+                      </span>
                     </div>
                   </div>
                 )}
@@ -6429,7 +6568,7 @@ export default function MidwayLabDashboard() {
                   </button>
 
                   <span className="text-[10px] text-slate-400 font-mono text-center sm:text-right">
-                    Protocolo: {equipamentoForm.modelo === "CB350" ? "Worklist / JSON" : "ASTM E1394"}
+                    Protocolo: {equipamentoForm.tipo_comunicacao === "TCP_IP" ? `TCP/IP (${equipamentoForm.ip_host || '192.168.1.150'}:${equipamentoForm.porta || 5100})` : (equipamentoForm.tipo_comunicacao === "SERIAL" ? `Serial RS-232 (${equipamentoForm.ip_host || 'COM1'} @ ${equipamentoForm.porta || 9600}bps)` : "Pasta Compartilhada")}
                   </span>
                 </div>
 
