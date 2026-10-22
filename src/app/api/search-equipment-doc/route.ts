@@ -44,8 +44,6 @@ export async function POST(req: NextRequest) {
     const t = termo.trim();
     const tUpper = t.toUpperCase();
 
-    // 1. Base de conhecimento heurística de especificações laboratoriais de mercado
-    // (Sysmex, Mindray, Roche, Beckman, Horiba, Biocon, Wiener, Snibe, Dymind, Stago, etc.)
     let fabricante = 'Fabricante Laboratorial';
     let tipoAnalise = 'Bioquímica Clínica';
     let tipoComunicacao: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' = 'TCP_IP';
@@ -61,15 +59,18 @@ export async function POST(req: NextRequest) {
     ];
     let porta: number | undefined = 5100;
     let baudRate: number | undefined = undefined;
+    
+    // Imagem padrão de fallback seguro
     let imagemUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=500&q=80';
     let exames: IExamDoc[] = [];
 
-    // Detecção por fabricante / modelo
+    // Detecção com URLs Reais de Fabricantes e Distribuidores Oficiais
     if (tUpper.includes('SYSMEX') || tUpper.includes('UF') || tUpper.includes('XN') || tUpper.includes('XP') || tUpper.includes('XS') || tUpper.includes('KX')) {
       fabricante = 'Sysmex Corporation';
-      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500&q=80';
       
-      if (tUpper.includes('UF') || tUpper.includes('URINA') || tUpper.includes('SEDIMENTO') || tUpper.includes('1500') || tUpper.includes('5000') || tUpper.includes('4000')) {
+      if (tUpper.includes('UF') || tUpper.includes('1500') || tUpper.includes('5000') || tUpper.includes('4000') || tUpper.includes('URINA') || tUpper.includes('SEDIMENTO')) {
+        // Sysmex UF-1500 / UF-5000 Foto Real
+        imagemUrl = 'https://www.sysmex-europe.com/fileadmin/_processed_/0/3/csm_1-Images_Website_Product_Page_UF-15000_400x400_copy_2a6899f46d.png';
         tipoAnalise = 'Urinálise Automatizada & Citometria de Fluxo Fluorescente';
         protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)';
         protocolosSuportados = [
@@ -90,6 +91,8 @@ export async function POST(req: NextRequest) {
           { codigoEquipamento: 'YLC', nomeExame: 'Leveduras / Fungos', metodoOuPrincipio: 'Citometria Fluorescente', amostraSugerida: 'Urina Fresca', unidadePadrao: '/µL', codigoLabfacilSugerido: 'LEVEDURAS', categoria: 'Microbiologia' }
         ];
       } else {
+        // Sysmex XN-550 / XN-350 / XP-300 Foto Real
+        imagemUrl = 'https://www.sysmex-europe.com/fileadmin/_processed_/d/7/csm_XN-550_left_01_07c3008b59.png';
         tipoAnalise = 'Hematologia Automatizada com Citometria Fluorescente';
         protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)';
         protocolosSuportados = [
@@ -110,8 +113,10 @@ export async function POST(req: NextRequest) {
       }
     } else if (tUpper.includes('MINDRAY')) {
       fabricante = 'Shenzhen Mindray Bio-Medical Electronics';
-      imagemUrl = 'https://images.unsplash.com/photo-1530497610245-94d3c16cda28?auto=format&fit=crop&w=500&q=80';
-      if (tUpper.includes('BC') || tUpper.includes('5000') || tUpper.includes('6000') || tUpper.includes('5150') || tUpper.includes('5300')) {
+      
+      if (tUpper.includes('BC') || tUpper.includes('5000') || tUpper.includes('6000') || tUpper.includes('5150') || tUpper.includes('5300') || tUpper.includes('5380')) {
+        // Mindray BC-5380 / BC-5000 Foto Real
+        imagemUrl = 'https://www.mindray.com/content/dam/xpace/en/products-solutions/products/laboratory-diagnostics/hematology/medium-test-volume/bc-5380/glp15-s1-web.jpg';
         tipoAnalise = 'Hematologia Completa (5 Part-Diff)';
         protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
         protocolosSuportados = [
@@ -133,7 +138,27 @@ export async function POST(req: NextRequest) {
           { codigoEquipamento: 'HCT', nomeExame: 'Hematócrito', metodoOuPrincipio: 'Integração Cumulativa', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '%', codigoLabfacilSugerido: 'HT', categoria: 'Série Vermelha' },
           { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
         ];
+      } else if (tUpper.includes('3000')) {
+        // Mindray BC-3000 Plus Foto Real
+        imagemUrl = 'https://dipylonmedical.com/wp-content/uploads/2021/09/mindray-BC-3000Plus-300x300.jpeg';
+        tipoAnalise = 'Hematologia Automatizada 3-Part Diff';
+        protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
+        protocolosSuportados = [
+          'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+          'HL7 v2.3.1 (TCP/IP Porta 5100)'
+        ];
+        tipoComunicacao = 'SERIAL';
+        formatoArquivo = 'ASTM';
+        baudRate = 9600;
+        exames = [
+          { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
+          { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
+          { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria Sem Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
+          { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
+        ];
       } else {
+        // Mindray BS-240 / BS-380 Foto Real
+        imagemUrl = 'https://medisolve.com.bd/uploads/products/Mindray-BS-240-Fully-Automated-Chemistry-Analyzer@2x.jpg';
         tipoAnalise = 'Bioquímica Clínica & Turbidimetria';
         protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
         protocolosSuportados = [
@@ -155,7 +180,8 @@ export async function POST(req: NextRequest) {
       }
     } else if (tUpper.includes('ROCHE') || tUpper.includes('COBAS')) {
       fabricante = 'Roche Diagnostics';
-      imagemUrl = 'https://images.unsplash.com/photo-1581093588401-fbb62a02f120?auto=format&fit=crop&w=500&q=80';
+      // Roche Cobas c311 / e411 Foto Oficial
+      imagemUrl = 'https://pim-media.roche.com/896x504/Images/cobas%20c%20311-analyzer.jpg';
       tipoAnalise = tUpper.includes('E411') || tUpper.includes('E601') ? 'Imunologia por Eletroquimioluminescência (ECLIA)' : 'Bioquímica Clínica & Turbidimetria';
       protocoloComunicacao = 'ASTM E1394-97 / ASTM E1381 (TCP/IP Porta 5100)';
       protocolosSuportados = [
@@ -175,7 +201,8 @@ export async function POST(req: NextRequest) {
       ];
     } else if (tUpper.includes('SNIBE') || tUpper.includes('MAGLUMI')) {
       fabricante = 'Snibe Diagnostic (Shenzhen New Industries)';
-      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500&q=80';
+      // Snibe Maglumi 800 Foto Real
+      imagemUrl = 'http://www.globalhealthcaremedical.com/cdn/shop/files/Maglumi800.png';
       tipoAnalise = 'Imunoensaio por Quimioluminescência (CLIA)';
       protocoloComunicacao = 'ASTM E1394-97 (TCP/IP Porta 5100)';
       protocolosSuportados = [
@@ -191,10 +218,17 @@ export async function POST(req: NextRequest) {
         { codigoEquipamento: 'PSA', nomeExame: 'PSA Total', metodoOuPrincipio: 'Quimioluminescência Flash', amostraSugerida: 'Soro', unidadePadrao: 'ng/mL', codigoLabfacilSugerido: 'PSA', categoria: 'Marcadores' },
         { codigoEquipamento: 'BETA-HCG', nomeExame: 'Beta HCG Quantitativo', metodoOuPrincipio: 'Quimioluminescência Flash', amostraSugerida: 'Soro', unidadePadrao: 'mIU/mL', codigoLabfacilSugerido: 'BHCG', categoria: 'Hormônios' }
       ];
-    } else if (tUpper.includes('DYMIND')) {
-      fabricante = 'Dymind Biotechnology';
-      imagemUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=500&q=80';
-      tipoAnalise = 'Hematologia Automatizada';
+    } else if (tUpper.includes('ZYBIO')) {
+      fabricante = 'Zybio Inc.';
+      if (tUpper.includes('Z5') || tUpper.includes('5-PART') || tUpper.includes('LASER')) {
+        // Zybio Z5 Foto Oficial
+        imagemUrl = 'https://www.zybio.com/static/home/img/en/z5_sec02.png';
+        tipoAnalise = 'Hematologia 5-Part Diff Laser';
+      } else {
+        // Zybio Z3 Foto Oficial
+        imagemUrl = 'https://www.zybio.com/static/home/img/en/z3_sec02.png';
+        tipoAnalise = 'Hematologia 3-Part Diff';
+      }
       protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
       protocolosSuportados = [
         'HL7 v2.3.1 (TCP/IP Porta 5100)',
@@ -209,9 +243,100 @@ export async function POST(req: NextRequest) {
         { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria Livre de Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
         { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
       ];
-    } else if (tUpper.includes('COAGULA') || tUpper.includes('STAGO') || tUpper.includes('IL') || tUpper.includes('ACL')) {
-      fabricante = 'Instrumentation Laboratory / Stago';
-      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500&q=80';
+    } else if (tUpper.includes('HORIBA') || tUpper.includes('YUMIZEN')) {
+      fabricante = 'Horiba Medical';
+      // Horiba Yumizen H500 Foto Oficial
+      imagemUrl = 'https://static.horiba.com/fileadmin/Horiba/_processed_/9/7/csm_New_Yumizen_H500_Open_Tube_HORIBA_Medical_Hematology_Analyzer_825e301ed1.jpg';
+      tipoAnalise = 'Hematologia Completa (5 Part-Diff)';
+      protocoloComunicacao = 'ASTM E1394-97 (TCP/IP Porta 5100)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (TCP/IP Porta 5100)',
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+      ];
+      tipoComunicacao = 'TCP_IP';
+      formatoArquivo = 'ASTM';
+      porta = 5100;
+      exames = [
+        { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância / Citometria', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
+        { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
+        { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
+        { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
+      ];
+    } else if (tUpper.includes('WIENER') || tUpper.includes('CM250') || tUpper.includes('CM 250')) {
+      fabricante = 'Wiener lab.';
+      // Wiener CM 250 Foto Real
+      imagemUrl = 'https://arguscientifica.com.br/wp-content/uploads/2025/01/CM250.webp';
+      tipoAnalise = 'Bioquímica Clínica Automatizada';
+      protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+        'ASTM E1394-97 (TCP/IP Porta 5100)'
+      ];
+      tipoComunicacao = 'SERIAL';
+      formatoArquivo = 'ASTM';
+      baudRate = 9600;
+      exames = [
+        { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'Enzimático GOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Bioquímica' },
+        { codigoEquipamento: 'URE', nomeExame: 'Ureia UV', metodoOuPrincipio: 'Cinético UV', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'UREIA', categoria: 'Bioquímica' },
+        { codigoEquipamento: 'CRE', nomeExame: 'Creatinina', metodoOuPrincipio: 'Cinético Jaffé', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'CREATININA', categoria: 'Bioquímica' }
+      ];
+    } else if (tUpper.includes('CORMAY') || tUpper.includes('CB350') || tUpper.includes('MC240')) {
+      fabricante = 'Cormay Diagnostics';
+      // Cormay Accent MC240 / CB350 Foto Oficial
+      imagemUrl = 'https://cormaydiagnostics.com/uploads/Clinical-Chemistry/Analizatory/Accent-MC240/_DSC8021_240.jpg';
+      tipoAnalise = 'Bioquímica Clínica Automatizada';
+      protocoloComunicacao = 'Arquivo Compartilhado (JSON Worklist / Retorno)';
+      protocolosSuportados = [
+        'Arquivo Compartilhado (JSON Worklist / Retorno)',
+        'ASTM E1394-97 (TCP/IP Porta 5100)'
+      ];
+      tipoComunicacao = 'ARQUIVO_COMPARTILHADO';
+      formatoArquivo = 'JSON';
+      exames = [
+        { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'Enzimático GOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Bioquímica' },
+        { codigoEquipamento: 'UREA', nomeExame: 'Ureia UV', metodoOuPrincipio: 'Cinético UV', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'UREIA', categoria: 'Bioquímica' },
+        { codigoEquipamento: 'CREA', nomeExame: 'Creatinina', metodoOuPrincipio: 'Cinético Jaffé', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'CREATININA', categoria: 'Bioquímica' }
+      ];
+    } else if (tUpper.includes('BECKMAN') || tUpper.includes('ACCESS')) {
+      fabricante = 'Beckman Coulter';
+      // Beckman Access 2 Foto Oficial
+      imagemUrl = 'https://m.beckmancoulter.com/rs/213-HFT-078/images/Immun-Access2-web.jpg';
+      tipoAnalise = 'Imunoensaio por Quimioluminescência (CLIA)';
+      protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+        'ASTM E1394-97 (TCP/IP Porta 5100)'
+      ];
+      tipoComunicacao = 'SERIAL';
+      formatoArquivo = 'ASTM';
+      baudRate = 9600;
+      exames = [
+        { codigoEquipamento: 'TSH', nomeExame: 'TSH 3ª Geração', metodoOuPrincipio: 'Quimioluminescência', amostraSugerida: 'Soro', unidadePadrao: 'µIU/mL', codigoLabfacilSugerido: 'TSH', categoria: 'Tireoide' },
+        { codigoEquipamento: 'FT4', nomeExame: 'T4 Livre', metodoOuPrincipio: 'Quimioluminescência', amostraSugerida: 'Soro', unidadePadrao: 'ng/dL', codigoLabfacilSugerido: 'T4LIVRE', categoria: 'Tireoide' }
+      ];
+    } else if (tUpper.includes('DYMIND')) {
+      fabricante = 'Dymind Biotechnology';
+      // Dymind DH36 Foto Real
+      imagemUrl = 'https://medigenix.co.ke/wp-content/uploads/2025/08/dh36-auto-hematology-analyzer-dymind-biotechnology-13069-9877107.jpg';
+      tipoAnalise = 'Hematologia Automatizada 3-Part Diff';
+      protocoloComunicacao = 'HL7 v2.3.1 (TCP/IP Porta 5100)';
+      protocolosSuportados = [
+        'HL7 v2.3.1 (TCP/IP Porta 5100)',
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)'
+      ];
+      tipoComunicacao = 'TCP_IP';
+      formatoArquivo = 'HL7';
+      porta = 5100;
+      exames = [
+        { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância Elétrica / Dispersão Laser', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
+        { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
+        { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria Livre de Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
+        { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
+      ];
+    } else if (tUpper.includes('COAGULA') || tUpper.includes('STAGO') || tUpper.includes('IL') || tUpper.includes('ACL') || tUpper.includes('HUMACLOT')) {
+      fabricante = tUpper.includes('HUMACLOT') ? 'HUMAN Diagnostics Worldwide' : 'Instrumentation Laboratory / Stago';
+      // HumaClot Jr Foto Oficial
+      imagemUrl = 'https://www.human.de/public/Product%20Media/Instruments/Image/919/image-thumb__919__middle-square/18680_T2.b179a24d.png';
       tipoAnalise = 'Coagulação Automatizada';
       protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
       protocolosSuportados = [
@@ -226,6 +351,40 @@ export async function POST(req: NextRequest) {
         { codigoEquipamento: 'INR', nomeExame: 'INR / RNI', metodoOuPrincipio: 'Cálculo com ISI', amostraSugerida: 'Plasma Citratado', unidadePadrao: 'INR', codigoLabfacilSugerido: 'RNI', categoria: 'Coagulação' },
         { codigoEquipamento: 'APTT', nomeExame: 'TTPA (Tempo de Tromboplastina)', metodoOuPrincipio: 'Óptico Coagulométrico', amostraSugerida: 'Plasma Citratado', unidadePadrao: 's', codigoLabfacilSugerido: 'TTPA', categoria: 'Coagulação' },
         { codigoEquipamento: 'FIB', nomeExame: 'Fibrinogênio (Clauss)', metodoOuPrincipio: 'Método de Clauss', amostraSugerida: 'Plasma Citratado', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'FIBRI', categoria: 'Coagulação' }
+      ];
+    } else if (tUpper.includes('FIAPRESTO') || tUpper.includes('FINECARE') || tUpper.includes('BIOCON')) {
+      fabricante = 'Biocon / Wondfo';
+      // FIAPresto / Finecare Foto Real
+      imagemUrl = 'http://biocondiagnosticos.com.br/wp-content/uploads/2024/10/HbA1c-FIA-Analyzer-Test.jpg';
+      tipoAnalise = 'Hemoglobina Glicada por Imunofluorescência (FIA)';
+      protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+        'HL7 v2.3.1 (TCP/IP Porta 5100)'
+      ];
+      tipoComunicacao = 'SERIAL';
+      formatoArquivo = 'ASTM';
+      baudRate = 9600;
+      exames = [
+        { codigoEquipamento: 'HBA1C', nomeExame: 'Hemoglobina Glicada (HbA1c)', metodoOuPrincipio: 'Imunofluorescência Resolvida no Tempo', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '%', codigoLabfacilSugerido: 'HBA1C', categoria: 'Glicemia' }
+      ];
+    } else if (tUpper.includes('INVISTAR') || tUpper.includes('GENRUI') || tUpper.includes('WP300')) {
+      fabricante = 'In Vitro / Genrui';
+      // InviSTAR 300 Foto Real
+      imagemUrl = 'https://invitro.com.br/wp-content/uploads/2021/12/InviSTAR-300-768x768.png';
+      tipoAnalise = 'Bioquímica Clínica Automatizada';
+      protocoloComunicacao = 'ASTM E1394-97 (Serial RS-232 9600 8N1)';
+      protocolosSuportados = [
+        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+        'ASTM E1394-97 (TCP/IP Porta 5100)'
+      ];
+      tipoComunicacao = 'SERIAL';
+      formatoArquivo = 'ASTM';
+      baudRate = 9600;
+      exames = [
+        { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'GOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Bioquímica' },
+        { codigoEquipamento: 'URE', nomeExame: 'Ureia', metodoOuPrincipio: 'UV Cinético', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'UREIA', categoria: 'Bioquímica' },
+        { codigoEquipamento: 'CRE', nomeExame: 'Creatinina', metodoOuPrincipio: 'Jaffé Cinético', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'CREATININA', categoria: 'Bioquímica' }
       ];
     } else {
       imagemUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=500&q=80';
