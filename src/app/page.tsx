@@ -6198,91 +6198,26 @@ export default function MidwayLabDashboard() {
                     value={equipamentoForm.modelo || "CB350"}
                     onChange={(e) => {
                       const mod = e.target.value;
-                      let fab = "Fabricante Geral";
-                      let tipoCom = equipamentoForm.tipo_comunicacao || "TCP_IP";
-                      let fmt: "XML" | "JSON" | "ASTM" | "HL7" | "CSV" = "ASTM";
-                      let porta: number | undefined = undefined;
-                      let ip: string | undefined = undefined;
-
-                      if (mod === "CB350") { 
-                        fab = "Cormay"; 
-                        tipoCom = "ARQUIVO_COMPARTILHADO"; 
-                        fmt = "JSON"; 
-                      } else if (mod === "YUMIZEN") { 
-                        fab = "Horiba Medical"; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "ASTM"; 
-                        porta = 5100;
-                        ip = "192.168.1.100";
-                      } else if (mod === "ZYBIO_Z3") { 
-                        fab = "Zybio Inc."; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "HL7"; 
-                        porta = 5100;
-                        ip = "192.168.1.70";
-                      } else if (mod === "ZYBIO_Z5") { 
-                        fab = "Zybio Inc."; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "HL7"; 
-                        porta = 5100;
-                        ip = "192.168.1.75";
-                      } else if (mod === "CM250") { 
-                        fab = "Wiener lab."; 
-                        tipoCom = "SERIAL"; 
-                        fmt = "ASTM"; 
-                      } else if (mod === "FIAPRESTO_1AC") { 
-                        fab = "Biocon / Wondfo"; 
-                        tipoCom = "SERIAL"; 
-                        fmt = "ASTM"; 
-                      } else if (mod === "HUMACLOT_JR") { 
-                        fab = "HUMAN Diagnostics Worldwide"; 
-                        tipoCom = "SERIAL"; 
-                        fmt = "CSV"; 
-                      } else if (mod === "ACCESS") { 
-                        fab = "Beckman Coulter"; 
-                        tipoCom = "SERIAL"; 
-                        fmt = "ASTM"; 
-                      } else if (mod === "BC_3000") { 
-                        fab = "Mindray"; 
-                        tipoCom = "SERIAL"; 
-                        fmt = "ASTM"; 
-                      } else if (mod === "BC_5380") { 
-                        fab = "Mindray"; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "HL7"; 
-                        porta = 5100;
-                        ip = "192.168.1.50";
-                      } else if (mod === "BS_240") { 
-                        fab = "Mindray"; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "HL7"; 
-                        porta = 5100;
-                        ip = "192.168.1.60";
-                      } else if (mod === "INVISTAR_300") { 
-                        fab = "Invistar / Genrui"; 
-                        tipoCom = "SERIAL"; 
-                        fmt = "ASTM"; 
-                      } else if (mod === "SYSMEX") { 
-                        fab = "Sysmex"; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "ASTM"; 
-                        porta = 5100; 
-                      } else if (mod === "ROCHE_COBAS") { 
-                        fab = "Roche Diagnostics"; 
-                        tipoCom = "TCP_IP"; 
-                        fmt = "ASTM"; 
-                        porta = 5100; 
+                      const modeloDoBanco = catalogoModelos.find(m => m.codigo_modelo === mod);
+                      if (modeloDoBanco) {
+                        const cfg = modeloDoBanco.configuracoes || {};
+                        setEquipamentoForm({
+                          ...equipamentoForm,
+                          modelo: mod,
+                          fabricante: modeloDoBanco.fabricante || equipamentoForm.fabricante,
+                          tipo_comunicacao: (cfg.tipo_comunicacao || "TCP_IP") as any,
+                          formato_arquivo: (cfg.formato_arquivo || "ASTM") as any,
+                          porta: cfg.porta ?? equipamentoForm.porta,
+                          ip_host: cfg.ip_host ?? equipamentoForm.ip_host,
+                          diretorio_carga: cfg.diretorio_carga ?? `C:\\Equipamentos\\${mod}\\Carga`,
+                          diretorio_resultados: cfg.diretorio_resultados ?? `C:\\Equipamentos\\${mod}\\Resultados`
+                        });
+                      } else {
+                        setEquipamentoForm({
+                          ...equipamentoForm,
+                          modelo: mod
+                        });
                       }
-
-                      setEquipamentoForm({ 
-                        ...equipamentoForm, 
-                        modelo: mod, 
-                        fabricante: fab, 
-                        tipo_comunicacao: tipoCom as any,
-                        formato_arquivo: fmt,
-                        porta: porta ?? equipamentoForm.porta,
-                        ip_host: ip ?? equipamentoForm.ip_host
-                      });
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   >
