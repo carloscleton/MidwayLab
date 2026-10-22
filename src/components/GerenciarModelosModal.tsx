@@ -347,14 +347,101 @@ export default function GerenciarModelosModal({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Protocolo de Comunicação</label>
-                <input
-                  type="text"
-                  required
-                  value={editingModelo.protocolo_comunicacao}
-                  onChange={(e) => setEditingModelo({ ...editingModelo, protocolo_comunicacao: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-mono font-bold focus:outline-none focus:border-teal-500"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">Protocolo de Comunicação</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Buscar comunicação padrão do modelo
+                      const protocolos = editingModelo.configuracoes?.protocolos_suportados || [];
+                      const defaultProto = protocolos[0] || editingModelo.protocolo_comunicacao;
+                      let tipoCom: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' = 'TCP_IP';
+                      let fmt: 'XML' | 'JSON' | 'ASTM' | 'HL7' | 'CSV' = 'ASTM';
+                      let porta = 5100;
+
+                      if (defaultProto.includes('Serial') || defaultProto.includes('RS-232')) {
+                        tipoCom = 'SERIAL';
+                        fmt = defaultProto.includes('HL7') ? 'HL7' : 'ASTM';
+                      } else if (defaultProto.includes('Arquivo')) {
+                        tipoCom = 'ARQUIVO_COMPARTILHADO';
+                        fmt = 'JSON';
+                      } else {
+                        tipoCom = 'TCP_IP';
+                        fmt = defaultProto.includes('HL7') ? 'HL7' : 'ASTM';
+                        porta = 5100;
+                      }
+
+                      setEditingModelo({
+                        ...editingModelo,
+                        protocolo_comunicacao: defaultProto,
+                        configuracoes: {
+                          ...editingModelo.configuracoes,
+                          tipo_comunicacao: tipoCom,
+                          formato_arquivo: fmt,
+                          porta: porta
+                        }
+                      });
+                      showNotification("⚡ Protocolo e parâmetros de comunicação padrão restaurados!");
+                    }}
+                    className="text-[10px] text-teal-400 hover:text-teal-300 font-mono font-bold underline cursor-pointer"
+                  >
+                    ⚡ Restaurar Comunicação Padrão
+                  </button>
+                </div>
+
+                {(() => {
+                  const protos = editingModelo.configuracoes?.protocolos_suportados && editingModelo.configuracoes.protocolos_suportados.length > 0
+                    ? editingModelo.configuracoes.protocolos_suportados
+                    : [
+                        editingModelo.protocolo_comunicacao,
+                        'ASTM E1394-97 (TCP/IP Porta 5100)',
+                        'ASTM E1394-97 (Serial RS-232 9600 8N1)',
+                        'HL7 v2.3.1 (TCP/IP Porta 5100)',
+                        'Arquivo Compartilhado (JSON Worklist)'
+                      ].filter((v, i, a) => a.indexOf(v) === i);
+
+                  return (
+                    <select
+                      value={editingModelo.protocolo_comunicacao}
+                      onChange={(e) => {
+                        const selProto = e.target.value;
+                        let tipoCom: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' = 'TCP_IP';
+                        let fmt: 'XML' | 'JSON' | 'ASTM' | 'HL7' | 'CSV' = 'ASTM';
+                        let porta = 5100;
+
+                        if (selProto.includes('Serial') || selProto.includes('RS-232')) {
+                          tipoCom = 'SERIAL';
+                          fmt = selProto.includes('HL7') ? 'HL7' : 'ASTM';
+                        } else if (selProto.includes('Arquivo')) {
+                          tipoCom = 'ARQUIVO_COMPARTILHADO';
+                          fmt = 'JSON';
+                        } else {
+                          tipoCom = 'TCP_IP';
+                          fmt = selProto.includes('HL7') ? 'HL7' : 'ASTM';
+                          porta = 5100;
+                        }
+
+                        setEditingModelo({
+                          ...editingModelo,
+                          protocolo_comunicacao: selProto,
+                          configuracoes: {
+                            ...editingModelo.configuracoes,
+                            tipo_comunicacao: tipoCom,
+                            formato_arquivo: fmt,
+                            porta: porta
+                          }
+                        });
+                      }}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-teal-300 font-mono font-bold focus:outline-none focus:border-teal-500 cursor-pointer"
+                    >
+                      {protos.map((p, idx) => (
+                        <option key={idx} value={p}>
+                          {idx === 0 ? `⭐ [Padrão Default] ${p}` : p}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
               </div>
 
               <div>

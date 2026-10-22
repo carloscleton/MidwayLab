@@ -6253,7 +6253,29 @@ export default function MidwayLabDashboard() {
                   <span className="font-bold text-teal-300 text-xs uppercase tracking-wide flex items-center gap-1.5">
                     <Activity className="w-4 h-4 text-teal-400" /> Modo de Comunicação & Protocolo
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">Padrão Internacional</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const modObj = catalogoModelos.find(m => m.codigo_modelo === equipamentoForm.modelo);
+                      if (modObj) {
+                        const cfg = modObj.configuracoes || {};
+                        setEquipamentoForm({
+                          ...equipamentoForm,
+                          tipo_comunicacao: (cfg.tipo_comunicacao || "TCP_IP") as any,
+                          formato_arquivo: (cfg.formato_arquivo || "ASTM") as any,
+                          porta: cfg.porta ?? 5100,
+                          ip_host: cfg.ip_host ?? "192.168.1.150",
+                          diretorio_carga: cfg.diretorio_carga ?? `C:\\Equipamentos\\${modObj.codigo_modelo}\\Carga`,
+                          diretorio_resultados: cfg.diretorio_resultados ?? `C:\\Equipamentos\\${modObj.codigo_modelo}\\Resultados`
+                        });
+                        showNotification(`⚡ Comunicação padrão do ${modObj.nome_completo} restaurada!`);
+                      }
+                    }}
+                    className="text-[10px] bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded font-mono font-bold cursor-pointer transition flex items-center gap-1"
+                    title="Buscar e restaurar portas, IP e protocolo recomendados de fábrica para este equipamento"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Buscar Comunicação Padrão
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
