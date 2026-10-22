@@ -6473,6 +6473,7 @@ export default function MidwayLabDashboard() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
                   <tr>
+                    <th className="py-2.5 px-3 w-10 text-center font-mono">Nº</th>
                     <th className="py-2.5 px-3 w-16 text-center">Status</th>
                     <th className="py-2.5 px-3">Código Aparelho</th>
                     <th className="py-2.5 px-3">Cód. Labfacil</th>
@@ -6496,9 +6497,39 @@ export default function MidwayLabDashboard() {
                         ex.metodoOuPrincipio.toLowerCase().includes(term)
                       );
                     })
-                    .map((ex, exIdx) => (
-                      <React.Fragment key={ex.id || exIdx}>
+                    .map((ex, exIdx) => {
+                      const realIdx = equipamentoExamesList.indexOf(ex);
+                      return (
+                      <React.Fragment key={ex.id || ex.codigoEquipamento}>
                       <tr className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
+                        {/* NÚMERO E MOVER */}
+                        <td className="py-2 px-2 text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-slate-500 font-mono text-[10px] tabular-nums">{realIdx + 1}</span>
+                            <button
+                              type="button"
+                              disabled={realIdx === 0}
+                              onClick={() => {
+                                const nova = [...equipamentoExamesList];
+                                [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
+                                persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
+                              }}
+                              className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
+                              title="Mover para cima"
+                            >▲</button>
+                            <button
+                              type="button"
+                              disabled={realIdx === equipamentoExamesList.length - 1}
+                              onClick={() => {
+                                const nova = [...equipamentoExamesList];
+                                [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
+                                persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
+                              }}
+                              className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
+                              title="Mover para baixo"
+                            >▼</button>
+                          </div>
+                        </td>
                         {/* TOGGLE HABILITAR / DESABILITAR */}
                         <td className="py-2.5 px-3 text-center">
                           <button
@@ -6675,7 +6706,7 @@ export default function MidwayLabDashboard() {
                          </tr>
                        )}
                        </React.Fragment>
-                     ))}
+                      ); })}
                 </tbody>
               </table>
             </div>
