@@ -19,6 +19,7 @@ import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
   Activity,
+  Calculator,
   Server,
   Database,
   Building2,
@@ -1521,8 +1522,8 @@ export default function MidwayLabDashboard() {
   // EXAM PRE-ANALYTICAL DETAILS MODAL STATE (LABFACIL API GET /api/TipoDeExame/{codigo})
   const [examDetailsModal, setExamDetailsModal] = useState<any | null>(null);
 
-  const handleOpenExamDetails = (exam: any) => {
-    const codeUpper = exam.codigo.toUpperCase();
+  const handleOpenExamDetails = async (exam: any) => {
+    const codeUpper = (exam.codigo || "").toUpperCase();
 
     let material = "Soro / Sanguíneo";
     let tubo = "Tubo Tampa Amarela (Gel Separador com Ativador de Coágulo)";
@@ -1531,14 +1532,14 @@ export default function MidwayLabDashboard() {
     let metodo = "Quimioluminescência Automática (CLIA)";
     let prazo = "24 Horas / Liberação no mesmo dia";
 
-    if (codeUpper.includes("HEMO")) {
+    if (codeUpper.includes("HEMO") || codeUpper.includes("CHCM") || codeUpper.includes("VCM") || codeUpper.includes("RDW") || codeUpper.includes("LEUCO") || codeUpper.includes("PLAQUET") || codeUpper.includes("EOS") || codeUpper.includes("BAS") || codeUpper.includes("LINFO") || codeUpper.includes("NEUTRO") || codeUpper.includes("MONO") || codeUpper.includes("HB") || codeUpper.includes("HT") || codeUpper.includes("MCH")) {
       material = "Sangue Total com Anticoagulante EDTA";
       tubo = "Tubo Tampa Roxa (EDTA K2/K3)";
       jejum = "Jejum não obrigatório (Recomendado 3 a 4 horas)";
       conservacao = "Temperatura Ambiente (15°C a 25°C) por até 24 horas";
-      metodo = "Automação Hematológica em Citometria de Fluxo a Laser";
+      metodo = "Automação Hematológica em Citometria de Fluxo a Laser / Impedância";
     } else if (codeUpper.includes("GLI") || codeUpper.includes("2HG")) {
-      material = "Plasma Fluorotado";
+      material = "Plasma Fluoretado";
       tubo = "Tubo Tampa Cinza (Fluoreto de Sódio + EDTA)";
       jejum = "Jejum rigoroso de 8 a 12 horas (Coleta matinal)";
       conservacao = "Refrigerado (2°C a 8°C) por até 24 horas";
@@ -1563,14 +1564,65 @@ export default function MidwayLabDashboard() {
       metodo = "Coagulometria Foto-Óptica Automatizada";
     }
 
+    // Procura na lista local de exames do equipamento ativo
+    const matchedExam = equipamentoExamesList.find(eq => 
+      (eq.codigoLabfacilSugerido && eq.codigoLabfacilSugerido.toUpperCase() === codeUpper) ||
+      (exam.autolacMapped && eq.codigoEquipamento.toUpperCase() === exam.autolacMapped.toUpperCase())
+    );
+
+    let linhasResultado = matchedExam?.linhasResultado || [];
+    let calculados = matchedExam?.calculados || [];
+    let categoria = matchedExam?.categoria || "";
+    let metodoPrincipio = matchedExam?.metodoOuPrincipio || metodo;
+    let amostraSugerida = matchedExam?.amostraSugerida || material;
+    let unidadePadrao = matchedExam?.unidadePadrao || "-";
+    let codigoEquip = matchedExam?.codigoEquipamento || exam.autolacMapped || "";
+
+    // Consulta banco Supabase (tabela depara_exames) para obter os dados persistidos mais recentes
+    try {
+      const activeT = tenants.find(t => t.nome === selectedTenant);
+      if (activeT?.id) {
+        let query = supabaseBrowser
+          .from('depara_exames')
+          .select('*')
+          .eq('tenant_id', activeT.id);
+
+        if (exam.codigo) {
+          query = query.or(`codigo_labfacil.eq.${exam.codigo},codigo_softlab.eq.${exam.codigo},codigo_equipamento.eq.${exam.autolacMapped || exam.codigo}`);
+        }
+        const { data: dbRow } = await query.limit(1).maybeSingle();
+
+        if (dbRow) {
+          if (Array.isArray(dbRow.linhas_resultado) && dbRow.linhas_resultado.length > 0) {
+            linhasResultado = dbRow.linhas_resultado;
+          }
+          if (Array.isArray(dbRow.calculados) && dbRow.calculados.length > 0) {
+            calculados = dbRow.calculados;
+          }
+          if (dbRow.categoria) categoria = dbRow.categoria;
+          if (dbRow.metodo_ou_principio) metodoPrincipio = dbRow.metodo_ou_principio;
+          if (dbRow.amostra_sugerida) amostraSugerida = dbRow.amostra_sugerida;
+          if (dbRow.unidade_padrao) unidadePadrao = dbRow.unidade_padrao;
+          if (dbRow.codigo_equipamento) codigoEquip = dbRow.codigo_equipamento;
+        }
+      }
+    } catch (err) {
+      console.warn("Erro ao buscar detalhes avançados de depara_exames:", err);
+    }
+
     setExamDetailsModal({
       ...exam,
-      material,
+      material: amostraSugerida || material,
       tubo,
       jejum,
       conservacao,
-      metodo,
-      prazo
+      metodo: metodoPrincipio || metodo,
+      prazo,
+      categoria,
+      unidadePadrao,
+      codigoEquipamento: codigoEquip,
+      linhasResultado,
+      calculados
     });
   };
 
@@ -2120,17 +2172,24 @@ export default function MidwayLabDashboard() {
   const handleSelectLabfacilExam = (exam: any) => {
     setSelectedLabfacilExam(exam);
 
-    const rankedAutolac = autolacCatalog
-      .map(autItem => ({
-        ...autItem,
-        similarity: calculateExamSimilarity(exam, autItem)
-      }))
-      .sort((a, b) => b.similarity - a.similarity);
+    const codeClean = (exam.codigo || "").trim().toUpperCase();
+    const mappedClean = (exam.autolacMapped || "").trim().toUpperCase();
 
-    if (rankedAutolac.length > 0 && rankedAutolac[0].similarity >= 30) {
-      setSelectedAutolacExam(rankedAutolac[0]);
+    // 1. Procura o exame vinculado no equipamento ativo
+    const vinculo = equipamentoExamesList.find(eq => {
+      const eqLab = (eq.codigoLabfacilSugerido || "").trim().toUpperCase();
+      const eqCod = (eq.codigoEquipamento || "").trim().toUpperCase();
+      return (eqLab && eqLab === codeClean) || (mappedClean && eqCod === mappedClean);
+    });
+
+    if (vinculo) {
+      setSelectedEquipamentoExam(vinculo);
+      setSelectedAutolacExam({ codigo: vinculo.codigoEquipamento, nome: vinculo.nomeExame, ...vinculo });
+      showNotification(`🔬 Vínculo encontrado: ${exam.codigo} (Labfacil) ↔ ${vinculo.codigoEquipamento} (${vinculo.nomeExame})!`);
     } else {
+      setSelectedEquipamentoExam(null);
       setSelectedAutolacExam(null);
+      showNotification(`⚠️ Não existe vínculo com este equipamento para o exame '${exam.codigo}' (${exam.descricao}).`);
     }
   };
 
@@ -9386,7 +9445,7 @@ P1`}
       {/* MODAL 4: DETALHES PRÉ-ANALÍTICOS DO EXAME (LABFACIL API GET /api/TipoDeExame/{codigo}) */}
       {examDetailsModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <span className="text-[10px] text-teal-400 font-mono font-bold uppercase tracking-wider block">
@@ -9394,7 +9453,7 @@ P1`}
                 </span>
                 <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                   <Info className="w-5 h-5 text-teal-400" />
-                  Ficha Pré-Analítica: {examDetailsModal.descricao}
+                  Ficha Pré-Analítica & Vínculo: {examDetailsModal.descricao}
                 </h3>
               </div>
               <button
@@ -9406,6 +9465,7 @@ P1`}
               </button>
             </div>
 
+            {/* 4 CARDS PRÉ-ANALÍTICOS */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
                 <span className="text-[10px] text-teal-400 font-bold uppercase flex items-center gap-1">
@@ -9440,10 +9500,120 @@ P1`}
               </div>
             </div>
 
-            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between font-mono text-[11px]">
-              <span className="text-slate-400">Código no Labfacil: <strong className="text-teal-300">{examDetailsModal.codigo}</strong></span>
-              <span className="text-slate-400">Formato Laudo: <strong className="text-cyan-300">{examDetailsModal.tipo}</strong></span>
-              <span className="text-slate-400">Mapeado Autolac: <strong className="text-amber-300">{examDetailsModal.autolacMapped || 'Pendente'}</strong></span>
+            {/* BARRA DE IDENTIFICAÇÃO E CÓDIGOS */}
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]">
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase">Cód. Labfacil</span>
+                <strong className="text-teal-300 font-bold">{examDetailsModal.codigo}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase">Formato Laudo</span>
+                <strong className="text-cyan-300 font-bold">{examDetailsModal.tipo}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase">Cód. Equipamento</span>
+                <strong className="text-amber-300 font-bold">{examDetailsModal.codigoEquipamento || examDetailsModal.autolacMapped || 'Pendente'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase">Categoria & Unidade</span>
+                <strong className="text-indigo-300 font-bold">{examDetailsModal.categoria || 'Geral'} ({examDetailsModal.unidadePadrao || '-'})</strong>
+              </div>
+            </div>
+
+            {/* SEÇÃO: LINHAS DE RESULTADO (REALIZADOS NO EQUIPAMENTO) */}
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-cyan-400" />
+                  Linhas de Resultado (Parâmetros Realizados no Equipamento)
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded">
+                  {examDetailsModal.linhasResultado?.length || 0} linha(s)
+                </span>
+              </div>
+
+              {examDetailsModal.linhasResultado && examDetailsModal.linhasResultado.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase border-b border-slate-800">
+                      <tr>
+                        <th className="py-2 px-2.5">Cód. no Equip.</th>
+                        <th className="py-2 px-2.5">Descrição</th>
+                        <th className="py-2 px-2.5">Parâmetro de Retorno</th>
+                        <th className="py-2 px-2.5 text-center">Envia p/ Equip.</th>
+                        <th className="py-2 px-2.5">Máscara</th>
+                        <th className="py-2 px-2.5">Fator</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-[11px]">
+                      {examDetailsModal.linhasResultado.map((linha: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-900/50">
+                          <td className="py-2 px-2.5 font-bold text-amber-300">{linha.codigoEquipamento || examDetailsModal.codigoEquipamento || '-'}</td>
+                          <td className="py-2 px-2.5 text-slate-200">{linha.descricao || examDetailsModal.descricao}</td>
+                          <td className="py-2 px-2.5 text-teal-300">{linha.parametroRetorno || examDetailsModal.codigo}</td>
+                          <td className="py-2 px-2.5 text-center">
+                            {linha.enviaParaEquip !== false ? (
+                              <span className="text-emerald-400 font-bold">Sim</span>
+                            ) : (
+                              <span className="text-slate-500">Não</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2.5 text-slate-400">{linha.mascara || '-'}</td>
+                          <td className="py-2 px-2.5 text-slate-400">{linha.fatorMultiplicacao || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-3 px-3 bg-slate-900/50 rounded-lg text-slate-400 text-xs">
+                  <span>Nenhuma sublinha cadastrada especificamente. O resultado é transmitido diretamente pelo canal principal <strong>{examDetailsModal.codigoEquipamento || examDetailsModal.codigo}</strong>.</span>
+                </div>
+              )}
+            </div>
+
+            {/* SEÇÃO: CÁLCULOS & FÓRMULAS MATEMÁTICAS */}
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                  <Calculator className="w-4 h-4 text-indigo-400" />
+                  Cálculos e Fórmulas Automáticas
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded">
+                  {examDetailsModal.calculados?.length || 0} fórmula(s)
+                </span>
+              </div>
+
+              {examDetailsModal.calculados && examDetailsModal.calculados.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase border-b border-slate-800">
+                      <tr>
+                        <th className="py-2 px-2.5">Cód. Cálculo</th>
+                        <th className="py-2 px-2.5">Descrição</th>
+                        <th className="py-2 px-2.5">Fórmula</th>
+                        <th className="py-2 px-2.5">Parâmetro de Retorno</th>
+                        <th className="py-2 px-2.5">Máscara</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-[11px]">
+                      {examDetailsModal.calculados.map((calc: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-900/50">
+                          <td className="py-2 px-2.5 font-bold text-indigo-300">{calc.codigo || '-'}</td>
+                          <td className="py-2 px-2.5 text-slate-200">{calc.descricao || '-'}</td>
+                          <td className="py-2 px-2.5 text-amber-300 font-bold bg-amber-500/10 px-2 py-1 rounded">{calc.formula || '-'}</td>
+                          <td className="py-2 px-2.5 text-teal-300">{calc.parametroRetorno || '-'}</td>
+                          <td className="py-2 px-2.5 text-slate-400">{calc.mascara || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-3 px-3 bg-slate-900/50 rounded-lg text-slate-400 text-xs">
+                  <span>Nenhum cálculo matemático automático vinculado a este exame.</span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end pt-2 border-t border-slate-800">
