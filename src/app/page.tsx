@@ -5709,6 +5709,11 @@ export default function MidwayLabDashboard() {
                     <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part)</option>
                     <option value="BC_3000">Mindray BC 3000 Plus (Hematologia 3-Part)</option>
                     <option value="ACCESS">Beckman Coulter ACCESS (Imunologia)</option>
+                    <option value="ZYBIO_Z3">Zybio Z3 (Hematologia 3-Part)</option>
+                    <option value="ZYBIO_Z5">Zybio Z5 (Hematologia 5-Part Laser)</option>
+                    <option value="CM250">Wiener CM 250 (Bioquímica)</option>
+                    <option value="FIAPRESTO_1AC">FIAPresto 1AC Biocon (HbA1c FIA)</option>
+                    <option value="HUMACLOT_JR">HumaClot Junior (Coagulação)</option>
                   </select>
                   <span className="text-[10px] text-slate-400 font-sans block">
                     Protocolo Padrão: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>

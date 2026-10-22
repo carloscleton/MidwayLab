@@ -260,5 +260,141 @@ export const CATALOGO_EQUIPAMENTOS_DOC: Record<string, IEquipamentoCatalogDoc> =
       { codigoEquipamento: "AMY", nomeExame: "Amilase", metodoOuPrincipio: "CNPG3 Cinético", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "AMILASE", categoria: "Pancreático" },
       { codigoEquipamento: "CRP", nomeExame: "Proteína C Reativa", metodoOuPrincipio: "Imunoturbidimetria Látex", amostraSugerida: "Soro", unidadePadrao: "mg/L", codigoLabfacilSugerido: "PCR", categoria: "Inflamação" }
     ]
+  },
+
+  // 8. ZYBIO Z3 (HEMATOLOGIA 3-PART)
+  ZYBIO_Z3: {
+    modelo: "ZYBIO_Z3",
+    nomeCompleto: "Zybio Z3 Hematology Analyzer (3-Part Diff)",
+    fabricante: "Zybio Inc.",
+    tipoAnalise: "Hematologia Completa (3 Part-Diff - 70 amostras/h)",
+    protocoloComunicacao: "HL7 v2.3.1 / ASTM E1394 (TCP-IP / RS-232)",
+    descricaoDoc: "Contador hematológico automatizado de 3 partes (21 parâmetros + 3 histogramas). Comunicação bidirecional via protocolo HL7/ASTM sobre porta de rede TCP/IP ou serial RS232.",
+    exames: [
+      { codigoEquipamento: "WBC", nomeExame: "Leucócitos Totais (White Blood Cells)", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "LEUCO", categoria: "Série Branca" },
+      { codigoEquipamento: "LYM#", nomeExame: "Linfócitos Absolutos", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "LINFO_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "MID#", nomeExame: "Células Médias / Monócitos Absolutos", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "MONO_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "GRAN#", nomeExame: "Granulócitos / Neutrófilos Absolutos", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "NEUT_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "LYM%", nomeExame: "Linfócitos Relativos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "LINFO_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "MID%", nomeExame: "Células Médias (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "MONO_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "GRAN%", nomeExame: "Granulócitos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "NEUT_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "RBC", nomeExame: "Hemácias / Glóbulos Vermelhos", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^6/µL", codigoLabfacilSugerido: "HEMAC", categoria: "Série Vermelha" },
+      { codigoEquipamento: "HGB", nomeExame: "Hemoglobina", metodoOuPrincipio: "Fotometria Livre de Cianeto", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "g/dL", codigoLabfacilSugerido: "HB", categoria: "Série Vermelha" },
+      { codigoEquipamento: "HCT", nomeExame: "Hematócrito", metodoOuPrincipio: "Integração Cumulativa", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "HT", categoria: "Série Vermelha" },
+      { codigoEquipamento: "MCV", nomeExame: "VCM (Volume Corpuscular Médio)", metodoOuPrincipio: "Cálculo HCT/RBC", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "fL", codigoLabfacilSugerido: "VCM", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "MCH", nomeExame: "HCM (Hemoglobina Corpuscular Média)", metodoOuPrincipio: "Cálculo HGB/RBC", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "pg", codigoLabfacilSugerido: "HCM", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "MCHC", nomeExame: "CHCM (Concentração de Hb Corpuscular)", metodoOuPrincipio: "Cálculo HGB/HCT", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "g/dL", codigoLabfacilSugerido: "CHCM", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "RDW-CV", nomeExame: "RDW-CV (Coeficiente de Variação)", metodoOuPrincipio: "Cálculo Estatístico", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "RDW_CV", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "RDW-SD", nomeExame: "RDW-SD (Desvio Padrão)", metodoOuPrincipio: "Largura da Distribuição", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "fL", codigoLabfacilSugerido: "RDW_SD", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "PLT", nomeExame: "Plaquetas (Platelets)", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "PLAQUETAS", categoria: "Plaquetas" },
+      { codigoEquipamento: "MPV", nomeExame: "VPM (Volume Plaquetário Médio)", metodoOuPrincipio: "Curva Plaquetária", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "fL", codigoLabfacilSugerido: "VPM", categoria: "Plaquetas" },
+      { codigoEquipamento: "PDW", nomeExame: "PDW (Largura Distribuição Plaquetas)", metodoOuPrincipio: "Cálculo Geométrico", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "PDW", categoria: "Plaquetas" },
+      { codigoEquipamento: "PCT", nomeExame: "Plaquetócrito (PCT)", metodoOuPrincipio: "Cálculo PLTxMPV", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "PCT", categoria: "Plaquetas" }
+    ]
+  },
+
+  // 9. ZYBIO Z5 (HEMATOLOGIA 5-PART)
+  ZYBIO_Z5: {
+    modelo: "ZYBIO_Z5",
+    nomeCompleto: "Zybio Z5 Hematology Analyzer (5-Part Diff)",
+    fabricante: "Zybio Inc.",
+    tipoAnalise: "Hematologia Completa (5 Part-Diff Laser - 60 amostras/h)",
+    protocoloComunicacao: "HL7 v2.3.1 / ASTM E1394 (TCP-IP / RS-232)",
+    descricaoDoc: "Analisador hematológico automático de 5 partes com citometria de fluxo a laser e método de impedância (29 parâmetros + 3 diagramas de dispersão 3D). Comunicação via TCP/IP HL7 ou ASTM bidirecional.",
+    exames: [
+      { codigoEquipamento: "WBC", nomeExame: "Leucócitos Totais", metodoOuPrincipio: "Citometria de Fluxo a Laser", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "LEUCO", categoria: "Série Branca" },
+      { codigoEquipamento: "NEU#", nomeExame: "Neutrófilos Absolutos", metodoOuPrincipio: "Dispersão Laser Semi-Condutor", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "NEUT_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "LYM#", nomeExame: "Linfócitos Absolutos", metodoOuPrincipio: "Dispersão Laser Semi-Condutor", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "LINFO_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "MON#", nomeExame: "Monócitos Absolutos", metodoOuPrincipio: "Dispersão Laser Semi-Condutor", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "MONO_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "EOS#", nomeExame: "Eosinófilos Absolutos", metodoOuPrincipio: "Dispersão Laser Semi-Condutor", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "EOS_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "BAS#", nomeExame: "Basófilos Absolutos", metodoOuPrincipio: "Canal Óptico Dedicado WNB/BASO", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "BASO_ABS", categoria: "Diferencial" },
+      { codigoEquipamento: "NEU%", nomeExame: "Neutrófilos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "NEUT_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "LYM%", nomeExame: "Linfócitos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "LINFO_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "MON%", nomeExame: "Monócitos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "MONO_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "EOS%", nomeExame: "Eosinófilos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "EOS_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "BAS%", nomeExame: "Basófilos (%)", metodoOuPrincipio: "Cálculo Diferencial", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "BASO_PORC", categoria: "Diferencial" },
+      { codigoEquipamento: "RBC", nomeExame: "Hemácias", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^6/µL", codigoLabfacilSugerido: "HEMAC", categoria: "Série Vermelha" },
+      { codigoEquipamento: "HGB", nomeExame: "Hemoglobina", metodoOuPrincipio: "Colorimetria Livre de Cianeto", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "g/dL", codigoLabfacilSugerido: "HB", categoria: "Série Vermelha" },
+      { codigoEquipamento: "HCT", nomeExame: "Hematócrito", metodoOuPrincipio: "Integração de Pulsos", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "HT", categoria: "Série Vermelha" },
+      { codigoEquipamento: "MCV", nomeExame: "VCM", metodoOuPrincipio: "Cálculo HCT/RBC", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "fL", codigoLabfacilSugerido: "VCM", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "MCH", nomeExame: "HCM", metodoOuPrincipio: "Cálculo HGB/RBC", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "pg", codigoLabfacilSugerido: "HCM", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "MCHC", nomeExame: "CHCM", metodoOuPrincipio: "Cálculo HGB/HCT", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "g/dL", codigoLabfacilSugerido: "CHCM", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "RDW-CV", nomeExame: "RDW-CV", metodoOuPrincipio: "Estatístico CV", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "RDW_CV", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "RDW-SD", nomeExame: "RDW-SD", metodoOuPrincipio: "Largura de Distribuição", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "fL", codigoLabfacilSugerido: "RDW_SD", categoria: "Índices Hematimétricos" },
+      { codigoEquipamento: "PLT", nomeExame: "Plaquetas", metodoOuPrincipio: "Impedância Elétrica", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "10^3/µL", codigoLabfacilSugerido: "PLAQUETAS", categoria: "Plaquetas" },
+      { codigoEquipamento: "MPV", nomeExame: "VPM", metodoOuPrincipio: "Curva Distribuição", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "fL", codigoLabfacilSugerido: "VPM", categoria: "Plaquetas" },
+      { codigoEquipamento: "PDW", nomeExame: "PDW", metodoOuPrincipio: "Geométrico", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "PDW", categoria: "Plaquetas" },
+      { codigoEquipamento: "PCT", nomeExame: "Plaquetócrito", metodoOuPrincipio: "PLTxMPV", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "%", codigoLabfacilSugerido: "PCT", categoria: "Plaquetas" }
+    ]
+  },
+
+  // 10. WIENER CM250 (BIOQUÍMICA CLÍNICA)
+  CM250: {
+    modelo: "CM250",
+    nomeCompleto: "Wiener lab. CM 250 Clinical Chemistry Analyzer",
+    fabricante: "Wiener lab.",
+    tipoAnalise: "Bioquímica Clínica & Turbidimetria (250 testes/h)",
+    protocoloComunicacao: "ASTM E1394-97 / ASTM E1381 (Serial RS-232 / TCP-IP)",
+    descricaoDoc: "Analisador automático de acesso aleatório para química clínica e imunoturbidimetria. Protocolo de comunicação padrão ASTM ou arquivos de exportação/importação de rotina.",
+    exames: [
+      { codigoEquipamento: "GLU", nomeExame: "Glicose (Glicemia)", metodoOuPrincipio: "GOD-PAP Enzimático Trinder", amostraSugerida: "Soro / Plasma", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "GLICOSE", categoria: "Glicídios" },
+      { codigoEquipamento: "URE", nomeExame: "Ureia UV", metodoOuPrincipio: "Urease GLDH Cinético UV", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "UREIA", categoria: "Função Renal" },
+      { codigoEquipamento: "CRE", nomeExame: "Creatinina Cinética", metodoOuPrincipio: "Jaffé Cinético", amostraSugerida: "Soro / Urina", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "CREATININA", categoria: "Função Renal" },
+      { codigoEquipamento: "URI", nomeExame: "Ácido Úrico", metodoOuPrincipio: "Uricase PAP Enzimático", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "AC_URICO", categoria: "Metabolismo" },
+      { codigoEquipamento: "COL", nomeExame: "Colesterol Total", metodoOuPrincipio: "CHOD-PAP Enzimático", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "COL1TOTAL", categoria: "Lipídios" },
+      { codigoEquipamento: "HDL", nomeExame: "HDL Colesterol Direto", metodoOuPrincipio: "Eliminação / Detergente Seletivo", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "HDL_CHOL", categoria: "Lipídios" },
+      { codigoEquipamento: "LDL", nomeExame: "LDL Colesterol Direto", metodoOuPrincipio: "Detergente Seletivo", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "LDL_CHOL", categoria: "Lipídios" },
+      { codigoEquipamento: "TRI", nomeExame: "Triglicerídeos", metodoOuPrincipio: "GPO-PAP Enzimático", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "TRIGLI", categoria: "Lipídios" },
+      { codigoEquipamento: "GOT", nomeExame: "TGO / AST", metodoOuPrincipio: "IFCC UV sem Piridoxal Fosfato", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "TGO", categoria: "Hepático" },
+      { codigoEquipamento: "GPT", nomeExame: "TGP / ALT", metodoOuPrincipio: "IFCC UV sem Piridoxal Fosfato", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "TGP", categoria: "Hepático" },
+      { codigoEquipamento: "GGT", nomeExame: "Gama GT", metodoOuPrincipio: "Szasz / Persijn Cinético", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "GAMA_GT", categoria: "Hepático" },
+      { codigoEquipamento: "FAL", nomeExame: "Fosfatase Alcalina", metodoOuPrincipio: "p-NPP DEA Cinético", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "FALCAL2016", categoria: "Hepático" },
+      { codigoEquipamento: "TBI", nomeExame: "Bilirrubina Total", metodoOuPrincipio: "Diazo com Surfactante (DPD)", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "BIL1TOT", categoria: "Hepático" },
+      { codigoEquipamento: "DBI", nomeExame: "Bilirrubina Direta", metodoOuPrincipio: "Diazo Direto", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "BILIR_DIR", categoria: "Hepático" },
+      { codigoEquipamento: "PRO", nomeExame: "Proteínas Totais", metodoOuPrincipio: "Biureto Colorimétrico", amostraSugerida: "Soro", unidadePadrao: "g/dL", codigoLabfacilSugerido: "PROT1TOT", categoria: "Proteínas" },
+      { codigoEquipamento: "ALB", nomeExame: "Albumina", metodoOuPrincipio: "Verde de Bromocresol (BCG)", amostraSugerida: "Soro", unidadePadrao: "g/dL", codigoLabfacilSugerido: "ALBUMINA", categoria: "Proteínas" },
+      { codigoEquipamento: "CAL", nomeExame: "Cálcio", metodoOuPrincipio: "Arsenazo III", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "CALCIO18", categoria: "Eletrólitos" },
+      { codigoEquipamento: "FOS", nomeExame: "Fósforo UV", metodoOuPrincipio: "Fosfomolibdato UV", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "FOSFORO18", categoria: "Eletrólitos" },
+      { codigoEquipamento: "MAG", nomeExame: "Magnésio", metodoOuPrincipio: "Azul de Xilidil", amostraSugerida: "Soro", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "MAGNESIO", categoria: "Eletrólitos" },
+      { codigoEquipamento: "FER", nomeExame: "Ferro Sérico", metodoOuPrincipio: "Ferrozine sem Desproteinização", amostraSugerida: "Soro", unidadePadrao: "µg/dL", codigoLabfacilSugerido: "FERRO18", categoria: "Anemia" },
+      { codigoEquipamento: "AMI", nomeExame: "Amilase", metodoOuPrincipio: "CNPG3 Cinético", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "AMILASE", categoria: "Pancreático" },
+      { codigoEquipamento: "CPK", nomeExame: "CPK Total", metodoOuPrincipio: "IFCC Cinético UV", amostraSugerida: "Soro", unidadePadrao: "U/L", codigoLabfacilSugerido: "CPK", categoria: "Cardíaco" },
+      { codigoEquipamento: "PCR", nomeExame: "Proteína C Reativa Látex", metodoOuPrincipio: "Imunoturbidimetria Quantitativa", amostraSugerida: "Soro", unidadePadrao: "mg/L", codigoLabfacilSugerido: "PCR", categoria: "Inflamação" }
+    ]
+  },
+
+  // 11. BIOCON FIAPRESTO 1AC (HEMOGLOBINA GLICADA FIA)
+  FIAPRESTO_1AC: {
+    modelo: "FIAPRESTO_1AC",
+    nomeCompleto: "Biocon FIAPresto 1AC / Finecare HbA1c Analyzer",
+    fabricante: "Biocon / Wondfo",
+    tipoAnalise: "Hemoglobina Glicada por Imunofluorescência (FIA / POCT)",
+    protocoloComunicacao: "Serial RS-232 / USB / TCP-IP (HL7 / Protocolo ASCII LIS)",
+    descricaoDoc: "Analisador quantitativo por imunofluorescência (FIA) com foco em dosagem de precisão de HbA1c (Hemoglobina Glicada). Exporta resultados via porta serial/USB ou HL7 direto para integração LIS.",
+    exames: [
+      { codigoEquipamento: "HBA1C", nomeExame: "Hemoglobina Glicada (HbA1c - NGSP/IFCC)", metodoOuPrincipio: "Imunofluorescência de Resolução Temporal (TRFIA)", amostraSugerida: "Sangue Total EDTA / Capilar", unidadePadrao: "%", codigoLabfacilSugerido: "HBA1C", categoria: "Diabetes" },
+      { codigoEquipamento: "HBA1C_IFCC", nomeExame: "HbA1c Unidade IFCC", metodoOuPrincipio: "Cálculo IFCC Diretriz Padrão", amostraSugerida: "Sangue Total EDTA", unidadePadrao: "mmol/mol", codigoLabfacilSugerido: "HBA1C_IFCC", categoria: "Diabetes" },
+      { codigoEquipamento: "EAG", nomeExame: "Glicemia Média Estimada (eAG)", metodoOuPrincipio: "Fórmula ADA / ADAG (28.7 x A1C - 46.7)", amostraSugerida: "Calculado", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "GLIC_EST", categoria: "Diabetes" }
+    ]
+  },
+
+  // 12. HUMAN HUMACLOT JUNIOR (COAGULAÇÃO)
+  HUMACLOT_JR: {
+    modelo: "HUMACLOT_JR",
+    nomeCompleto: "Human HumaClot Junior Coagulation Analyzer",
+    fabricante: "HUMAN Diagnostics Worldwide",
+    tipoAnalise: "Coagulômetro Monocanal Óptico-Mecânico",
+    protocoloComunicacao: "Serial RS-232 Unidirecional (9600 bps, 8N1 - ASCII Report)",
+    descricaoDoc: "Coagulômetro semiautomático de 1 canal para determinação de testes de coagulação por princípio óptico com fotômetro LED a 405nm. Transmite resultados e tempos via porta serial RS-232 imediatamente após término do ensaio.",
+    exames: [
+      { codigoEquipamento: "PT", nomeExame: "Tempo de Protrombina (TP / TAP - Segundos)", metodoOuPrincipio: "Coagulométrico Turbidimétrico 405nm", amostraSugerida: "Plasma Citratado (Citrato 3,2%)", unidadePadrao: "s", codigoLabfacilSugerido: "TP_SEG", categoria: "Coagulação" },
+      { codigoEquipamento: "INR", nomeExame: "INR (RNI - Razão Normalizada Internacional)", metodoOuPrincipio: "Cálculo Baseado no ISI do Reagente", amostraSugerida: "Plasma Citratado", unidadePadrao: "INR", codigoLabfacilSugerido: "RNI", categoria: "Coagulação" },
+      { codigoEquipamento: "PT_ACT", nomeExame: "Atividade de Protrombina (%)", metodoOuPrincipio: "Curva de Calibração / Atividade", amostraSugerida: "Plasma Citratado", unidadePadrao: "%", codigoLabfacilSugerido: "TP_ATIV", categoria: "Coagulação" },
+      { codigoEquipamento: "APTT", nomeExame: "TTPA (Tempo de Tromboplastina Parcial Ativada)", metodoOuPrincipio: "Coagulométrico Óptico", amostraSugerida: "Plasma Citratado (Citrato 3,2%)", unidadePadrao: "s", codigoLabfacilSugerido: "TTPA", categoria: "Coagulação" },
+      { codigoEquipamento: "APTT_RATIO", nomeExame: "Relação TTPA (Paciente / Pool Normal)", metodoOuPrincipio: "Cálculo Proporção", amostraSugerida: "Plasma Citratado", unidadePadrao: "Ratio", codigoLabfacilSugerido: "TTPA_RATIO", categoria: "Coagulação" },
+      { codigoEquipamento: "FIB", nomeExame: "Fibrinogênio (Clauss)", metodoOuPrincipio: "Método de Clauss Turbidimétrico", amostraSugerida: "Plasma Citratado", unidadePadrao: "mg/dL", codigoLabfacilSugerido: "FIBRI", categoria: "Coagulação" },
+      { codigoEquipamento: "TT", nomeExame: "Tempo de Trombina (TT)", metodoOuPrincipio: "Coagulométrico Óptico", amostraSugerida: "Plasma Citratado", unidadePadrao: "s", codigoLabfacilSugerido: "TEMPO_TROMB", categoria: "Coagulação" }
+    ]
   }
+
 };
