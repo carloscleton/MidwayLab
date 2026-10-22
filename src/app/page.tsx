@@ -572,51 +572,44 @@ export default function MidwayLabDashboard() {
         }
       });
 
-      if (dbLabfacilCatalog.length > 0) {
-        const uniqueLabfacilMap = new Map<string, any>();
-        dbLabfacilCatalog.forEach(item => {
-          const cleanCode = item.codigo.trim().toUpperCase();
-          if (!uniqueLabfacilMap.has(cleanCode)) {
-            const foundMapping = mappingsMap.get(cleanCode);
-            const rawAutolac = foundMapping?.codigo_equipamento || foundMapping?.codigo_autolac || "";
-            const cleanAutolac = foundMapping?.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
-            uniqueLabfacilMap.set(cleanCode, {
-              codigo: item.codigo,
-              descricao: item.descricao,
-              abreviacao: item.abreviacao || item.codigo,
-              autolacMapped: cleanAutolac || "",
-              tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
-            });
-          }
-        });
-        startTransition(() => {
-          setLabfacilExames(Array.from(uniqueLabfacilMap.values()));
-        });
-      } else if (dbMappings.length > 0) {
-        // CARREGA DIRETAMENTE OS MAPEAMENTOS REAIS DO BANCO SUPABASE
-        const uniqueLabfacilMap = new Map<string, any>();
-        dbMappings.forEach(m => {
-          const cleanCode = (m.codigo_labfacil || m.codigo_softlab || '').trim().toUpperCase();
-          if (cleanCode && !uniqueLabfacilMap.has(cleanCode)) {
-            const rawAutolac = m.codigo_equipamento || m.codigo_autolac || "";
-            const cleanAutolac = m.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
-            uniqueLabfacilMap.set(cleanCode, {
-              codigo: cleanCode,
-              descricao: m.descricao_labfacil || m.descricao_autolac || cleanCode,
-              abreviacao: cleanCode,
-              autolacMapped: cleanAutolac || "",
-              tipo: m.tipo_resultado || "PDF"
-            });
-          }
-        });
-        startTransition(() => {
-          setLabfacilExames(Array.from(uniqueLabfacilMap.values()));
-        });
-      } else {
-        startTransition(() => {
-          setLabfacilExames([]);
-        });
-      }
+      const uniqueLabfacilMap = new Map<string, any>();
+
+      // 1. Prioridade máxima: carregar todas as definições da tabela depara_exames (Dados Reais do Banco)
+      dbMappings.forEach(m => {
+        const cleanCode = (m.codigo_labfacil || m.codigo_softlab || '').trim().toUpperCase();
+        if (cleanCode && !uniqueLabfacilMap.has(cleanCode)) {
+          const rawAutolac = m.codigo_equipamento || m.codigo_autolac || "";
+          const cleanAutolac = m.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
+          uniqueLabfacilMap.set(cleanCode, {
+            codigo: cleanCode,
+            descricao: m.descricao_labfacil || m.descricao_autolac || cleanCode,
+            abreviacao: cleanCode,
+            autolacMapped: cleanAutolac || "",
+            tipo: m.tipo_resultado || "PDF"
+          });
+        }
+      });
+
+      // 2. Complementa com catalogo_labfacil_exames caso haja registros extras
+      dbLabfacilCatalog.forEach(item => {
+        const cleanCode = item.codigo.trim().toUpperCase();
+        if (!uniqueLabfacilMap.has(cleanCode)) {
+          const foundMapping = mappingsMap.get(cleanCode);
+          const rawAutolac = foundMapping?.codigo_equipamento || foundMapping?.codigo_autolac || "";
+          const cleanAutolac = foundMapping?.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
+          uniqueLabfacilMap.set(cleanCode, {
+            codigo: item.codigo,
+            descricao: item.descricao,
+            abreviacao: item.abreviacao || item.codigo,
+            autolacMapped: cleanAutolac || "",
+            tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
+          });
+        }
+      });
+
+      startTransition(() => {
+        setLabfacilExames(Array.from(uniqueLabfacilMap.values()));
+      });
     } catch (e) {
       console.error("[DeparaService] Erro ao carregar catálogo para a empresa:", e);
       startTransition(() => {
@@ -1179,8 +1172,8 @@ export default function MidwayLabDashboard() {
   const [searchLabfacil, setSearchLabfacil] = useState("");
   const [searchAutolac, setSearchAutolac] = useState("");
 
-  // DE-PARA Status Filter (Default to "pendentes" so unmapped exams display first)
-  const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("pendentes");
+  // DE-PARA Status Filter (Default to "todos" para exibir todos os exames cadastrados no banco)
+  const [deparaFilter, setDeparaFilter] = useState<"todos" | "mapeados" | "pendentes">("todos");
 
   // Selection state for Dual Matcher (Labfacil ↔ Equipamento Escolhido)
   const [selectedLabfacilExam, setSelectedLabfacilExam] = useState<any | null>(null);
@@ -2688,15 +2681,13 @@ export default function MidwayLabDashboard() {
   const filteredLabfacilExames = labfacilExames
     .filter(e => {
       const searchClean = normalizeText(searchLabfacil);
-      const matchesSearch =
+      if (!searchClean) return true;
+      return (
         normalizeText(e.codigo).includes(searchClean) || 
         normalizeText(e.descricao).includes(searchClean) ||
         normalizeText(e.abreviacao || "").includes(searchClean) ||
-        normalizeText(e.autolacMapped || "").includes(searchClean);
-      
-      if (deparaFilter === "mapeados") return matchesSearch && Boolean(e.autolacMapped);
-      if (deparaFilter === "pendentes") return matchesSearch && !Boolean(e.autolacMapped);
-      return matchesSearch;
+        normalizeText(e.autolacMapped || "").includes(searchClean)
+      );
     })
     .map(e => ({
       ...e,
@@ -2709,9 +2700,11 @@ export default function MidwayLabDashboard() {
     }))
     .sort((a, b) => {
       if (selectedEquipamentoExam || selectedAutolacExam) {
-        return b.similarity - a.similarity;
+        if (b.similarity !== a.similarity) {
+          return (b.similarity || 0) - (a.similarity || 0);
+        }
       }
-      return a.codigo.localeCompare(b.codigo);
+      return (a.codigo || "").localeCompare(b.codigo || "");
     });
 
   // Filtered Equipamento List with Accent-Insensitive Search & Smart Similarity Ranking
@@ -3500,7 +3493,7 @@ export default function MidwayLabDashboard() {
                       <Plus className="w-3 h-3 text-teal-400" /> + Novo Exame
                     </button>
                     <span className="text-[11px] font-mono bg-teal-500/10 text-teal-300 px-2 py-0.5 rounded border border-teal-500/20">
-                      {filteredLabfacilExames.length} Encontrados
+                      {filteredLabfacilExames.length} Encontrados ({labfacilExames.length} Total)
                     </span>
                   </div>
                 </div>
@@ -3676,7 +3669,16 @@ export default function MidwayLabDashboard() {
                     </span>
                   )}
                 </div>
-                {filteredLabfacilExames.map((item) => {
+                {filteredLabfacilExames.length === 0 ? (
+                  <div className="py-12 px-4 text-center space-y-2 text-slate-500 text-xs">
+                    <CheckCircle2 className="w-8 h-8 mx-auto opacity-40 text-teal-400" />
+                    <p className="font-semibold text-slate-300">Nenhum exame do Labfacil encontrado</p>
+                    <p className="text-[11px] text-slate-500">
+                      {searchLabfacil.trim() ? "Nenhum resultado para a busca digitada." : "Nenhum exame cadastrado no banco para esta empresa."}
+                    </p>
+                  </div>
+                ) : (
+                filteredLabfacilExames.map((item) => {
                   const isSelected = selectedLabfacilExam?.codigo === item.codigo;
                   return (
                     <div
@@ -3770,7 +3772,7 @@ export default function MidwayLabDashboard() {
                       </div>
                     </div>
                   );
-                })}
+                }))}
               </div>
 
               {/* RIGHT PANEL: EQUIPAMENTO EXAMS LIST */}
