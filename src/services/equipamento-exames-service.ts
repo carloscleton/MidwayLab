@@ -54,8 +54,10 @@ export interface ISalvarExamesResultado {
 
 const TABELA = 'depara_exames';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isIdReal(id?: string): id is string {
-  return Boolean(id) && !id!.startsWith('doc-') && !id!.startsWith('user-');
+  return Boolean(id && UUID_REGEX.test(id));
 }
 
 export class EquipamentoExamesService {
@@ -113,8 +115,55 @@ export class EquipamentoExamesService {
   }
 
   /**
+   * Obtém os exames padrão/recomendados de um modelo a partir da tabela
+   * modelos_equipamentos ou do catálogo estático da documentação técnica.
+   */
+  static async obterExamesPadraoDoModelo(
+    modelo: string,
+    equipamentoId?: string | null,
+    tenantId?: string | null
+  ): Promise<IExameEquipamentoRecord[]> {
+    try {
+      const { data: modeloDb } = await supabaseBrowser
+        .from('modelos_equipamentos')
+        .select('*')
+        .or(`codigo_modelo.eq.${modelo},codigo_modelo.ilike.${modelo},nome_completo.ilike.%${modelo}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (modeloDb && Array.isArray(modeloDb.exames) && modeloDb.exames.length > 0) {
+        return (modeloDb.exames as IExameEquipamentoDoc[]).map((ex, idx) => ({
+          id: `modelo-${modeloDb.codigo_modelo}-${idx}-${ex.codigoEquipamento}`,
+          equipamento_id: equipamentoId || null,
+          modelo_equipamento: modelo,
+          tenant_id: tenantId || null,
+          ...ex,
+          ativo: true,
+          linhasResultado: (ex as any).linhasResultado || [],
+          calculados: (ex as any).calculados || [],
+          origem: 'DOC_APARELHO' as const
+        }));
+      }
+    } catch (e) {
+      console.warn('[EquipamentoExamesService] Erro ao buscar modelo em modelos_equipamentos:', e);
+    }
+
+    // Fallback: documentação técnica nativa do aparelho
+    const docInfo = CATALOGO_EQUIPAMENTOS_DOC[modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350;
+    return docInfo.exames.map((ex, idx) => ({
+      id: `doc-${modelo}-${idx}-${ex.codigoEquipamento}`,
+      equipamento_id: equipamentoId || null,
+      modelo_equipamento: modelo,
+      tenant_id: tenantId || null,
+      ...ex,
+      ativo: true,
+      origem: 'DOC_APARELHO' as const
+    }));
+  }
+
+  /**
    * Obtém os exames do equipamento: busca primeiro no banco (depara_exames).
-   * Se não houver nenhum exame de catálogo gravado, carrega os exames nativos da documentação do aparelho.
+   * Se não houver nenhum exame de catálogo gravado, carrega os exames nativos da documentação do aparelho / modelo.
    */
   static async obterExamesDoAparelho(
     modelo: string,
@@ -140,17 +189,15 @@ export class EquipamentoExamesService {
       console.warn('[EquipamentoExamesService] Erro na busca no banco:', e);
     }
 
-    // FALLBACK: documentação técnica nativa do aparelho
-    const docInfo = CATALOGO_EQUIPAMENTOS_DOC[modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350;
-    const examesPadrao: IExameEquipamentoRecord[] = docInfo.exames.map((ex, idx) => ({
-      id: `doc-${modelo}-${idx}-${ex.codigoEquipamento}`,
-      equipamento_id: equipamentoId || null,
-      modelo_equipamento: modelo,
-      tenant_id: tenantId || null,
-      ...ex,
-      ativo: true,
-      origem: 'DOC_APARELHO' as const
-    }));
+    // FALLBACK: busca no modelo da tabela modelos_equipamentos ou documentação técnica nativa
+    const examesPadrao = await this.obterExamesPadraoDoModelo(modelo, equipamentoId, tenantId);
+
+    // Se temos equipamentoId e tenantId, já persiste no banco para evitar perda de sincronia
+    if (equipamentoId && tenantId && examesPadrao.length > 0) {
+      this.salvarExamesNoBanco(examesPadrao, modelo, equipamentoId, tenantId).catch(err => {
+        console.warn('[EquipamentoExamesService] Erro ao sincronizar exames do modelo com banco:', err);
+      });
+    }
 
     return { origem: 'DOC_APARELHO', exames: examesPadrao };
   }

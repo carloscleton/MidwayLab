@@ -218,6 +218,27 @@ export default function MidwayLabDashboard() {
   const [equipTestResult, setEquipTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isEquipamentoModalOpen, setIsEquipamentoModalOpen] = useState(false);
   const [editingEquipamento, setEditingEquipamento] = useState<IEquipamentoRecord | null>(null);
+  const [equipamentoModalExamesList, setEquipamentoModalExamesList] = useState<IExameEquipamentoRecord[]>([]);
+  const [modalExameSearch, setModalExameSearch] = useState<string>("");
+  const [isLoadingModalExames, setIsLoadingModalExames] = useState<boolean>(false);
+
+  const carregarExamesParaModalEquipamento = async (modeloCodigo: string, equipId?: string, tenantId?: string) => {
+    setIsLoadingModalExames(true);
+    try {
+      if (equipId) {
+        const res = await EquipamentoExamesService.obterExamesDoAparelho(modeloCodigo, equipId, tenantId);
+        setEquipamentoModalExamesList(res.exames);
+      } else {
+        const exames = await EquipamentoExamesService.obterExamesPadraoDoModelo(modeloCodigo, null, tenantId);
+        setEquipamentoModalExamesList(exames);
+      }
+    } catch (e) {
+      console.error("[Dashboard] Erro ao carregar exames para modal equipamento:", e);
+    } finally {
+      setIsLoadingModalExames(false);
+    }
+  };
+
   // CATALOGO DINAMICO DE MODELOS DE EQUIPAMENTOS (SUPABASE + PESQUISA NA WEB)
   const [catalogoModelos, setCatalogoModelos] = useState<IModeloEquipamentoRecord[]>([]);
   const [isNovoModeloModalOpen, setIsNovoModeloModalOpen] = useState(false);
@@ -5291,10 +5312,10 @@ export default function MidwayLabDashboard() {
                     setEditingEquipamento(null);
                     const modObj = catalogoModelos[0];
                     const cfg = modObj?.configuracoes || {};
-                    const tipoCom = (cfg.tipo_comunicacao || "ARQUIVO_COMPARTILHADO") as any;
+                    const tipoCom = (cfg.tipo_comunicacao || "TCP_IP") as any;
                     const cod = modObj?.codigo_modelo || "CB350";
                     setEquipamentoForm({
-                      nome: "",
+                      nome: modObj?.nome_completo || "",
                       modelo: cod,
                       fabricante: modObj?.fabricante || "Cormay",
                       tipo_comunicacao: tipoCom,
@@ -5305,6 +5326,9 @@ export default function MidwayLabDashboard() {
                       diretorio_resultados: cfg.diretorio_resultados || `C:\\Equipamentos\\${cod}\\Resultados`,
                       ativo: true
                     });
+                    setModalExameSearch("");
+                    const activeT = tenants.find(t => t.nome === selectedTenant);
+                    carregarExamesParaModalEquipamento(cod, undefined, activeT?.id);
                     setIsEquipamentoModalOpen(true);
                   }}
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
@@ -5405,6 +5429,8 @@ export default function MidwayLabDashboard() {
                         onClick={() => {
                           setEditingEquipamento(eq);
                           setEquipamentoForm({ ...eq });
+                          setModalExameSearch("");
+                          carregarExamesParaModalEquipamento(eq.modelo, eq.id, eq.tenant_id);
                           setIsEquipamentoModalOpen(true);
                         }}
                         className="text-xs text-slate-400 hover:text-teal-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition cursor-pointer"
@@ -6845,7 +6871,7 @@ export default function MidwayLabDashboard() {
       {/* MODAL: CADASTRAR / EDITAR EQUIPAMENTO UNIVERSAL */}
       {isEquipamentoModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl max-h-[90vh] rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-y-auto custom-scrollbar">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl max-h-[92vh] rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
@@ -6853,7 +6879,7 @@ export default function MidwayLabDashboard() {
                   {editingEquipamento ? "Editar Analisador / Equipamento" : "Cadastrar Novo Analisador Laboratorial"}
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  Compatível com qualquer analisador via TCP/IP (ASTM/HL7), Pasta de Carga ou Serial
+                  Compatível com qualquer analisador via TCP/IP (ASTM/HL7), Pasta de Carga ou Serial. Configurações e exames são sincronizados automaticamente.
                 </p>
               </div>
               <button
@@ -6872,12 +6898,23 @@ export default function MidwayLabDashboard() {
               action="javascript:void(0);"
               onSubmit={async () => {
                 const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+                const tenantId = activeTenantObj?.id || "11111111-1111-1111-1111-111111111111";
                 const saved = await EquipamentoService.salvarEquipamento({
                   ...equipamentoForm,
-                  tenant_id: activeTenantObj?.id || "11111111-1111-1111-1111-111111111111"
+                  tenant_id: tenantId
                 });
 
                 if (saved) {
+                  // Grava também os exames ajustados do analisador diretamente na tabela public.depara_exames
+                  if (equipamentoModalExamesList.length > 0) {
+                    await EquipamentoExamesService.salvarExamesNoBanco(
+                      equipamentoModalExamesList,
+                      saved.modelo,
+                      saved.id,
+                      saved.tenant_id
+                    );
+                  }
+
                   setEquipamentosList(prev => {
                     const idx = prev.findIndex(item => item.id === saved.id);
                     if (idx >= 0) {
@@ -6887,7 +6924,7 @@ export default function MidwayLabDashboard() {
                     }
                     return [...prev, saved];
                   });
-                  showNotification(`✓ Equipamento ${saved.nome} salvo para ${selectedTenant}!`);
+                  showNotification(`✓ Equipamento ${saved.nome} e ${equipamentoModalExamesList.length} códigos de exames salvos com sucesso!`);
                 }
                 setIsEquipamentoModalOpen(false);
                 setEquipTestResult(null);
@@ -6899,7 +6936,7 @@ export default function MidwayLabDashboard() {
                 <input
                   type="text"
                   required
-                  placeholder="Ex.: Bioquímica Central CB350 / Hematologia Yumizen"
+                  placeholder="Ex.: Bioquímica Central CB350 / Hematologia Yumizen / Sysmex UF 1500"
                   value={equipamentoForm.nome || ""}
                   onChange={(e) => setEquipamentoForm({ ...equipamentoForm, nome: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-teal-500"
@@ -6919,6 +6956,7 @@ export default function MidwayLabDashboard() {
                         setEquipamentoForm({
                           ...equipamentoForm,
                           modelo: mod,
+                          nome: !equipamentoForm.nome || catalogoModelos.some(m => m.nome_completo === equipamentoForm.nome) ? modeloDoBanco.nome_completo : equipamentoForm.nome,
                           fabricante: modeloDoBanco.fabricante || equipamentoForm.fabricante,
                           tipo_comunicacao: (cfg.tipo_comunicacao || "TCP_IP") as any,
                           formato_arquivo: (cfg.formato_arquivo || "ASTM") as any,
@@ -6933,6 +6971,8 @@ export default function MidwayLabDashboard() {
                           modelo: mod
                         });
                       }
+                      const activeT = tenants.find(t => t.nome === selectedTenant);
+                      carregarExamesParaModalEquipamento(mod, editingEquipamento?.id, activeT?.id);
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   >
@@ -7312,6 +7352,175 @@ export default function MidwayLabDashboard() {
                 )}
               </div>
 
+              {/* SEÇÃO: CÓDIGOS DE EXAMES DO ANALISADOR (IMAGEM 2) */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-cyan-400" />
+                        Códigos de Exames do Analisador - {equipamentoForm.modelo || "Equipamento"}
+                      </h4>
+                      <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">
+                        {equipamentoModalExamesList.length} exames configurados
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {(() => {
+                        const modObj = catalogoModelos.find(m => m.codigo_modelo === equipamentoForm.modelo);
+                        return `Configurações padrão carregadas da documentação técnica oficial: ${modObj?.fabricante || equipamentoForm.fabricante || 'Fabricante'} - ${modObj?.tipo_analise || 'Geral'}. Protocolo: ${modObj?.protocolo_comunicacao || equipamentoForm.formato_arquivo || 'ASTM'}. Você pode ajustar os códigos de envio/retorno e os nomes dos exames antes de salvar.`;
+                      })()}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const novo: IExameEquipamentoRecord = {
+                        id: `new-${Date.now()}`,
+                        modelo_equipamento: equipamentoForm.modelo || 'GERAL',
+                        codigoEquipamento: '',
+                        nomeExame: '',
+                        codigoLabfacilSugerido: '',
+                        categoria: 'Geral',
+                        metodoOuPrincipio: 'Padrão',
+                        amostraSugerida: 'Soro',
+                        unidadePadrao: '-',
+                        ativo: true,
+                        linhasResultado: [],
+                        calculados: [],
+                        origem: 'DOC_APARELHO'
+                      };
+                      setEquipamentoModalExamesList(prev => [...prev, novo]);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 text-xs shadow-md shadow-indigo-600/20 cursor-pointer self-start sm:self-auto shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Adicionar Exame ao Analisador
+                  </button>
+                </div>
+
+                {/* BARRA DE PESQUISA / FILTRO DE EXAMES */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar por código ou nome do exame..."
+                    value={modalExameSearch}
+                    onChange={(e) => setModalExameSearch(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
+
+                {/* LISTAGEM DE EXAMES DO MODELO */}
+                {isLoadingModalExames ? (
+                  <div className="py-8 text-center text-slate-400 flex items-center justify-center gap-2 text-xs">
+                    <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" /> Carregando códigos do modelo...
+                  </div>
+                ) : equipamentoModalExamesList.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
+                    Nenhum código cadastrado ainda. Clique em "Adicionar Exame ao Analisador" para incluir.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar pr-1">
+                    {equipamentoModalExamesList
+                      .map((ex, originalIdx) => ({ ex, originalIdx }))
+                      .filter(({ ex }) => {
+                        if (!modalExameSearch) return true;
+                        const s = modalExameSearch.toLowerCase();
+                        return (
+                          (ex.codigoEquipamento && ex.codigoEquipamento.toLowerCase().includes(s)) ||
+                          (ex.nomeExame && ex.nomeExame.toLowerCase().includes(s)) ||
+                          (ex.codigoLabfacilSugerido && ex.codigoLabfacilSugerido.toLowerCase().includes(s))
+                        );
+                      })
+                      .map(({ ex, originalIdx }) => (
+                        <div
+                          key={ex.id || originalIdx}
+                          className="bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 rounded-xl p-2.5 transition flex flex-col md:flex-row md:items-center justify-between gap-2.5"
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                            <div>
+                              <label className="block text-[10px] text-teal-400 font-mono font-bold mb-0.5">
+                                CÓDIGO APARELHO (ENVIO / RETORNO)
+                              </label>
+                              <input
+                                type="text"
+                                value={ex.codigoEquipamento || ''}
+                                placeholder="Ex: RBC, WBC"
+                                onChange={(e) => {
+                                  const val = e.target.value.toUpperCase();
+                                  setEquipamentoModalExamesList(prev => {
+                                    const copy = [...prev];
+                                    copy[originalIdx] = { ...copy[originalIdx], codigoEquipamento: val };
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1 text-teal-300 font-mono font-bold text-xs focus:outline-none focus:border-teal-400"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-slate-300 font-semibold mb-0.5">
+                                NOME DO EXAME (DOCUMENTAÇÃO)
+                              </label>
+                              <input
+                                type="text"
+                                value={ex.nomeExame || ''}
+                                placeholder="Nome oficial do exame"
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEquipamentoModalExamesList(prev => {
+                                    const copy = [...prev];
+                                    copy[originalIdx] = { ...copy[originalIdx], nomeExame: val };
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1 text-slate-200 font-medium text-xs focus:outline-none focus:border-cyan-400"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-indigo-400 font-mono font-bold mb-0.5">
+                                LABFÁCIL SUGERIDO
+                              </label>
+                              <input
+                                type="text"
+                                value={ex.codigoLabfacilSugerido || ''}
+                                placeholder="Ex: URINA_RBC"
+                                onChange={(e) => {
+                                  const val = e.target.value.toUpperCase();
+                                  setEquipamentoModalExamesList(prev => {
+                                    const copy = [...prev];
+                                    copy[originalIdx] = { ...copy[originalIdx], codigoLabfacilSugerido: val };
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full bg-slate-950 border border-indigo-500/50 rounded-lg px-2.5 py-1 text-indigo-300 font-mono font-bold text-xs focus:outline-none focus:border-indigo-400"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-slate-800">
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {ex.categoria || 'Geral'} • {ex.amostraSugerida || 'Soro'} • {ex.unidadePadrao || '-'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEquipamentoModalExamesList(prev => prev.filter((_, idx) => idx !== originalIdx));
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
+                              title="Remover exame deste analisador"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
@@ -7327,7 +7536,7 @@ export default function MidwayLabDashboard() {
                   type="submit"
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition cursor-pointer shadow-lg shadow-teal-500/20"
                 >
-                  Salvar Analisador
+                  Salvar Analisador ({equipamentoModalExamesList.length} exames)
                 </button>
               </div>
             </form>
