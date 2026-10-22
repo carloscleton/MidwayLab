@@ -12,6 +12,8 @@ import { CATALOGO_EQUIPAMENTOS_DOC, IEquipamentoCatalogDoc } from "../data/equip
 import { EquipamentoSimulatorService, ISimulatedSampleRelease } from "../services/equipamento-simulator-service";
 import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
 import ExameResultadosCalculados from "../components/ExameResultadosCalculados";
+import NovoModeloModal from "../components/NovoModeloModal";
+import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
 import {
@@ -213,6 +215,19 @@ export default function MidwayLabDashboard() {
   const [equipTestResult, setEquipTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isEquipamentoModalOpen, setIsEquipamentoModalOpen] = useState(false);
   const [editingEquipamento, setEditingEquipamento] = useState<IEquipamentoRecord | null>(null);
+  // CATALOGO DINAMICO DE MODELOS DE EQUIPAMENTOS (SUPABASE + PESQUISA NA WEB)
+  const [catalogoModelos, setCatalogoModelos] = useState<IModeloEquipamentoRecord[]>([]);
+  const [isNovoModeloModalOpen, setIsNovoModeloModalOpen] = useState(false);
+
+  const recarregarCatalogoModelos = async () => {
+    try {
+      const modelos = await ModelosEquipamentosService.listarModelos();
+      setCatalogoModelos(modelos);
+    } catch (e) {
+      console.error("[Dashboard] Erro ao carregar catalogo de modelos:", e);
+    }
+  };
+
   const [equipamentoForm, setEquipamentoForm] = useState<Partial<IEquipamentoRecord>>({
     nome: "",
     modelo: "CB350",
@@ -685,6 +700,15 @@ export default function MidwayLabDashboard() {
         } catch (e) {
           console.warn("[Dashboard] Tabela equipamentos ainda não criada ou vazia no Supabase:", e);
         }
+        try {
+          const dbModelos = await ModelosEquipamentosService.listarModelos();
+          if (dbModelos && dbModelos.length > 0) {
+            setCatalogoModelos(dbModelos);
+          }
+        } catch (e) {
+          console.warn("[Dashboard] Tabela modelos_equipamentos ainda nao inicializada:", e);
+        }
+
 
         const mappedTenants = dbTenants.map(t => ({
           id: t.id,
@@ -4540,25 +4564,35 @@ export default function MidwayLabDashboard() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingEquipamento(null);
-                  setEquipamentoForm({
-                    nome: "",
-                    modelo: "CB350",
-                    fabricante: "Cormay",
-                    tipo_comunicacao: "ARQUIVO_COMPARTILHADO",
-                    diretorio_carga: "C:\\Equipamentos\\Carga",
-                    diretorio_resultados: "C:\\Equipamentos\\Resultados",
-                    ativo: true
-                  });
-                  setIsEquipamentoModalOpen(true);
-                }}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer self-start md:self-auto"
-              >
-                <Plus className="w-4 h-4" /> Cadastrar Novo Equipamento
-              </button>
+              <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsNovoModeloModalOpen(true)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-indigo-600/20 cursor-pointer"
+                  title="Pesquisar novo analisador na internet/documentacao e adicionar ao catalogo do sistema"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" /> + Novo Modelo (Pesquisa Web)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingEquipamento(null);
+                    setEquipamentoForm({
+                      nome: "",
+                      modelo: catalogoModelos[0]?.codigo_modelo || "CB350",
+                      fabricante: catalogoModelos[0]?.fabricante || "Cormay",
+                      tipo_comunicacao: (catalogoModelos[0]?.configuracoes?.tipo_comunicacao || "ARQUIVO_COMPARTILHADO") as any,
+                      diretorio_carga: "C:\\Equipamentos\\Carga",
+                      diretorio_resultados: "C:\\Equipamentos\\Resultados",
+                      ativo: true
+                    });
+                    setIsEquipamentoModalOpen(true);
+                  }}
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Cadastrar Novo Equipamento
+                </button>
+              </div>
             </div>
 
             {/* LISTA DE EQUIPAMENTOS FILTRADOS POR EMPRESA */}
@@ -4619,7 +4653,16 @@ export default function MidwayLabDashboard() {
                       <button
                         type="button"
                         onClick={async () => {
-                          const docInfo = CATALOGO_EQUIPAMENTOS_DOC[eq.modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350;
+                          const foundModelo = catalogoModelos.find(m => m.codigo_modelo === eq.modelo);
+                          const docInfo: IEquipamentoCatalogDoc = foundModelo ? {
+                            modelo: foundModelo.codigo_modelo,
+                            nomeCompleto: foundModelo.nome_completo,
+                            fabricante: foundModelo.fabricante,
+                            tipoAnalise: foundModelo.tipo_analise,
+                            protocoloComunicacao: foundModelo.protocolo_comunicacao,
+                            descricaoDoc: foundModelo.descricao || '',
+                            exames: foundModelo.exames || []
+                          } : (CATALOGO_EQUIPAMENTOS_DOC[eq.modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350);
                           setActiveEquipamentoForDoc(eq);
                           setViewDocEquipamentoModal(docInfo);
                           setDocSearchTerm("");
@@ -4727,17 +4770,11 @@ export default function MidwayLabDashboard() {
                           }}
                           className="bg-slate-950 border border-teal-500/50 rounded-lg px-2.5 py-1 text-teal-300 text-xs font-mono font-bold focus:outline-none cursor-pointer"
                         >
-                          <option value="CB350">Cormay CB350 (Bioquímica)</option>
-                          <option value="YUMIZEN">Horiba Yumizen (Hematologia)</option>
-                          <option value="ZYBIO_Z3">Zybio Z3 (Hematologia 3-Part)</option>
-                          <option value="ZYBIO_Z5">Zybio Z5 (Hematologia 5-Part Laser)</option>
-                          <option value="CM250">Wiener CM 250 (Bioquímica)</option>
-                          <option value="FIAPRESTO_1AC">FIAPresto 1AC Biocon (HbA1c FIA)</option>
-                          <option value="HUMACLOT_JR">HumaClot Junior (Coagulação)</option>
-                          <option value="BS_240">Mindray BS 240 (Bioquímica)</option>
-                          <option value="BC_5380">Mindray BC 5380 (Hematologia 5-Part)</option>
-                          <option value="INVISTAR_300">Invistar 300 (Bioquímica)</option>
-                          <option value="ACCESS">Beckman Coulter ACCESS</option>
+                          {catalogoModelos.map(m => (
+                            <option key={m.codigo_modelo} value={m.codigo_modelo}>
+                              {m.nome_completo}
+                            </option>
+                          ))}
                           <option value="GENERICO">Outro Analisador</option>
                         </select>
                       );
@@ -6249,20 +6286,11 @@ export default function MidwayLabDashboard() {
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium"
                   >
-                    <option value="CB350">CB350 (Bioquímica - Cormay)</option>
-                    <option value="YUMIZEN">YUMIZEN H500/H550 (Hematologia - Horiba)</option>
-                    <option value="ZYBIO_Z3">Zybio Z3 (Hematologia 3-Part)</option>
-                    <option value="ZYBIO_Z5">Zybio Z5 (Hematologia 5-Part Laser)</option>
-                    <option value="CM250">Wiener CM 250 (Bioquímica)</option>
-                    <option value="FIAPRESTO_1AC">FIAPresto 1AC / Biocon (HbA1c FIA)</option>
-                    <option value="HUMACLOT_JR">HumaClot Junior (Coagulação)</option>
-                    <option value="ACCESS">ACCESS / Access 2 (Imunologia - Beckman Coulter)</option>
-                    <option value="BC_3000">BC 3000 Plus (Hematologia 3-Part - Mindray)</option>
-                    <option value="BC_5380">BC 5380 (Hematologia 5-Part - Mindray)</option>
-                    <option value="BS_240">BS 240 (Bioquímica - Mindray)</option>
-                    <option value="INVISTAR_300">INVISTAR 300 (Bioquímica - Genrui)</option>
-                    <option value="SYSMEX">Sysmex (Hematologia)</option>
-                    <option value="ROCHE_COBAS">Roche Cobas</option>
+                    {catalogoModelos.map(m => (
+                      <option key={m.codigo_modelo} value={m.codigo_modelo}>
+                        {m.nome_completo}
+                      </option>
+                    ))}
                     <option value="GENERICO">⚙️ Outro Modelo (Padrão ASTM / HL7)</option>
                   </select>
                 </div>
@@ -6475,6 +6503,15 @@ export default function MidwayLabDashboard() {
           </div>
         </div>
       )}
+
+      <NovoModeloModal
+        isOpen={isNovoModeloModalOpen}
+        onClose={() => setIsNovoModeloModalOpen(false)}
+        onModeloSalvo={async () => {
+          await recarregarCatalogoModelos();
+        }}
+        showNotification={showNotification}
+      />
 
       {/* MODAL: DOCUMENTAÇÃO TÉCNICA E CÓDIGOS DO EQUIPAMENTO COM CRUD NO BANCO */}
       {viewDocEquipamentoModal && (
