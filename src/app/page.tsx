@@ -578,11 +578,13 @@ export default function MidwayLabDashboard() {
           const cleanCode = item.codigo.trim().toUpperCase();
           if (!uniqueLabfacilMap.has(cleanCode)) {
             const foundMapping = mappingsMap.get(cleanCode);
+            const rawAutolac = foundMapping?.codigo_equipamento || foundMapping?.codigo_autolac || "";
+            const cleanAutolac = foundMapping?.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
             uniqueLabfacilMap.set(cleanCode, {
               codigo: item.codigo,
               descricao: item.descricao,
               abreviacao: item.abreviacao || item.codigo,
-              autolacMapped: foundMapping ? foundMapping.codigo_autolac : "",
+              autolacMapped: cleanAutolac || "",
               tipo: foundMapping?.tipo_resultado || item.tipo_resultado || "PDF"
             });
           }
@@ -590,16 +592,19 @@ export default function MidwayLabDashboard() {
         startTransition(() => {
           setLabfacilExames(Array.from(uniqueLabfacilMap.values()));
         });
-      } else if (isCustomCatalog && dbMappings.length > 0) {
+      } else if (dbMappings.length > 0) {
+        // CARREGA DIRETAMENTE OS MAPEAMENTOS REAIS DO BANCO SUPABASE
         const uniqueLabfacilMap = new Map<string, any>();
         dbMappings.forEach(m => {
-          const cleanCode = m.codigo_labfacil.trim().toUpperCase();
-          if (!uniqueLabfacilMap.has(cleanCode)) {
+          const cleanCode = (m.codigo_labfacil || m.codigo_softlab || '').trim().toUpperCase();
+          if (cleanCode && !uniqueLabfacilMap.has(cleanCode)) {
+            const rawAutolac = m.codigo_equipamento || m.codigo_autolac || "";
+            const cleanAutolac = m.codigo_equipamento || (rawAutolac.includes(':') ? rawAutolac.split(':')[1] : rawAutolac);
             uniqueLabfacilMap.set(cleanCode, {
-              codigo: m.codigo_labfacil,
-              descricao: m.descricao_labfacil || m.codigo_labfacil,
-              abreviacao: m.codigo_labfacil,
-              autolacMapped: m.codigo_autolac,
+              codigo: cleanCode,
+              descricao: m.descricao_labfacil || m.descricao_autolac || cleanCode,
+              abreviacao: cleanCode,
+              autolacMapped: cleanAutolac || "",
               tipo: m.tipo_resultado || "PDF"
             });
           }
@@ -1270,6 +1275,44 @@ export default function MidwayLabDashboard() {
   // Mapped exams modal state
   const [isMappedExamsModalOpen, setIsMappedExamsModalOpen] = useState(false);
   const [searchMappedModal, setSearchMappedModal] = useState("");
+  const [mappedExamsDbList, setMappedExamsDbList] = useState<any[]>([]);
+  const [selectedModalEquipId, setSelectedModalEquipId] = useState<string>("TODOS");
+  const [isLoadingMappedExams, setIsLoadingMappedExams] = useState<boolean>(false);
+
+  // BUSCAR MAPEAMENTOS REAIS DO BANCO DE DADOS (SUPABASE)
+  const carregarMapeamentosReaisDoBanco = async (tenantId?: string, equipId?: string) => {
+    setIsLoadingMappedExams(true);
+    try {
+      const activeT = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+      const tid = tenantId || activeT?.id;
+      let query = supabaseBrowser.from('depara_exames').select('*');
+      if (tid) {
+        query = query.eq('tenant_id', tid);
+      }
+      if (equipId && equipId !== "TODOS") {
+        query = query.eq('equipamento_id', equipId);
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (!error && data) {
+        setMappedExamsDbList(data);
+      } else {
+        setMappedExamsDbList([]);
+      }
+    } catch (err) {
+      console.error("[carregarMapeamentosReaisDoBanco] Erro ao consultar Supabase:", err);
+      setMappedExamsDbList([]);
+    } finally {
+      setIsLoadingMappedExams(false);
+    }
+  };
+
+  const handleOpenVerMapeadosModal = async (equipId?: string) => {
+    setIsMappedExamsModalOpen(true);
+    const chosenEquip = equipId || selectedDeparaEquipId || "TODOS";
+    setSelectedModalEquipId(chosenEquip);
+    const activeT = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+    await carregarMapeamentosReaisDoBanco(activeT?.id, chosenEquip);
+  };
 
   // Log Grid & Payload Inspector & PDF Laudo Modal states
   const [logViewMode, setLogViewMode] = useState<"grid" | "cards">("grid");
@@ -3421,13 +3464,14 @@ export default function MidwayLabDashboard() {
                   <Plus className="w-4 h-4 text-slate-950" /> Novo Mapeamento
                 </button>
 
-                {/* BUTTON 2: VER EXAMES MAPEADOS */}
+                {/* BUTTON 2: VER EXAMES MAPEADOS NO BANCO */}
                 <button
                   type="button"
-                  onClick={() => setIsMappedExamsModalOpen(true)}
+                  onClick={() => handleOpenVerMapeadosModal(currentDeparaEquip?.id)}
                   className="px-3.5 h-10 rounded-xl text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-2 shadow-md shadow-emerald-500/10 cursor-pointer whitespace-nowrap text-center"
+                  title="Abrir Central de Mapeamentos Reais do Banco de Dados"
                 >
-                  <Eye className="w-4 h-4 text-emerald-400" /> Ver Mapeados ({labfacilExames.filter(e => Boolean(e.autolacMapped)).length})
+                  <Eye className="w-4 h-4 text-emerald-400" /> Ver Mapeados ({equipamentoExamesList.filter(e => Boolean(e.codigoLabfacilSugerido)).length || labfacilExames.filter(e => Boolean(e.autolacMapped)).length})
                 </button>
 
                 {/* BUTTON 3: EXPORTAR CSV */}
@@ -8956,18 +9000,37 @@ P1`}
         </div>
       )}
 
-      {/* MODAL VISUALIZADOR DE EXAMES MAPEADOS (DE-PARA) */}
-      {isMappedExamsModalOpen && (
+      {/* MODAL VISUALIZADOR DE EXAMES MAPEADOS (DE-PARA) - DADOS REAIS DO BANCO COM SELETOR DE EQUIPAMENTO */}
+      {isMappedExamsModalOpen && (() => {
+        const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+        const equipsDoTenant = equipamentosList.filter(eq => activeTenantObj ? eq.tenant_id === activeTenantObj.id : true);
+
+        // Filtrar mapeamentos reais pelo termo de busca
+        const filteredDbMapeados = mappedExamsDbList.filter(row => {
+          if (!searchMappedModal.trim()) return true;
+          const term = searchMappedModal.toLowerCase();
+          const cleanEquip = (row.codigo_equipamento || (row.codigo_autolac?.includes(':') ? row.codigo_autolac.split(':')[1] : row.codigo_autolac) || "").toLowerCase();
+          const codLab = (row.codigo_labfacil || row.codigo_softlab || "").toLowerCase();
+          const descLab = (row.descricao_labfacil || row.descricao_autolac || "").toLowerCase();
+          return cleanEquip.includes(term) || codLab.includes(term) || descLab.includes(term);
+        });
+
+        return (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-5xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[92vh] flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                  Central de Exames Mapeados (DE-PARA)
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Exames do Labfacil Apoio que possuem código correspondente vinculado ao Autolac para o laboratório <strong className="text-teal-300">{selectedTenant}</strong>
+                  <h3 className="text-lg font-bold text-slate-100">
+                    Central de Exames Mapeados (DE-PARA)
+                  </h3>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <Database className="w-3 h-3 text-emerald-400" /> Dados Reais do Banco (Supabase)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Exames gravados na tabela <code className="text-cyan-300">public.depara_exames</code> vinculados aos analisadores de <strong className="text-teal-300">{selectedTenant}</strong>.
                 </p>
               </div>
               <button
@@ -8979,21 +9042,44 @@ P1`}
               </button>
             </div>
 
-            {/* SUMMARY STATS & SEARCH */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
-              <div className="flex items-center gap-3">
+            {/* BARRA SUPERIOR: SELETOR DE EQUIPAMENTO, ESTATÍSTICA E BUSCA */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+                {/* SELETOR DE EQUIPAMENTO */}
+                <div className="flex items-center gap-2 bg-slate-900 border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs">
+                  <Server className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="text-slate-300 font-semibold shrink-0">Equipamento:</span>
+                  <select
+                    value={selectedModalEquipId}
+                    onChange={(e) => {
+                      const newEquip = e.target.value;
+                      setSelectedModalEquipId(newEquip);
+                      carregarMapeamentosReaisDoBanco(activeTenantObj?.id, newEquip);
+                    }}
+                    className="bg-transparent text-cyan-300 font-mono font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="TODOS" className="bg-slate-900 text-slate-200">
+                      ⭐ Todos os Equipamentos ({equipsDoTenant.length})
+                    </option>
+                    {equipsDoTenant.map(eq => (
+                      <option key={eq.id} value={eq.id} className="bg-slate-900 text-slate-200">
+                        {eq.nome} ({eq.modelo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>{labfacilExames.filter(e => Boolean(e.autolacMapped)).length} Exames Mapeados</span>
+                  <span>{filteredDbMapeados.length} Mapeamentos no Banco</span>
                 </div>
-                <span className="text-xs text-slate-400">de {labfacilExames.length} exames no catálogo total</span>
               </div>
 
               <div className="relative w-full sm:w-72">
                 <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                 <input
                   type="text"
-                  placeholder="Pesquisar entre os mapeados..."
+                  placeholder="Pesquisar código ou exame..."
                   value={searchMappedModal}
                   onChange={(e) => setSearchMappedModal(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50"
@@ -9001,601 +9087,140 @@ P1`}
               </div>
             </div>
 
-            {/* MAPPED EXAMS LIST / TABLE */}
-            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-xl">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider sticky top-0 border-b border-slate-800 z-10">
-                  <tr>
-                    <th className="py-3 px-4 whitespace-nowrap">Cód. Labfacil</th>
-                    <th className="py-3 px-4 whitespace-nowrap">Cód. Autolac</th>
-                    <th className="py-3 px-4">Descrição do Exame (Labfacil Apoio)</th>
-                    <th className="py-3 px-4 whitespace-nowrap">Tipo</th>
-                    <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
-                    <th className="py-3 px-4 text-right whitespace-nowrap">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                  {labfacilExames
-                    .filter(e => Boolean(e.autolacMapped))
-                    .filter(e => {
-                      const searchClean = normalizeText(searchMappedModal);
+            {/* TABELA DE MAPEAMENTOS REAIS PUXADOS DO BANCO */}
+            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-xl custom-scrollbar">
+              {isLoadingMappedExams ? (
+                <div className="py-16 text-center space-y-2">
+                  <RefreshCw className="w-6 h-6 text-teal-400 animate-spin mx-auto" />
+                  <p className="text-xs text-slate-400">Consultando tabela depara_exames no Supabase...</p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider sticky top-0 border-b border-slate-800 z-10">
+                    <tr>
+                      <th className="py-3 px-3.5 whitespace-nowrap">Cód. Labfacil</th>
+                      <th className="py-3 px-3.5 whitespace-nowrap">Cód. Aparelho</th>
+                      <th className="py-3 px-3.5">Equipamento</th>
+                      <th className="py-3 px-3.5">Descrição do Exame</th>
+                      <th className="py-3 px-3.5 whitespace-nowrap">Tipo</th>
+                      <th className="py-3 px-3.5 text-center whitespace-nowrap">Status</th>
+                      <th className="py-3 px-3.5 text-right whitespace-nowrap">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 bg-slate-900/40 font-mono text-[11px]">
+                    {filteredDbMapeados.map((row) => {
+                      const cleanEquipCode = row.codigo_equipamento || (row.codigo_autolac?.includes(':') ? row.codigo_autolac.split(':')[1] : row.codigo_autolac) || "-";
+                      const equipObj = equipamentosList.find(e => e.id === row.equipamento_id);
+                      const codLab = row.codigo_labfacil || row.codigo_softlab || "-";
+                      const desc = row.descricao_labfacil || row.descricao_autolac || codLab;
+
                       return (
-                        normalizeText(e.codigo).includes(searchClean) ||
-                        normalizeText(e.descricao).includes(searchClean) ||
-                        normalizeText(e.autolacMapped).includes(searchClean)
+                        <tr key={row.id || `${row.equipamento_id}-${cleanEquipCode}`} className="hover:bg-slate-800/40 transition">
+                          {/* 1. CÓDIGO LABFACIL */}
+                          <td className="py-2.5 px-3.5 font-mono text-xs font-bold text-teal-300 whitespace-nowrap">
+                            <span className="bg-teal-500/10 border border-teal-500/30 px-2 py-0.5 rounded">
+                              {codLab}
+                            </span>
+                          </td>
+
+                          {/* 2. CÓDIGO APARELHO (LIMPO, SEM PREFIXO DE UUID) */}
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg">
+                              {cleanEquipCode}
+                            </span>
+                          </td>
+
+                          {/* 3. EQUIPAMENTO */}
+                          <td className="py-2.5 px-3.5 font-sans">
+                            <span className="text-slate-200 text-xs font-semibold block truncate max-w-[180px]">
+                              {equipObj ? equipObj.nome : (row.equipamento_id ? 'Equipamento Vinculado' : 'Global')}
+                            </span>
+                            <span className="text-[10px] text-teal-400 font-mono">
+                              {equipObj?.modelo || (row.modelo_equipamento || 'Analisador')}
+                            </span>
+                          </td>
+
+                          {/* 4. DESCRIÇÃO */}
+                          <td className="py-2.5 px-3.5 font-sans">
+                            <span className="font-medium text-slate-100 text-xs block">{desc}</span>
+                            {row.categoria && <span className="text-[10px] text-slate-500">🏷️ {row.categoria}</span>}
+                          </td>
+
+                          {/* 5. TIPO */}
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 font-sans">
+                              {row.tipo_resultado || 'PDF'}
+                            </span>
+                          </td>
+
+                          {/* 6. STATUS */}
+                          <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1 font-sans">
+                              <Check className="w-3 h-3" /> Mapeado no Banco
+                            </span>
+                          </td>
+
+                          {/* 7. AÇÕES */}
+                          <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirm(`Deseja realmente apagar o vínculo DE-PARA do exame [${codLab} ↔ ${cleanEquipCode}] do banco de dados?`)) {
+                                    if (row.id) {
+                                      await supabaseBrowser.from('depara_exames').delete().eq('id', row.id);
+                                    } else {
+                                      await DeparaService.removerMapeamento(row.tenant_id, codLab);
+                                    }
+                                    showNotification(`🗑️ Mapeamento [${codLab}] excluído do banco de dados!`);
+                                    carregarMapeamentosReaisDoBanco(activeTenantObj?.id, selectedModalEquipId);
+                                    loadLabfacilCatalogForTenant(activeTenantObj?.id, activeTenantObj);
+                                  }
+                                }}
+                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg transition cursor-pointer"
+                                title="Apagar Vínculo DE-PARA do Banco de Dados Supabase"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
                       );
-                    })
-                    .map((exam) => (
-                      <tr key={exam.codigo} className="hover:bg-slate-800/40 transition">
-                        {/* 1. CÓDIGO LABFACIL */}
-                        <td className="py-3 px-4 font-mono text-xs font-bold text-teal-300 whitespace-nowrap">
-                          {exam.codigo}
-                        </td>
+                    })}
 
-                        {/* 2. CÓDIGO AUTOLAC */}
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg whitespace-nowrap">
-                            {exam.autolacMapped}
-                          </span>
-                        </td>
-
-                        {/* 3. DESCRIÇÃO */}
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-slate-100 text-xs block">{exam.descricao}</span>
-                          <span className="text-[11px] text-slate-500">{exam.abreviacao}</span>
-                        </td>
-
-                        {/* 4. TIPO */}
-                        <td className="py-3 px-4">
-                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                            PDF
-                          </span>
-                        </td>
-
-                        {/* 5. STATUS */}
-                        <td className="py-3 px-4 text-center">
-                          {exam.blocked ? (
-                            <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                              <Lock className="w-3 h-3 text-rose-400" /> Bloqueado
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                              <Check className="w-3 h-3" /> Mapeado
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* 1. EDITAR */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsMappedExamsModalOpen(false);
-                                handleOpenMapExam(exam);
-                              }}
-                              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 rounded-lg transition font-semibold cursor-pointer"
-                              title="Editar Vínculo DE-PARA"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* 2. BLOQUEAR / DESBLOQUEAR */}
-                            <button 
-                              type="button"
-                              onClick={() => handleToggleBlockExam(exam.codigo)}
-                              className={`p-1.5 rounded-lg border transition cursor-pointer ${
-                                exam.blocked
-                                  ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                                  : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
-                              }`}
-                              title={exam.blocked ? "Desbloquear Exame" : "Bloquear Exame para Integração"}
-                            >
-                              {exam.blocked ? <Lock className="w-3.5 h-3.5 text-rose-400" /> : <Unlock className="w-3.5 h-3.5 text-amber-400" />}
-                            </button>
-
-                            {/* 3. APAGAR VÍNCULO */}
-                            <button 
-                              type="button"
-                              onClick={() => handleRemoveExamMapping(exam.codigo)}
-                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg transition cursor-pointer"
-                              title="Apagar Vínculo DE-PARA do Banco Supabase"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                    {filteredDbMapeados.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-500 text-xs font-sans">
+                          Nenhum mapeamento encontrado no banco de dados para os filtros selecionados.
                         </td>
                       </tr>
-                    ))}
-                  {labfacilExames.filter(e => Boolean(e.autolacMapped)).length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                        Nenhum exame mapeado no momento. Vincule os exames no painel DE-PARA!
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
 
-            {/* FOOTER ACTIONS */}
+            {/* RODAPÉ DO MODAL */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-800">
               <button
                 type="button"
                 onClick={handleExportCsv}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold px-4 py-2 rounded-xl transition cursor-pointer flex items-center gap-2"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-1.5"
               >
-                <Download className="w-4 h-4 text-teal-400" /> Exportar Planilha CSV
+                <Download className="w-3.5 h-3.5 text-cyan-400" /> Exportar Planilha CSV
               </button>
-
               <button
                 type="button"
                 onClick={() => setIsMappedExamsModalOpen(false)}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl text-xs cursor-pointer transition shadow-lg shadow-emerald-500/20"
               >
                 Fechar Visualizador
               </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* MODAL INSPETOR DE PAYLOAD (SOAP XML & REST JSON) */}
-      {selectedPayloadLog && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Code2 className="w-5 h-5 text-teal-400" />
-                  Inspetor Transacional: {selectedPayloadLog.id} ({selectedPayloadLog.protocolo})
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Paciente: <strong className="text-slate-200">{selectedPayloadLog.paciente}</strong> | Tenant: <strong className="text-teal-300">{selectedPayloadLog.tenant}</strong> | Horário: <span className="font-mono text-slate-300">{selectedPayloadLog.horario}</span>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPayloadLog(null)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* STATUS BADGE */}
-            <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
-              <span className="text-slate-400">Status da Transação:</span>
-              <span className="font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> {selectedPayloadLog.status}
-              </span>
-            </div>
-
-            {/* PAYLOAD CODE PANELS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 flex flex-col">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Terminal className="w-4 h-4 text-teal-400" /> SOAP XML Autolac ({selectedPayloadLog.tipo.split(" ")[0]})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const xmlText = `<root>\n  <codigoLab>${selectedPayloadLog.tenant}</codigoLab>\n  <solicitacao>\n    <protocolo>${selectedPayloadLog.protocolo}</protocolo>\n    <paciente>${selectedPayloadLog.paciente}</paciente>\n    <exame>${selectedPayloadLog.exames}</exame>\n  </solicitacao>\n</root>`;
-                      navigator.clipboard.writeText(xmlText);
-                      showNotification("📋 Payload SOAP XML copiado para a área de transferência!");
-                    }}
-                    className="text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 px-2.5 py-1 rounded transition font-semibold cursor-pointer"
-                  >
-                    Copiar XML
-                  </button>
-                </div>
-                <pre className="text-xs font-mono text-teal-300 bg-slate-900/90 p-3 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap border border-slate-800">
-{`<root>
-  <codigoLab>${selectedPayloadLog.tenant}</codigoLab>
-  <solicitacao>
-    <protocolo>${selectedPayloadLog.protocolo}</protocolo>
-    <paciente>${selectedPayloadLog.paciente}</paciente>
-    <exame>${selectedPayloadLog.exames}</exame>
-  </solicitacao>
-</root>`}
-                </pre>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 flex flex-col">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Terminal className="w-4 h-4 text-cyan-400" /> REST JSON Labfacil Apoio
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const jsonText = `{\n  "codigoLis": "${selectedPayloadLog.protocolo}",\n  "paciente": "${selectedPayloadLog.paciente}",\n  "status": "PROCESSADO_SUCESSO",\n  "exames": ["${selectedPayloadLog.exames}"]\n}`;
-                      navigator.clipboard.writeText(jsonText);
-                      showNotification("📋 Payload REST JSON copiado para a área de transferência!");
-                    }}
-                    className="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded transition font-semibold cursor-pointer"
-                  >
-                    Copiar JSON
-                  </button>
-                </div>
-                <pre className="text-xs font-mono text-cyan-300 bg-slate-900/90 p-3 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap border border-slate-800">
-{`{
-  "codigoLis": "${selectedPayloadLog.protocolo}",
-  "paciente": "${selectedPayloadLog.paciente}",
-  "status": "PROCESSADO_SUCESSO",
-  "exames": ["${selectedPayloadLog.exames}"]
-}`}
-                </pre>
-              </div>
-            </div>
-
-            {/* FOOTER */}
-            <div className="flex items-center justify-end pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setSelectedPayloadLog(null)}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
-              >
-                Fechar Inspetor
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL VISUALIZADOR DE LAUDO PDF */}
-      {selectedPdfLog && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-cyan-400" />
-                  Laudo de Diagnóstico Médico - {selectedPdfLog.protocolo}
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Paciente: <strong className="text-slate-200">{selectedPdfLog.paciente}</strong> | Apoio: <strong className="text-teal-300">Labfacil Apoio</strong> | Status: <span className="text-emerald-400 font-bold">ENTREGUE AO AUTOLAC</span>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPdfLog(null)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* LAUDO DOCUMENT PREVIEW (SIMULAÇÃO FIEL DO DOCUMENTO PDF) */}
-            <div className="flex-1 overflow-y-auto bg-slate-950 p-6 rounded-xl border border-slate-800 flex justify-center">
-              <div className="w-full max-w-2xl bg-white text-slate-900 p-8 rounded-lg shadow-2xl space-y-6 font-sans select-none border border-slate-300 text-xs">
-                {/* LAUDO HEADER */}
-                <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
-                  <div>
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">LABFACIL SOLUÇÕES EM SAÚDE & APOIO</h2>
-                    <p className="text-[10px] text-slate-600 font-semibold">Laboratório Central de Diagnósticos e Apoio Laboratorial</p>
-                  </div>
-                  <div className="text-right text-[10px] font-mono text-slate-700">
-                    <span className="font-bold text-slate-900 block text-xs">LAUDO Nº {selectedPdfLog.protocolo}</span>
-                    <span>Liberação: {selectedPdfLog.horario || new Date().toLocaleTimeString('pt-BR')}</span>
-                  </div>
-                </div>
-
-                {/* PACIENTE INFO BOX */}
-                <div className="bg-slate-100 p-3 rounded-lg border border-slate-300 grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Paciente:</span>
-                    <strong className="text-slate-950 font-black uppercase">{selectedPdfLog.paciente}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Laboratório Apoiado:</span>
-                    <strong className="text-teal-900 font-black">{selectedPdfLog.tenant || "San Mathews"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Protocolo LIS:</span>
-                    <strong className="font-mono text-slate-900 font-bold">{selectedPdfLog.protocolo}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-bold block text-[9px] uppercase">Médico Solicitante:</span>
-                    <strong className="text-slate-900 font-bold">Dr. Responsável Clínico</strong>
-                  </div>
-                </div>
-
-                {/* EXAMES E RESULTADOS */}
-                <div className="space-y-3">
-                  <h4 className="font-black text-xs text-slate-900 border-b border-slate-400 pb-1 uppercase tracking-wider">
-                    RESULTADO DOS EXAMES PROCESSADOS
-                  </h4>
-
-                  <div className="border border-slate-300 rounded overflow-hidden">
-                    <table className="w-full text-left text-[11px]">
-                      <thead className="bg-slate-200 text-slate-800 font-bold border-b border-slate-300">
-                        <tr>
-                          <th className="py-2 px-3">Exame / Parâmetro</th>
-                          <th className="py-2 px-3">Resultado</th>
-                          <th className="py-2 px-3">Unidade</th>
-                          <th className="py-2 px-3">Valores de Referência</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-mono">
-                        <tr>
-                          <td className="py-2 px-3 font-bold text-slate-900 font-sans">{selectedPdfLog.exames}</td>
-                          <td className="py-2 px-3 font-black text-teal-900">14.2</td>
-                          <td className="py-2 px-3">g/dL</td>
-                          <td className="py-2 px-3 text-slate-600">12.0 a 16.0 g/dL</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 px-3 font-bold text-slate-900 font-sans">GLICOSE DOSAGEM EM JEJUM</td>
-                          <td className="py-2 px-3 font-black text-teal-900">88</td>
-                          <td className="py-2 px-3">mg/dL</td>
-                          <td className="py-2 px-3 text-slate-600">70 a 99 mg/dL</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* ASSINATURA DIGITAL */}
-                <div className="pt-6 flex justify-between items-end border-t border-slate-300 text-[10px]">
-                  <div>
-                    <span className="text-slate-500 block">Autenticação Digital Hash:</span>
-                    <span className="font-mono text-slate-700 text-[9px]">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</span>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-32 border-b border-slate-900 mb-1"></div>
-                    <strong className="block text-slate-900 font-bold">Dra. Fernanda Santos</strong>
-                    <span className="text-slate-600 text-[9px]">Biomédica Responsável - CRBM 14.892</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* FOOTER ACTIONS */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  showNotification("📥 Baixando arquivo Laudo_PDF_Base64.pdf...");
-                }}
-                className="bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-2"
-              >
-                <Download className="w-4 h-4 text-teal-400" /> Baixar Laudo PDF
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedPdfLog(null)}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-teal-500/20"
-              >
-                Fechar Laudo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CONFIGURAÇÃO DA IMPRESSORA DO WINDOWS (ACESSADO NO TOPO AO LADO DE SAIR) */}
-      {isPrinterModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-teal-400" />
-                  Configurar Impressora da Estação de Trabalho
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Selecione a impressora física instalada no seu Windows nesta máquina</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPrinterModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePrinterSettings} className="space-y-4 text-xs">
-              {/* SELEÇÃO IMPRESSORA WINDOWS */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <Printer className="w-4 h-4 text-teal-400" /> Impressoras Instaladas no Windows
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleDetectWindowsPrinters}
-                    disabled={isDetectingPrinters}
-                    className="text-[11px] font-semibold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded-lg border border-teal-500/30 transition cursor-pointer flex items-center gap-1"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isDetectingPrinters ? "animate-spin text-teal-400" : ""}`} />
-                    {isDetectingPrinters ? "Detectando..." : "🔄 Detectar Impressoras"}
-                  </button>
-                </div>
-
-                <select
-                  value={selectedWindowsPrinter}
-                  onChange={(e) => setSelectedWindowsPrinter(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-3 text-xs text-teal-300 font-bold focus:outline-none focus:border-teal-500/50 cursor-pointer"
-                >
-                  {windowsPrinters.map((p, idx) => (
-                    <option key={idx} value={p} className="bg-slate-900 text-slate-200">
-                      🖨️ {p}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono bg-slate-900 p-2.5 rounded-lg border border-slate-800/80">
-                  <span>Impressora Selecionada: <strong className="text-teal-300">{selectedWindowsPrinter}</strong></span>
-                  <span className="text-emerald-400 font-bold">PRONTO</span>
-                </div>
-              </div>
-
-              {/* COMPORTAMENTO & NOME PERSONALIZADO */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Comportamento de Impressão</label>
-                  <select
-                    value={printerMode}
-                    onChange={(e) => setPrinterMode(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 cursor-pointer"
-                  >
-                    <option value="dialog">🖨️ Caixa do Navegador (Janela do Sistema - Imagem 2)</option>
-                    <option value="direct">⚡ Impressão Direta Silenciosa (Disparo RAW / Spooler)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Nome Exato no Windows / Fila (Personalizado)</label>
-                  <input
-                    type="text"
-                    placeholder="Ex.: Zebra ZD220, Argox OS-214"
-                    value={selectedWindowsPrinter}
-                    onChange={(e) => setSelectedWindowsPrinter(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-teal-300 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-              </div>
-
-              {/* FOOTER */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsPrinterModalOpen(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
-                >
-                  <CheckCircle2 className="w-4 h-4 text-slate-950" /> 💾 Salvar Impressora Padrão
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL REDEFINIR SENHA DO USUÁRIO LOGADO */}
-      {isChangePasswordModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Key className="w-5 h-5 text-amber-400" />
-                  Mudar Minha Senha
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Atualize a senha de acesso da sua conta</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsChangePasswordModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleResetPasswordSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">E-mail da Conta</label>
-                <input
-                  type="email"
-                  disabled
-                  value={resetEmail || currentUser?.email || ""}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-400 font-mono text-xs cursor-not-allowed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Senha Atual da Conta</label>
-                <div className="relative">
-                  <input
-                    type={showResetPassword ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    value={resetCurrentPassword}
-                    onChange={(e) => setResetCurrentPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
-                  >
-                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nova Senha</label>
-                <div className="relative">
-                  <input
-                    type={showResetPassword ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    value={resetNewPassword}
-                    onChange={(e) => setResetNewPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                  >
-                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Confirmar Nova Senha</label>
-                <div className="relative">
-                  <input
-                    type={showResetPassword ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    value={resetConfirmPassword}
-                    onChange={(e) => setResetConfirmPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-teal-500/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                    title={showResetPassword ? "Ocultar Senha" : "Exibir Senha"}
-                  >
-                    {showResetPassword ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsChangePasswordModalOpen(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isResettingPassword}
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-2 shadow-lg shadow-teal-500/20"
-                >
-                  <Key className="w-4 h-4 text-slate-950" />
-                  {isResettingPassword ? "Salvando..." : "🔐 Salvar Nova Senha"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL 3: IMPORTADOR DE ARQUIVOS (CSV / JSON) */}
       {isImportModalOpen && (
