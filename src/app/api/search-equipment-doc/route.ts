@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { CATALOGO_EQUIPAMENTOS_DOC } from '../../../data/equipamentos-catalog';
 
 interface IExamDoc {
   codigoEquipamento: string;
@@ -126,18 +127,7 @@ export async function POST(req: NextRequest) {
         tipoComunicacao = 'TCP_IP';
         formatoArquivo = 'HL7';
         porta = 5100;
-        exames = [
-          { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Citometria de Fluxo a Laser', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
-          { codigoEquipamento: 'Neu#', nomeExame: 'Neutrófilos Absolutos', metodoOuPrincipio: 'Laser Dispersão Óptica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'NEUT_ABS', categoria: 'Diferencial' },
-          { codigoEquipamento: 'Lym#', nomeExame: 'Linfócitos Absolutos', metodoOuPrincipio: 'Laser Dispersão Óptica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LINFO_ABS', categoria: 'Diferencial' },
-          { codigoEquipamento: 'Mon#', nomeExame: 'Monócitos Absolutos', metodoOuPrincipio: 'Laser Dispersão Óptica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'MONO_ABS', categoria: 'Diferencial' },
-          { codigoEquipamento: 'Eos#', nomeExame: 'Eosinófilos Absolutos', metodoOuPrincipio: 'Laser Dispersão Óptica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'EOS_ABS', categoria: 'Diferencial' },
-          { codigoEquipamento: 'Bas#', nomeExame: 'Basófilos Absolutos', metodoOuPrincipio: 'Laser Dispersão Óptica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'BASO_ABS', categoria: 'Diferencial' },
-          { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
-          { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria Sem Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
-          { codigoEquipamento: 'HCT', nomeExame: 'Hematócrito', metodoOuPrincipio: 'Integração Cumulativa', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '%', codigoLabfacilSugerido: 'HT', categoria: 'Série Vermelha' },
-          { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
-        ];
+        exames = CATALOGO_EQUIPAMENTOS_DOC.BC_5380.exames as IExamDoc[];
       } else if (tUpper.includes('3000')) {
         // Mindray BC-3000 Plus Foto Real
         imagemUrl = 'https://dipylonmedical.com/wp-content/uploads/2021/09/mindray-BC-3000Plus-300x300.jpeg';
@@ -150,12 +140,7 @@ export async function POST(req: NextRequest) {
         tipoComunicacao = 'SERIAL';
         formatoArquivo = 'ASTM';
         baudRate = 9600;
-        exames = [
-          { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
-          { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
-          { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria Sem Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
-          { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
-        ];
+        exames = CATALOGO_EQUIPAMENTOS_DOC.BC_3000.exames as IExamDoc[];
       } else {
         // Mindray BS-240 / BS-380 Foto Real
         imagemUrl = 'https://medisolve.com.bd/uploads/products/Mindray-BS-240-Fully-Automated-Chemistry-Analyzer@2x.jpg';
@@ -168,15 +153,7 @@ export async function POST(req: NextRequest) {
         tipoComunicacao = 'TCP_IP';
         formatoArquivo = 'HL7';
         porta = 5100;
-        exames = [
-          { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'GOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Glicídios' },
-          { codigoEquipamento: 'UREA', nomeExame: 'Ureia UV', metodoOuPrincipio: 'Urease Cinético', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'UREIA', categoria: 'Função Renal' },
-          { codigoEquipamento: 'CREA', nomeExame: 'Creatinina', metodoOuPrincipio: 'Jaffé Cinético', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'CREATININA', categoria: 'Função Renal' },
-          { codigoEquipamento: 'CHOL', nomeExame: 'Colesterol Total', metodoOuPrincipio: 'CHOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'COL1TOTAL', categoria: 'Lipídios' },
-          { codigoEquipamento: 'TRIG', nomeExame: 'Triglicerídeos', metodoOuPrincipio: 'GPO-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'TRIGLI', categoria: 'Lipídios' },
-          { codigoEquipamento: 'ALT', nomeExame: 'TGP / ALT', metodoOuPrincipio: 'IFCC UV', amostraSugerida: 'Soro', unidadePadrao: 'U/L', codigoLabfacilSugerido: 'TGP', categoria: 'Hepático' },
-          { codigoEquipamento: 'AST', nomeExame: 'TGO / AST', metodoOuPrincipio: 'IFCC UV', amostraSugerida: 'Soro', unidadePadrao: 'U/L', codigoLabfacilSugerido: 'TGO', categoria: 'Hepático' }
-        ];
+        exames = CATALOGO_EQUIPAMENTOS_DOC.BS_240.exames as IExamDoc[];
       }
     } else if (tUpper.includes('ROCHE') || tUpper.includes('COBAS')) {
       fabricante = 'Roche Diagnostics';
@@ -237,12 +214,7 @@ export async function POST(req: NextRequest) {
       tipoComunicacao = 'TCP_IP';
       formatoArquivo = 'HL7';
       porta = 5100;
-      exames = [
-        { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância Elétrica / Dispersão Laser', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
-        { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria Livre de Cianeto', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância Elétrica', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
-      ];
+      exames = (tUpper.includes('Z5') ? CATALOGO_EQUIPAMENTOS_DOC.ZYBIO_Z5.exames : CATALOGO_EQUIPAMENTOS_DOC.ZYBIO_Z3.exames) as IExamDoc[];
     } else if (tUpper.includes('HORIBA') || tUpper.includes('YUMIZEN')) {
       fabricante = 'Horiba Medical';
       // Horiba Yumizen H500 Foto Oficial
@@ -256,12 +228,7 @@ export async function POST(req: NextRequest) {
       tipoComunicacao = 'TCP_IP';
       formatoArquivo = 'ASTM';
       porta = 5100;
-      exames = [
-        { codigoEquipamento: 'WBC', nomeExame: 'Leucócitos Totais', metodoOuPrincipio: 'Impedância / Citometria', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'LEUCO', categoria: 'Série Branca' },
-        { codigoEquipamento: 'RBC', nomeExame: 'Hemácias', metodoOuPrincipio: 'Impedância', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^6/µL', codigoLabfacilSugerido: 'HEMAC', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'HGB', nomeExame: 'Hemoglobina', metodoOuPrincipio: 'Fotometria', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: 'g/dL', codigoLabfacilSugerido: 'HB', categoria: 'Série Vermelha' },
-        { codigoEquipamento: 'PLT', nomeExame: 'Plaquetas', metodoOuPrincipio: 'Impedância', amostraSugerida: 'Sangue Total EDTA', unidadePadrao: '10^3/µL', codigoLabfacilSugerido: 'PLAQUETAS', categoria: 'Plaquetas' }
-      ];
+      exames = CATALOGO_EQUIPAMENTOS_DOC.YUMIZEN.exames as IExamDoc[];
     } else if (tUpper.includes('WIENER') || tUpper.includes('CM250') || tUpper.includes('CM 250')) {
       fabricante = 'Wiener lab.';
       // Wiener CM 250 Foto Real
@@ -275,11 +242,7 @@ export async function POST(req: NextRequest) {
       tipoComunicacao = 'SERIAL';
       formatoArquivo = 'ASTM';
       baudRate = 9600;
-      exames = [
-        { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'Enzimático GOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Bioquímica' },
-        { codigoEquipamento: 'URE', nomeExame: 'Ureia UV', metodoOuPrincipio: 'Cinético UV', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'UREIA', categoria: 'Bioquímica' },
-        { codigoEquipamento: 'CRE', nomeExame: 'Creatinina', metodoOuPrincipio: 'Cinético Jaffé', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'CREATININA', categoria: 'Bioquímica' }
-      ];
+      exames = CATALOGO_EQUIPAMENTOS_DOC.CM250.exames as IExamDoc[];
     } else if (tUpper.includes('CORMAY') || tUpper.includes('CB350') || tUpper.includes('MC240')) {
       fabricante = 'Cormay Diagnostics';
       // Cormay Accent MC240 / CB350 Foto Oficial
@@ -292,11 +255,7 @@ export async function POST(req: NextRequest) {
       ];
       tipoComunicacao = 'ARQUIVO_COMPARTILHADO';
       formatoArquivo = 'JSON';
-      exames = [
-        { codigoEquipamento: 'GLU', nomeExame: 'Glicose', metodoOuPrincipio: 'Enzimático GOD-PAP', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'GLICOSE', categoria: 'Bioquímica' },
-        { codigoEquipamento: 'UREA', nomeExame: 'Ureia UV', metodoOuPrincipio: 'Cinético UV', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'UREIA', categoria: 'Bioquímica' },
-        { codigoEquipamento: 'CREA', nomeExame: 'Creatinina', metodoOuPrincipio: 'Cinético Jaffé', amostraSugerida: 'Soro', unidadePadrao: 'mg/dL', codigoLabfacilSugerido: 'CREATININA', categoria: 'Bioquímica' }
-      ];
+      exames = CATALOGO_EQUIPAMENTOS_DOC.CB350.exames as IExamDoc[];
     } else if (tUpper.includes('BECKMAN') || tUpper.includes('ACCESS')) {
       fabricante = 'Beckman Coulter';
       // Beckman Access 2 Foto Oficial
@@ -310,10 +269,7 @@ export async function POST(req: NextRequest) {
       tipoComunicacao = 'SERIAL';
       formatoArquivo = 'ASTM';
       baudRate = 9600;
-      exames = [
-        { codigoEquipamento: 'TSH', nomeExame: 'TSH 3ª Geração', metodoOuPrincipio: 'Quimioluminescência', amostraSugerida: 'Soro', unidadePadrao: 'µIU/mL', codigoLabfacilSugerido: 'TSH', categoria: 'Tireoide' },
-        { codigoEquipamento: 'FT4', nomeExame: 'T4 Livre', metodoOuPrincipio: 'Quimioluminescência', amostraSugerida: 'Soro', unidadePadrao: 'ng/dL', codigoLabfacilSugerido: 'T4LIVRE', categoria: 'Tireoide' }
-      ];
+      exames = CATALOGO_EQUIPAMENTOS_DOC.ACCESS.exames as IExamDoc[];
     } else if (tUpper.includes('DYMIND')) {
       fabricante = 'Dymind Biotechnology';
       // Dymind DH36 Foto Real

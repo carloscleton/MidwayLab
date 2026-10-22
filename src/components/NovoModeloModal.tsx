@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Sparkles, Search, RefreshCw, Cpu, Tag, Globe, Save, X, Image as ImageIcon } from "lucide-react";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
+import ExamesModeloCrud from "./ExamesModeloCrud";
 
 interface NovoModeloModalProps {
   isOpen: boolean;
@@ -477,31 +478,17 @@ export default function NovoModeloModal({
                 )}
               </div>
 
-              {/* PREVIEW DE TESTES MAPEADOS */}
-              <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-cyan-400" /> Testes / Códigos Identificados na Documentação ({searchedModeloResult.exames?.length || 0})
-                  </span>
-                  <span className="text-[10px] text-slate-500">Mapeados automaticamente com Labfacil</span>
-                </div>
-                <div className="max-h-40 overflow-y-auto space-y-1 pr-1 font-mono text-[11px]">
-                  {searchedModeloResult.exames?.map((ex, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-slate-950 px-2.5 py-1 rounded border border-slate-800/60">
-                      <div className="flex items-center gap-2">
-                        <span className="text-teal-400 font-bold">{ex.codigoEquipamento}</span>
-                        <span className="text-slate-300 font-sans text-xs">{ex.nomeExame}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">
-                          Labfacil: {ex.codigoLabfacilSugerido || "-"}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-sans">{ex.amostraSugerida || "Soro"}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* CRUD E PESQUISA DOS CÓDIGOS DE EXAMES DO ANALISADOR */}
+              <ExamesModeloCrud
+                exames={searchedModeloResult.exames || []}
+                onChange={(novosExames) =>
+                  setSearchedModeloResult({
+                    ...searchedModeloResult,
+                    exames: novosExames
+                  })
+                }
+                accentColor="indigo"
+              />
             </div>
           ) : (
             <div className="bg-slate-950/60 border border-dashed border-slate-800 rounded-xl p-8 text-center space-y-2">

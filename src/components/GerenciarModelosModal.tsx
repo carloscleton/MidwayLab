@@ -19,6 +19,7 @@ import {
   FileText
 } from "lucide-react";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
+import ExamesModeloCrud from "./ExamesModeloCrud";
 
 interface GerenciarModelosModalProps {
   isOpen: boolean;
@@ -314,7 +315,7 @@ export default function GerenciarModelosModal({
       {/* SUB-MODAL: EDITAR MODELO */}
       {editingModelo && (
         <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl max-h-[90vh] rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl sm:max-w-3xl max-h-[92vh] rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Edit className="w-4 h-4 text-teal-400" /> Editar Modelo: {editingModelo.codigo_modelo}
@@ -717,6 +718,18 @@ export default function GerenciarModelosModal({
                   </div>
                 )}
               </div>
+
+              {/* CRUD E PESQUISA DOS CÓDIGOS DE EXAMES DO ANALISADOR */}
+              <ExamesModeloCrud
+                exames={editingModelo.exames || []}
+                onChange={(novosExames) =>
+                  setEditingModelo({
+                    ...editingModelo,
+                    exames: novosExames
+                  })
+                }
+                accentColor="teal"
+              />
 
               <div className="flex items-center gap-2 pt-2">
                 <input
