@@ -1811,11 +1811,9 @@ export default function MidwayLabDashboard() {
 
   // SINCRONIZAÇÃO DE EXAMES DO EQUIPAMENTO ESCOLHIDO NO DE-PARA
   useEffect(() => {
-    const activeT = tenants.find(t => t.nome === selectedTenant) || tenants[0];
-    const equipsDoTenant = equipamentosList.filter(eq => activeT ? eq.tenant_id === activeT.id : true);
-    const equip = (equipsDoTenant.length > 0
-      ? (equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0])
-      : (equipamentosList.find(e => e.id === selectedDeparaEquipId) || equipamentosList[0])) || null;
+    const activeT = tenants.find(t => t.nome === selectedTenant);
+    const equipsDoTenant = activeT ? equipamentosList.filter(eq => eq.tenant_id === activeT.id) : [];
+    const equip = equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0] || null;
 
     if (equip && activeTab === "depara") {
       setActiveEquipamentoForDoc(equip);
@@ -1827,6 +1825,9 @@ export default function MidwayLabDashboard() {
         setEquipamentoExamesList(res.exames);
         setOrigemExamesAparelho(res.origem);
       }).catch(err => console.warn("Erro ao obter exames do equipamento:", err));
+    } else if (!equip && activeTab === "depara") {
+      setActiveEquipamentoForDoc(null);
+      setEquipamentoExamesList([]);
     }
   }, [selectedDeparaEquipId, selectedTenant, activeTab, equipamentosList]);
 
@@ -2032,6 +2033,9 @@ export default function MidwayLabDashboard() {
       setSelectedTenant(tenantNome);
       setSelectedLabfacilExam(null);
       setSelectedAutolacExam(null);
+      setSelectedDeparaEquipId("");
+      setActiveEquipamentoForDoc(null);
+      setEquipamentoExamesList([]);
       setSearchLabfacil("");
       setSearchAutolac("");
       if (activeTenant) {
@@ -2189,7 +2193,9 @@ export default function MidwayLabDashboard() {
         descricao_labfacil: selectedLabfacilExam.descricao || labfacilCode,
         tipo_resultado: selectedLabfacilExam.tipo || 'PDF'
       });
-      const equip = activeEquipamentoForDoc || (equipamentosList.find(e => e.id === selectedDeparaEquipId) || equipamentosList[0]);
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      const equipsDoTenant = activeTenantObj ? equipamentosList.filter(eq => eq.tenant_id === activeTenantObj.id) : [];
+      const equip = activeEquipamentoForDoc || (equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0] || null);
       if (equip) {
         await EquipamentoExamesService.salvarExamesNoBanco(novaListaEquip, equip.modelo, equip.id, equip.tenant_id);
       }
@@ -3407,11 +3413,9 @@ export default function MidwayLabDashboard() {
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
         {/* TAB DE-PARA: ULTRA DYNAMIC DUAL-SEARCH EXAM MATCHER */}
         {activeTab === "depara" && (() => {
-          const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
-          const equipsDoTenant = equipamentosList.filter(eq => activeTenantObj ? eq.tenant_id === activeTenantObj.id : true);
-          const currentDeparaEquip = (equipsDoTenant.length > 0
-            ? (equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0])
-            : (equipamentosList.find(e => e.id === selectedDeparaEquipId) || equipamentosList[0])) || null;
+          const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+          const equipsDoTenant = activeTenantObj ? equipamentosList.filter(eq => eq.tenant_id === activeTenantObj.id) : [];
+          const currentDeparaEquip = equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0] || null;
 
           return (
           <div className="space-y-6">
@@ -3422,44 +3426,25 @@ export default function MidwayLabDashboard() {
                   <GitCompare className="w-6 h-6 text-teal-400" /> Mapeador Dinâmico DE-PARA (Labfacil Apoio ↔ Equipamento do Laboratório)
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                  Pesquise lado a lado nos catálogos do Labfacil ({labfacilExames.length} exames) e do equipamento ({currentDeparaEquip?.nome || 'Equipamento'} com {equipamentoExamesList.length} testes) associado à empresa <strong className="text-teal-300">{selectedTenant}</strong> para relacionar exames instantaneamente!
+                  {currentDeparaEquip ? (
+                    <>Pesquise lado a lado nos catálogos do Labfacil ({labfacilExames.length} exames) e do equipamento ({currentDeparaEquip.nome} com {equipamentoExamesList.length} testes) associado à empresa <strong className="text-teal-300">{selectedTenant}</strong> para relacionar exames instantaneamente!</>
+                  ) : (
+                    <>Catálogo do Labfacil ({labfacilExames.length} exames) para a empresa <strong className="text-teal-300">{selectedTenant}</strong>. Nenhum equipamento vinculado a esta empresa — cadastre um analisador na aba <strong>Equipamentos</strong>.</>
+                  )}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto pt-2 lg:pt-0">
-                {/* SELETOR DO EQUIPAMENTO ASSOCIADO À EMPRESA */}
-                <div className="flex items-center gap-2 bg-slate-950 border border-cyan-500/30 px-3 py-2 rounded-xl text-xs">
-                  <Server className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span className="text-slate-400 font-semibold shrink-0">Equipamento:</span>
-                  <select
-                    value={currentDeparaEquip?.id || ""}
-                    onChange={(e) => {
-                      const newId = e.target.value;
-                      setSelectedDeparaEquipId(newId);
-                      const found = equipamentosList.find(eq => eq.id === newId);
-                      if (found) {
-                        setActiveEquipamentoForDoc(found);
-                        EquipamentoExamesService.obterExamesDoAparelho(found.modelo, found.id, found.tenant_id).then(res => {
-                          setEquipamentoExamesList(res.exames);
-                          setOrigemExamesAparelho(res.origem);
-                        });
-                      }
-                    }}
-                    className="bg-transparent text-cyan-300 font-mono font-bold focus:outline-none cursor-pointer"
-                  >
-                    {(equipsDoTenant.length > 0 ? equipsDoTenant : equipamentosList).map(eq => (
-                      <option key={eq.id} value={eq.id} className="bg-slate-900 text-slate-200">
-                        {eq.nome} ({eq.modelo})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 {/* BUTTON 1: NOVO MAPEAMENTO */}
                 <button
                   type="button"
                   onClick={() => handleOpenMapExam(labfacilExames[0])}
-                  className="px-3.5 h-10 rounded-xl text-xs font-extrabold bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 cursor-pointer whitespace-nowrap text-center"
+                  disabled={!currentDeparaEquip}
+                  className={`px-3.5 h-10 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 shadow-lg whitespace-nowrap text-center ${
+                    !currentDeparaEquip
+                      ? "opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700"
+                      : "bg-teal-500 hover:bg-teal-400 text-slate-950 border border-teal-400 shadow-teal-500/20 cursor-pointer"
+                  }`}
                 >
                   <Plus className="w-4 h-4 text-slate-950" /> Novo Mapeamento
                 </button>
@@ -3607,7 +3592,7 @@ export default function MidwayLabDashboard() {
                       onChange={(e) => {
                         const newId = e.target.value;
                         setSelectedDeparaEquipId(newId);
-                        const found = equipamentosList.find(eq => eq.id === newId);
+                        const found = equipsDoTenant.find(eq => eq.id === newId);
                         if (found) {
                           setActiveEquipamentoForDoc(found);
                           EquipamentoExamesService.obterExamesDoAparelho(found.modelo, found.id, found.tenant_id).then(res => {
@@ -3616,13 +3601,18 @@ export default function MidwayLabDashboard() {
                           });
                         }
                       }}
-                      className="bg-slate-950 border border-cyan-500/40 rounded-lg px-2.5 py-1 text-xs text-cyan-300 font-bold font-mono focus:outline-none focus:border-cyan-400 cursor-pointer"
+                      disabled={equipsDoTenant.length === 0}
+                      className="bg-slate-950 border border-cyan-500/40 rounded-lg px-2.5 py-1 text-xs text-cyan-300 font-bold font-mono focus:outline-none focus:border-cyan-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {(equipsDoTenant.length > 0 ? equipsDoTenant : equipamentosList).map(eq => (
-                        <option key={eq.id} value={eq.id}>
-                          {eq.nome} ({eq.modelo})
-                        </option>
-                      ))}
+                      {equipsDoTenant.length === 0 ? (
+                        <option value="">Nenhum equipamento cadastrado</option>
+                      ) : (
+                        equipsDoTenant.map(eq => (
+                          <option key={eq.id} value={eq.id}>
+                            {eq.nome} ({eq.modelo})
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -3793,7 +3783,29 @@ export default function MidwayLabDashboard() {
                     </span>
                   )}
                 </div>
-                {filteredEquipamentoExames.map((item, eqIdx) => {
+                {equipsDoTenant.length === 0 ? (
+                  <div className="py-12 px-4 text-center space-y-3">
+                    <Server className="w-10 h-10 text-slate-600 mx-auto opacity-40" />
+                    <p className="text-xs font-bold text-slate-300">
+                      Nenhum equipamento vinculado a esta empresa
+                    </p>
+                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                      A empresa <strong className="text-teal-400">{selectedTenant}</strong> ainda não possui analisadores cadastrados.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("equipamentos")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-teal-300 rounded-lg text-xs font-bold transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Ir para Cadastro de Equipamentos
+                    </button>
+                  </div>
+                ) : filteredEquipamentoExames.length === 0 ? (
+                  <div className="py-10 text-center text-slate-500 text-xs">
+                    Nenhum exame encontrado no catálogo deste equipamento.
+                  </div>
+                ) : (
+                  filteredEquipamentoExames.map((item, eqIdx) => {
                   const isSelected = (selectedEquipamentoExam?.codigoEquipamento === item.codigoEquipamento) || (selectedAutolacExam?.codigo === item.codigoEquipamento);
                   const isExpanded = exameExpandidoKey === (item.id || item.codigoEquipamento);
                   return (
@@ -3935,7 +3947,7 @@ export default function MidwayLabDashboard() {
                       )}
                     </div>
                   );
-                })}
+                }))}
               </div>
             </div>
 
@@ -3970,14 +3982,20 @@ export default function MidwayLabDashboard() {
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-cyan-400" />
                     <span className="font-bold text-slate-100 text-sm">
-                      Catálogo do Equipamento: {currentDeparaEquip?.nome} ({currentDeparaEquip?.modelo})
+                      {currentDeparaEquip ? `Catálogo do Equipamento: ${currentDeparaEquip.nome} (${currentDeparaEquip.modelo})` : `Catálogo do Equipamento`}
                     </span>
-                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                      {origemExamesAparelho === 'BANCO' ? 'Sincronizado no Banco (Supabase)' : 'Documentação do Modelo'}
-                    </span>
+                    {currentDeparaEquip && (
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                        {origemExamesAparelho === 'BANCO' ? 'Sincronizado no Banco (Supabase)' : 'Documentação do Modelo'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Fabricante: <strong className="text-slate-300">{currentDeparaEquip?.fabricante || 'Padrão'}</strong> | Empresa: <strong className="text-teal-300">{selectedTenant}</strong> | Duplo clique para alterar código do equipamento ou do sistema (Labfacil).
+                    {currentDeparaEquip ? (
+                      <>Fabricante: <strong className="text-slate-300">{currentDeparaEquip.fabricante || 'Padrão'}</strong> | Empresa: <strong className="text-teal-300">{selectedTenant}</strong> | Duplo clique para alterar código do equipamento ou do sistema (Labfacil).</>
+                    ) : (
+                      <>Empresa: <strong className="text-teal-300">{selectedTenant}</strong> (Nenhum equipamento vinculado)</>
+                    )}
                   </p>
                 </div>
 
@@ -4062,7 +4080,21 @@ export default function MidwayLabDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
-                    {equipamentoExamesList
+                    {equipsDoTenant.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-slate-500 text-xs font-sans">
+                          <Server className="w-8 h-8 text-slate-600 mx-auto opacity-40 mb-2" />
+                          Nenhum equipamento cadastrado para a empresa <strong className="text-slate-300">{selectedTenant}</strong>.
+                        </td>
+                      </tr>
+                    ) : equipamentoExamesList.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-10 text-center text-slate-500 text-xs font-sans">
+                          Nenhum exame cadastrado no catálogo deste equipamento. Clique em <strong>+ Incluir Exame</strong> para adicionar.
+                        </td>
+                      </tr>
+                    ) : (
+                      equipamentoExamesList
                       .filter((ex) => {
                         if (deparaFilter === "mapeados" && !ex.codigoLabfacilSugerido) return false;
                         if (deparaFilter === "pendentes" && Boolean(ex.codigoLabfacilSugerido)) return false;
@@ -4285,7 +4317,7 @@ export default function MidwayLabDashboard() {
                             )}
                           </React.Fragment>
                         );
-                      })}
+                      }))}
                   </tbody>
                 </table>
               </div>
