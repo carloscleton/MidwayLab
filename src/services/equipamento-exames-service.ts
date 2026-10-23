@@ -161,6 +161,33 @@ export class EquipamentoExamesService {
     }));
   }
 
+  private static aplicarOrdemSalva(
+    lista: IExameEquipamentoRecord[],
+    modelo: string,
+    equipamentoId?: string
+  ): IExameEquipamentoRecord[] {
+    if (typeof window === 'undefined') return lista;
+    try {
+      const saved = (equipamentoId && localStorage.getItem(`ordem_exames_${equipamentoId}`)) ||
+                    localStorage.getItem(`ordem_exames_${modelo}`);
+      if (saved) {
+        const codigos: string[] = JSON.parse(saved);
+        if (Array.isArray(codigos) && codigos.length > 0) {
+          const mapaPosicoes = new Map<string, number>();
+          codigos.forEach((cod, i) => mapaPosicoes.set(cod.toUpperCase(), i));
+          return [...lista].sort((a, b) => {
+            const pA = mapaPosicoes.has(a.codigoEquipamento.toUpperCase()) ? mapaPosicoes.get(a.codigoEquipamento.toUpperCase())! : 9999;
+            const pB = mapaPosicoes.has(b.codigoEquipamento.toUpperCase()) ? mapaPosicoes.get(b.codigoEquipamento.toUpperCase())! : 9999;
+            return pA - pB;
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[EquipamentoExamesService] Erro ao aplicar ordem:', e);
+    }
+    return lista;
+  }
+
   /**
    * Obtém os exames do equipamento: busca primeiro no banco (depara_exames).
    * Se não houver nenhum exame de catálogo gravado, carrega os exames nativos da documentação do aparelho / modelo.
@@ -176,13 +203,17 @@ export class EquipamentoExamesService {
           .from(TABELA)
           .select('*')
           .eq('equipamento_id', equipamentoId)
-          .eq('catalogo_aparelho', true)
-          .order('descricao_labfacil', { ascending: true });
+          .eq('catalogo_aparelho', true);
 
         if (error) {
           console.warn('[EquipamentoExamesService] Erro na busca no banco:', error.message);
         } else if (data && data.length > 0) {
-          return { origem: 'BANCO', exames: data.map((d: any) => this.fromRow(d, modelo)) };
+          const exames = this.aplicarOrdemSalva(
+            data.map((d: any) => this.fromRow(d, modelo)),
+            modelo,
+            equipamentoId
+          );
+          return { origem: 'BANCO', exames };
         }
       }
     } catch (e) {
@@ -199,7 +230,7 @@ export class EquipamentoExamesService {
       });
     }
 
-    return { origem: 'DOC_APARELHO', exames: examesPadrao };
+    return { origem: 'DOC_APARELHO', exames: this.aplicarOrdemSalva(examesPadrao, modelo, equipamentoId) };
   }
 
   /**

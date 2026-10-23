@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, startTransition } from "react";
+import React, { useState, useEffect, useRef, startTransition } from "react";
 import { supabaseBrowser } from "../lib/supabase-client";
 import { UserService } from "../services/user-service";
 import { TenantService } from "../services/tenant-service";
@@ -282,6 +282,8 @@ export default function MidwayLabDashboard() {
   const [editingInlineCell, setEditingInlineCell] = useState<{ id: string; field: 'codigoEquipamento' | 'codigoLabfacilSugerido' } | null>(null);
   const [draggedExameIndex, setDraggedExameIndex] = useState<number | null>(null);
   const [dragOverExameIndex, setDragOverExameIndex] = useState<number | null>(null);
+  const [dragActiveRowIndex, setDragActiveRowIndex] = useState<number | null>(null);
+  const draggedIdxRef = useRef<number | null>(null);
   const [novoExameForm, setNovoExameForm] = useState({
     codigoEquipamento: "",
     nomeExame: "",
@@ -293,10 +295,25 @@ export default function MidwayLabDashboard() {
     ativo: true
   });
 
-  // Grava a lista de exames do aparelho em public.depara_exames e recarrega do banco (para obter os ids reais)
-  const persistirExamesAparelho = async (lista: IExameEquipamentoRecord[], msgSucesso: string) => {
+  // Grava a lista de exames do aparelho em public.depara_exames e preserva a ordenação do usuário
+  const persistirExamesAparelho = async (
+    lista: IExameEquipamentoRecord[],
+    msgSucesso: string,
+    recarregarDoBanco: boolean = true
+  ) => {
     setEquipamentoExamesList(lista);
-    const modelo = viewDocEquipamentoModal?.modelo || "CB350";
+    const modelo = viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
+    const equipId = activeEquipamentoForDoc?.id;
+
+    // Salva a ordem imediatamente no localStorage para o modelo e para o id do equipamento
+    if (typeof window !== "undefined") {
+      const codigos = lista.map(e => e.codigoEquipamento);
+      localStorage.setItem(`ordem_exames_${modelo}`, JSON.stringify(codigos));
+      if (equipId) {
+        localStorage.setItem(`ordem_exames_${equipId}`, JSON.stringify(codigos));
+      }
+    }
+
     setIsSavingExamesAparelho(true);
     const res = await EquipamentoExamesService.salvarExamesNoBanco(
       lista,
@@ -305,13 +322,15 @@ export default function MidwayLabDashboard() {
       activeEquipamentoForDoc?.tenant_id
     );
     if (res.ok) {
-      const atualizado = await EquipamentoExamesService.obterExamesDoAparelho(
-        modelo,
-        activeEquipamentoForDoc?.id,
-        activeEquipamentoForDoc?.tenant_id
-      );
-      setEquipamentoExamesList(atualizado.exames);
-      setOrigemExamesAparelho(atualizado.origem);
+      if (recarregarDoBanco) {
+        const atualizado = await EquipamentoExamesService.obterExamesDoAparelho(
+          modelo,
+          activeEquipamentoForDoc?.id,
+          activeEquipamentoForDoc?.tenant_id
+        );
+        setEquipamentoExamesList(atualizado.exames);
+        setOrigemExamesAparelho(atualizado.origem);
+      }
       showNotification(msgSucesso);
     } else {
       showNotification(`⚠️ Não foi possível gravar no banco: ${res.erro || "erro desconhecido"}`);
@@ -4505,14 +4524,16 @@ export default function MidwayLabDashboard() {
                         return (
                           <React.Fragment key={ex.id || ex.codigoEquipamento}>
                             <tr
-                              draggable={!editingInlineCell}
+                              draggable={dragActiveRowIndex === realIdx}
                               onDragStart={(e) => {
+                                draggedIdxRef.current = realIdx;
                                 setDraggedExameIndex(realIdx);
                                 e.dataTransfer.effectAllowed = "move";
                                 e.dataTransfer.setData("text/plain", String(realIdx));
                               }}
                               onDragOver={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 e.dataTransfer.dropEffect = "move";
                                 if (dragOverExameIndex !== realIdx) {
                                   setDragOverExameIndex(realIdx);
@@ -4525,25 +4546,30 @@ export default function MidwayLabDashboard() {
                               }}
                               onDrop={(e) => {
                                 e.preventDefault();
-                                if (draggedExameIndex === null || draggedExameIndex === realIdx) {
-                                  setDraggedExameIndex(null);
-                                  setDragOverExameIndex(null);
-                                  return;
+                                e.stopPropagation();
+                                const fromIdx = draggedIdxRef.current !== null ? draggedIdxRef.current : (
+                                  e.dataTransfer.getData("text/plain") ? parseInt(e.dataTransfer.getData("text/plain"), 10) : draggedExameIndex
+                                );
+                                if (fromIdx !== null && !isNaN(fromIdx) && fromIdx !== realIdx) {
+                                  const novaLista = [...equipamentoExamesList];
+                                  const [itemMovido] = novaLista.splice(fromIdx, 1);
+                                  novaLista.splice(realIdx, 0, itemMovido);
+                                  setEquipamentoExamesList(novaLista);
+                                  persistirExamesAparelho(novaLista, `↕ Exame ${itemMovido.codigoEquipamento} movido para posição ${realIdx + 1}`, false);
                                 }
-                                const novaLista = [...equipamentoExamesList];
-                                const [itemMovido] = novaLista.splice(draggedExameIndex, 1);
-                                novaLista.splice(realIdx, 0, itemMovido);
-                                setEquipamentoExamesList(novaLista);
-                                persistirExamesAparelho(novaLista, `↕ Exame ${itemMovido.codigoEquipamento} movido para posição ${realIdx + 1}`);
+                                draggedIdxRef.current = null;
                                 setDraggedExameIndex(null);
                                 setDragOverExameIndex(null);
+                                setDragActiveRowIndex(null);
                               }}
                               onDragEnd={() => {
+                                draggedIdxRef.current = null;
                                 setDraggedExameIndex(null);
                                 setDragOverExameIndex(null);
+                                setDragActiveRowIndex(null);
                               }}
                               onClick={() => handleSelectEquipamentoExam(ex)}
-                              className={`transition cursor-pointer ${
+                              className={`transition ${
                                 isDragging
                                   ? "opacity-30 bg-teal-500/20 scale-[0.99] border-y-2 border-teal-400"
                                   : isDragOver
@@ -4555,17 +4581,23 @@ export default function MidwayLabDashboard() {
                                   : "hover:bg-slate-800/40"
                               }`}
                             >
-                              {/* Nº E MOVER COM GRIP DRAG & DROP */}
-                              <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-center gap-1">
+                              {/* Nº E MOVER COM GRIP DRAG & DROP (A MÃO SE TRANSFORMA APENAS NESTA COLUNA) */}
+                              <td
+                                className="py-2 px-2 text-center cursor-grab active:cursor-grabbing hover:bg-cyan-500/10 select-none transition group/handle"
+                                title="Clique e arraste para mover este exame para cima ou para baixo"
+                                onMouseDown={() => setDragActiveRowIndex(realIdx)}
+                                onMouseUp={() => setDragActiveRowIndex(null)}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing">
                                   <span
-                                    className="text-slate-600 hover:text-cyan-400 cursor-grab active:cursor-grabbing p-0.5"
+                                    className="text-slate-500 group-hover/handle:text-cyan-300 cursor-grab active:cursor-grabbing p-0.5 transition"
                                     title="Clique e arraste para reordenar"
                                   >
-                                    <GripVertical className="w-3.5 h-3.5 text-slate-500 hover:text-cyan-400" />
+                                    <GripVertical className="w-4 h-4 text-slate-400 group-hover/handle:text-cyan-300" />
                                   </span>
                                   <div className="flex flex-col items-center gap-0.5">
-                                    <span className="text-slate-500 font-mono text-[10px] tabular-nums font-bold">{realIdx + 1}</span>
+                                    <span className="text-slate-400 font-mono text-[10px] tabular-nums font-bold">{realIdx + 1}</span>
                                     <div className="flex items-center gap-0.5">
                                       <button
                                         type="button"
@@ -4574,7 +4606,7 @@ export default function MidwayLabDashboard() {
                                           e.stopPropagation();
                                           const nova = [...equipamentoExamesList];
                                           [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
-                                          persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
+                                          persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`, false);
                                         }}
                                         className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
                                         title="Mover para cima"
@@ -4586,7 +4618,7 @@ export default function MidwayLabDashboard() {
                                           e.stopPropagation();
                                           const nova = [...equipamentoExamesList];
                                           [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
-                                          persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
+                                          persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`, false);
                                         }}
                                         className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
                                         title="Mover para baixo"
@@ -8501,14 +8533,16 @@ export default function MidwayLabDashboard() {
                       return (
                       <React.Fragment key={ex.id || ex.codigoEquipamento}>
                       <tr
-                        draggable={!editingInlineCell}
+                        draggable={dragActiveRowIndex === realIdx}
                         onDragStart={(e) => {
+                          draggedIdxRef.current = realIdx;
                           setDraggedExameIndex(realIdx);
                           e.dataTransfer.effectAllowed = "move";
                           e.dataTransfer.setData("text/plain", String(realIdx));
                         }}
                         onDragOver={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           e.dataTransfer.dropEffect = "move";
                           if (dragOverExameIndex !== realIdx) {
                             setDragOverExameIndex(realIdx);
@@ -8521,24 +8555,29 @@ export default function MidwayLabDashboard() {
                         }}
                         onDrop={(e) => {
                           e.preventDefault();
-                          if (draggedExameIndex === null || draggedExameIndex === realIdx) {
-                            setDraggedExameIndex(null);
-                            setDragOverExameIndex(null);
-                            return;
+                          e.stopPropagation();
+                          const fromIdx = draggedIdxRef.current !== null ? draggedIdxRef.current : (
+                            e.dataTransfer.getData("text/plain") ? parseInt(e.dataTransfer.getData("text/plain"), 10) : draggedExameIndex
+                          );
+                          if (fromIdx !== null && !isNaN(fromIdx) && fromIdx !== realIdx) {
+                            const novaLista = [...equipamentoExamesList];
+                            const [itemMovido] = novaLista.splice(fromIdx, 1);
+                            novaLista.splice(realIdx, 0, itemMovido);
+                            setEquipamentoExamesList(novaLista);
+                            persistirExamesAparelho(novaLista, `↕ Exame ${itemMovido.codigoEquipamento} movido para posição ${realIdx + 1}`, false);
                           }
-                          const novaLista = [...equipamentoExamesList];
-                          const [itemMovido] = novaLista.splice(draggedExameIndex, 1);
-                          novaLista.splice(realIdx, 0, itemMovido);
-                          setEquipamentoExamesList(novaLista);
-                          persistirExamesAparelho(novaLista, `↕ Exame ${itemMovido.codigoEquipamento} movido para posição ${realIdx + 1}`);
+                          draggedIdxRef.current = null;
                           setDraggedExameIndex(null);
                           setDragOverExameIndex(null);
+                          setDragActiveRowIndex(null);
                         }}
                         onDragEnd={() => {
+                          draggedIdxRef.current = null;
                           setDraggedExameIndex(null);
                           setDragOverExameIndex(null);
+                          setDragActiveRowIndex(null);
                         }}
-                        className={`transition cursor-grab active:cursor-grabbing select-none ${
+                        className={`transition select-none ${
                           isDragging
                             ? "opacity-30 bg-teal-500/20 scale-[0.99] border-y-2 border-teal-400"
                             : isDragOver
@@ -8546,17 +8585,23 @@ export default function MidwayLabDashboard() {
                             : "hover:bg-slate-800/40"
                         } ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}
                       >
-                        {/* NÚMERO E MOVER COM GRIP DRAG & DROP */}
-                        <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1">
+                        {/* NÚMERO E MOVER COM GRIP DRAG & DROP (A MÃO SE TRANSFORMA APENAS NESTA COLUNA) */}
+                        <td
+                          className="py-2 px-2 text-center cursor-grab active:cursor-grabbing hover:bg-cyan-500/10 select-none transition group/handle"
+                          title="Clique e arraste para mover este exame para cima ou para baixo"
+                          onMouseDown={() => setDragActiveRowIndex(realIdx)}
+                          onMouseUp={() => setDragActiveRowIndex(null)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing">
                             <span
-                              className="text-slate-600 hover:text-cyan-400 cursor-grab active:cursor-grabbing p-0.5"
-                              title="Clique e arraste para cima ou para baixo para reordenar"
+                              className="text-slate-500 group-hover/handle:text-cyan-300 cursor-grab active:cursor-grabbing p-0.5 transition"
+                              title="Clique e arraste para reordenar"
                             >
-                              <GripVertical className="w-3.5 h-3.5 text-slate-500 hover:text-cyan-400" />
+                              <GripVertical className="w-4 h-4 text-slate-400 group-hover/handle:text-cyan-300" />
                             </span>
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="text-slate-500 font-mono text-[10px] tabular-nums font-bold">{realIdx + 1}</span>
+                              <span className="text-slate-400 font-mono text-[10px] tabular-nums font-bold">{realIdx + 1}</span>
                               <div className="flex items-center gap-0.5">
                                 <button
                                   type="button"
@@ -8565,7 +8610,7 @@ export default function MidwayLabDashboard() {
                                     e.stopPropagation();
                                     const nova = [...equipamentoExamesList];
                                     [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
-                                    persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
+                                    persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`, false);
                                   }}
                                   className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
                                   title="Mover para cima"
@@ -8577,7 +8622,7 @@ export default function MidwayLabDashboard() {
                                     e.stopPropagation();
                                     const nova = [...equipamentoExamesList];
                                     [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
-                                    persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
+                                    persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`, false);
                                   }}
                                   className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
                                   title="Mover para baixo"
