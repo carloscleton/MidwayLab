@@ -140,9 +140,32 @@ async function processarPasta(alvo: IFolderTarget) {
       const conteudo = fs.readFileSync(caminhoOrigem, 'utf8');
       if (!conteudo.trim()) continue;
 
-      // Cria a subpasta de Cargas para o equipamento correspondente
-      const pastaCargas = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
-      assegurarPasta(pastaCargas);
+      // A pasta oficial de Carga onde o analisador busca a worklist é SEMPRE em Equipamentos/<MODELO>/Carga
+      let baseMidway = 'C:\\MidwayLab';
+      if (alvo.diretorioEntrada && alvo.diretorioEntrada.toLowerCase().includes('labfacil')) {
+        const partes = alvo.diretorioEntrada.split(/[\\/]labfacil/i);
+        if (partes[0] && partes[0].trim().length > 0) {
+          baseMidway = partes[0].trim();
+        }
+      }
+      const pastaCargaEquipamento = path.join(baseMidway, 'Equipamentos', alvo.modeloEquipamento, 'Carga');
+      assegurarPasta(pastaCargaEquipamento);
+
+      // Limpa e remove qualquer pasta indevida 'Cargas_...' que tenha sido criada dentro de Processados
+      try {
+        const pastaIndevida = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
+        if (fs.existsSync(pastaIndevida)) {
+          const itens = fs.readdirSync(pastaIndevida);
+          for (const it of itens) {
+            const orig = path.join(pastaIndevida, it);
+            const dest = path.join(pastaCargaEquipamento, it);
+            if (!fs.existsSync(dest)) fs.copyFileSync(orig, dest);
+            fs.unlinkSync(orig);
+          }
+          fs.rmdirSync(pastaIndevida);
+          console.log(`[Agente] 🧹 Subpasta indevida removida de Processados: ${pastaIndevida}`);
+        }
+      } catch (_) {}
 
       // Limita o nome do arquivo para evitar erro MAX_PATH do Windows (> 260 caracteres)
       const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);

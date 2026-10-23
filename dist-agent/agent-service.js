@@ -24621,8 +24621,29 @@ async function processarPasta(alvo) {
     try {
       const conteudo = fs.readFileSync(caminhoOrigem, "utf8");
       if (!conteudo.trim()) continue;
-      const pastaCargas = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
-      assegurarPasta(pastaCargas);
+      let baseMidway = 'C:\\MidwayLab';
+      if (alvo.diretorioEntrada && alvo.diretorioEntrada.toLowerCase().includes('labfacil')) {
+        const partes = alvo.diretorioEntrada.split(/[\\/]labfacil/i);
+        if (partes[0] && partes[0].trim().length > 0) {
+          baseMidway = partes[0].trim();
+        }
+      }
+      const pastaCargaEquipamento = path.join(baseMidway, 'Equipamentos', alvo.modeloEquipamento, 'Carga');
+      assegurarPasta(pastaCargaEquipamento);
+
+      try {
+        const pastaIndevida = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
+        if (fs.existsSync(pastaIndevida)) {
+          const itens = fs.readdirSync(pastaIndevida);
+          for (const it of itens) {
+            const orig = path.join(pastaIndevida, it);
+            const dest = path.join(pastaCargaEquipamento, it);
+            if (!fs.existsSync(dest)) fs.copyFileSync(orig, dest);
+            fs.unlinkSync(orig);
+          }
+          fs.rmdirSync(pastaIndevida);
+        }
+      } catch (_) {}
       const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
       const extensao = path.extname(arquivo);
       const destinoProcessado = path.join(
