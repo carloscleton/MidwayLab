@@ -1,13 +1,25 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 export async function POST(request: Request) {
   try {
+    const isCloudOrNonWindows = os.platform() !== 'win32' || Boolean(process.env.VERCEL);
+
     const body = await request.json();
     const { modelo, diretorioCarga, nomeArquivo, conteudo, pedidos } = body;
 
-    // Se receber múltiplos arquivos em lote (batch)
+    // Se estiver rodando na nuvem (Vercel/Linux), o backend do Next.js não tem acesso ao disco local C:\ do cliente Windows
+    if (isCloudOrNonWindows) {
+      return NextResponse.json({
+        success: false,
+        isCloud: true,
+        message: 'Ambiente em nuvem (Vercel/Linux) detectado. A gravação física direta no disco local é realizada pelo navegador do usuário via File System Access API.'
+      }, { status: 200 });
+    }
+
+    // Se receber múltiplos arquivos em lote (batch) no ambiente local Windows
     if (Array.isArray(pedidos) && pedidos.length > 0) {
       const resultados = [];
       for (const item of pedidos) {

@@ -330,6 +330,7 @@ export default function MidwayLabDashboard() {
   const [handleEntrada, setHandleEntrada] = useState<any>(null);
   const [handleProcessados, setHandleProcessados] = useState<any>(null);
   const [handleErros, setHandleErros] = useState<any>(null);
+  const [handleCarga, setHandleCarga] = useState<any>(null);
   const [processedFileNames, setProcessedFileNames] = useState<Set<string>>(new Set());
 
   const [isSavingWatcherConfig, setIsSavingWatcherConfig] = useState(false);
@@ -1804,38 +1805,128 @@ export default function MidwayLabDashboard() {
   );
   const currentCargaPath = equipAtivo?.diretorio_carga || `C:\\MidwayLab\\Equipamentos\\${selectedTargetEquipamento || 'SYSMEX_UF_1500'}\\Carga`;
 
-  // GRAVAÇÃO DIRETA NA PASTA DE CARGA DO EQUIPAMENTO VIA API LOCAL
+  // OBTÉM OU SOLICITA VINCULAÇÃO DA PASTA FÍSICA DE CARGA DO COMPUTADOR (FILE SYSTEM ACCESS API)
+  const obterOuSolicitarHandleCarga = async (solicitarSeNecessario: boolean = true) => {
+    const activeT = tenants.find(t => t.nome === selectedTenant);
+    const modeloAtual = (selectedTargetEquipamento || "SYSMEX_UF_1500").toUpperCase().trim();
+    const storageKey = activeT?.id ? `carga_${activeT.id}_${modeloAtual}` : `carga_${modeloAtual}`;
+
+    let current = handleCarga;
+    if (!current) {
+      current = await DirectoryStorageService.obterHandle(storageKey);
+      if (!current && activeT?.id) {
+        current = await DirectoryStorageService.obterHandle(`carga_${activeT.id}`);
+      }
+    }
+
+    if (current) {
+      const permOk = await DirectoryStorageService.verificarOuSolicitarPermissao(current, true);
+      if (permOk) {
+        setHandleCarga(current);
+        return current;
+      }
+    }
+
+    // Se não tem handle ativo ou permissão, e o navegador suporta File System Access API
+    // @ts-ignore
+    if (solicitarSeNecessario && typeof window !== "undefined" && window.showDirectoryPicker) {
+      try {
+        showNotification(`📁 Selecione a pasta de Carga do seu equipamento no computador (${currentCargaPath})...`);
+        // @ts-ignore
+        const picked = await window.showDirectoryPicker({
+          id: `carga_${modeloAtual}`
+        });
+        if (picked) {
+          setHandleCarga(picked);
+          if (activeT?.id) {
+            await DirectoryStorageService.salvarHandle(storageKey, picked);
+            await DirectoryStorageService.salvarHandle(`carga_${activeT.id}`, picked);
+          }
+          await DirectoryStorageService.salvarHandle(`carga_${modeloAtual}`, picked);
+          showNotification(`✅ Pasta Carga vinculada com sucesso: ${picked.name}`);
+          return picked;
+        }
+      } catch (pickerErr: any) {
+        console.warn("Seleção de pasta cancelada ou não permitida:", pickerErr);
+      }
+    }
+
+    return null;
+  };
+
+  // GRAVAÇÃO DIRETA NA PASTA DE CARGA DO EQUIPAMENTO (VIA FILE SYSTEM API LOCAL OU BACKEND LOCAL)
   const salvarWorklistDireto = async (
     item: { pedido: string; arquivo: string; formato: string; nomeArquivo: string },
     silencioso: boolean = false
   ) => {
     try {
       setIsSavingDirectWorklist(true);
-      const res = await fetch('/api/save-worklist-direct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modelo: selectedTargetEquipamento,
-          diretorioCarga: currentCargaPath,
-          nomeArquivo: item.nomeArquivo,
-          conteudo: item.arquivo,
-          pedido: item.pedido
-        })
-      });
 
-      const data = await res.json();
-      if (data.success) {
-        setSavedWorklistsToDisk(prev => ({
-          ...prev,
-          [item.pedido]: data.caminhoCompleto
-        }));
-        if (!silencioso) {
-          showNotification(`✅ Carga salva diretamente na pasta: ${data.caminhoCompleto}`);
+      // 1. TENTA PRIMEIRO VIA FILE SYSTEM ACCESS API DO NAVEGADOR (Gravação direta no Windows do usuário, inclusive na Vercel!)
+      const targetHandle = await obterOuSolicitarHandleCarga(true);
+      if (targetHandle) {
+        try {
+          const fileHandle = await targetHandle.getFileHandle(item.nomeArquivo, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(item.arquivo);
+          await writable.close();
+
+          setSavedWorklistsToDisk(prev => ({
+            ...prev,
+            [item.pedido]: `${targetHandle.name}\\${item.nomeArquivo}`
+          }));
+
+          if (!silencioso) {
+            showNotification(`✅ Carga salva diretamente na pasta ${targetHandle.name}: ${item.nomeArquivo}`);
+          }
+          return `${targetHandle.name}\\${item.nomeArquivo}`;
+        } catch (fsErr: any) {
+          console.warn("Falha ao gravar via File System Handle:", fsErr);
         }
-        return data.caminhoCompleto;
-      } else {
-        throw new Error(data.error || 'Falha ao gravar arquivo');
       }
+
+      // 2. TENTA VIA API LOCAL NODE.JS (Se rodando em desenvolvimento local no Windows)
+      try {
+        const res = await fetch('/api/save-worklist-direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modelo: selectedTargetEquipamento,
+            diretorioCarga: currentCargaPath,
+            nomeArquivo: item.nomeArquivo,
+            conteudo: item.arquivo,
+            pedido: item.pedido
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          setSavedWorklistsToDisk(prev => ({
+            ...prev,
+            [item.pedido]: data.caminhoCompleto
+          }));
+          if (!silencioso) {
+            showNotification(`✅ Carga salva diretamente na pasta: ${data.caminhoCompleto}`);
+          }
+          return data.caminhoCompleto;
+        }
+      } catch (apiErr) {
+        console.warn("API local indisponível ou rodando na nuvem:", apiErr);
+      }
+
+      // 3. FALLBACK CASO O OPERADOR CANCELE A VINCULAÇÃO DA PASTA: DOWNLOAD MANUAL
+      const blob = new Blob([item.arquivo], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.nomeArquivo;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      if (!silencioso) {
+        showNotification(`📥 Arquivo ${item.nomeArquivo} baixado para envio à pasta ${currentCargaPath}. Conecte a pasta Carga para gravação direta!`);
+      }
+      return null;
     } catch (err: any) {
       console.error('Erro ao salvar direto:', err);
       if (!silencioso) {
@@ -1853,34 +1944,78 @@ export default function MidwayLabDashboard() {
     if (!lista || lista.length === 0) return;
     try {
       setIsSavingDirectWorklist(true);
-      const res = await fetch('/api/save-worklist-direct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modelo: selectedTargetEquipamento,
-          diretorioCarga: currentCargaPath,
-          pedidos: lista.map(l => ({
-            pedido: l.pedido,
-            nomeArquivo: l.nomeArquivo,
-            conteudo: l.arquivo,
-            modelo: selectedTargetEquipamento,
-            diretorioCarga: currentCargaPath
-          }))
-        })
-      });
 
-      const data = await res.json();
-      if (data.success && data.arquivos) {
+      // 1. TENTA PRIMEIRO VIA FILE SYSTEM ACCESS API DO NAVEGADOR (Gravação direta no Windows do usuário, inclusive na Vercel!)
+      const targetHandle = await obterOuSolicitarHandleCarga(true);
+      if (targetHandle) {
+        let gravados = 0;
         const novosSalvos: Record<string, string> = {};
-        data.arquivos.forEach((ar: any) => {
-          novosSalvos[ar.pedido] = ar.caminhoCompleto;
-        });
+        for (const item of lista) {
+          try {
+            const fileHandle = await targetHandle.getFileHandle(item.nomeArquivo, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(item.arquivo);
+            await writable.close();
+            novosSalvos[item.pedido] = `${targetHandle.name}\\${item.nomeArquivo}`;
+            gravados++;
+          } catch (e) {
+            console.warn(`Erro ao salvar arquivo ${item.nomeArquivo} no handle:`, e);
+          }
+        }
+
         setSavedWorklistsToDisk(prev => ({ ...prev, ...novosSalvos }));
-        showNotification(`✅ ${data.total} carga(s) gravada(s) diretamente na pasta: ${currentCargaPath}`);
-        setIngestionStatus(`✅ ${data.total} carga(s) salvas diretamente na pasta do analisador: ${currentCargaPath}`);
-      } else {
-        throw new Error(data.error || 'Erro ao gravar cargas');
+        showNotification(`✅ ${gravados} carga(s) gravada(s) diretamente na pasta ${targetHandle.name}!`);
+        setIngestionStatus(`✅ ${gravados} carga(s) salvas diretamente na pasta local do equipamento (${targetHandle.name})`);
+        return;
       }
+
+      // 2. TENTA VIA API LOCAL NODE.JS (Se rodando em desenvolvimento local no Windows)
+      try {
+        const res = await fetch('/api/save-worklist-direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modelo: selectedTargetEquipamento,
+            diretorioCarga: currentCargaPath,
+            pedidos: lista.map(l => ({
+              pedido: l.pedido,
+              nomeArquivo: l.nomeArquivo,
+              conteudo: l.arquivo,
+              modelo: selectedTargetEquipamento,
+              diretorioCarga: currentCargaPath
+            }))
+          })
+        });
+
+        const data = await res.json();
+        if (data.success && data.arquivos) {
+          const novosSalvos: Record<string, string> = {};
+          data.arquivos.forEach((ar: any) => {
+            novosSalvos[ar.pedido] = ar.caminhoCompleto;
+          });
+          setSavedWorklistsToDisk(prev => ({ ...prev, ...novosSalvos }));
+          showNotification(`✅ ${data.total} carga(s) gravada(s) diretamente na pasta: ${currentCargaPath}`);
+          setIngestionStatus(`✅ ${data.total} carga(s) salvas diretamente na pasta do analisador: ${currentCargaPath}`);
+          return;
+        }
+      } catch (apiErr) {
+        console.warn("API local indisponível ou rodando na nuvem:", apiErr);
+      }
+
+      // 3. FALLBACK: BAIXAR ARQUIVOS SE A PASTA NÃO FOI CONECTADA
+      lista.forEach((item, idx) => {
+        setTimeout(() => {
+          const blob = new Blob([item.arquivo], { type: "text/plain;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = item.nomeArquivo;
+          a.click();
+          URL.revokeObjectURL(url);
+        }, idx * 200);
+      });
+      showNotification(`📥 ${lista.length} carga(s) baixadas. Conecte a pasta de Carga para salvar direto no analisador.`);
+      setIngestionStatus(`📥 Arquivos baixados para envio à pasta ${currentCargaPath}. Conecte a pasta Carga para gravação automática!`);
     } catch (err: any) {
       console.error('Erro ao salvar todas cargas:', err);
       showNotification(`⚠️ Falha ao gravar cargas na pasta: ${err.message}`);
@@ -2183,24 +2318,28 @@ export default function MidwayLabDashboard() {
     // Tentar restaurar handles do IndexedDB local se existirem para este tenant e equipamento
     if (tenantObj.id) {
       try {
-        const [savedEntrada, savedProcessados, savedErros] = await Promise.all([
+        const [savedEntrada, savedProcessados, savedErros, savedCarga] = await Promise.all([
           DirectoryStorageService.obterHandle(`entrada_${tenantObj.id}_${modeloAtual}`),
           DirectoryStorageService.obterHandle(`processados_${tenantObj.id}_${modeloAtual}`),
-          DirectoryStorageService.obterHandle(`erros_${tenantObj.id}_${modeloAtual}`)
+          DirectoryStorageService.obterHandle(`erros_${tenantObj.id}_${modeloAtual}`),
+          DirectoryStorageService.obterHandle(`carga_${tenantObj.id}_${modeloAtual}`)
         ]);
         setHandleEntrada(savedEntrada || null);
         setHandleProcessados(savedProcessados || null);
         setHandleErros(savedErros || null);
+        setHandleCarga(savedCarga || null);
       } catch (err) {
         console.warn("[DirectoryStorageService] Falha ao recuperar handles salvos:", err);
         setHandleEntrada(null);
         setHandleProcessados(null);
         setHandleErros(null);
+        setHandleCarga(null);
       }
     } else {
       setHandleEntrada(null);
       setHandleProcessados(null);
       setHandleErros(null);
+      setHandleCarga(null);
     }
   };
 
@@ -6476,11 +6615,28 @@ export default function MidwayLabDashboard() {
                       Ativo no Monitor
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 pt-0.5">
-                    <span className="text-slate-500">Pasta Carga:</span>
-                    <span className="text-indigo-300 font-semibold truncate" title={currentCargaPath}>
-                      {currentCargaPath}
-                    </span>
+                  <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between gap-1.5 pt-0.5">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="text-slate-500">Pasta Carga:</span>
+                      <span className="text-indigo-300 font-semibold truncate" title={currentCargaPath}>
+                        {currentCargaPath}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await obterOuSolicitarHandleCarga(true);
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded font-mono border transition cursor-pointer flex items-center gap-1 shrink-0 ${
+                        handleCarga
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                          : "bg-indigo-500/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/30"
+                      }`}
+                      title="Vincular a pasta física Carga do computador para gravação direta sem downloads"
+                    >
+                      <FolderCheck className="w-3 h-3" />
+                      {handleCarga ? "Conectada ✓" : "Conectar Pasta"}
+                    </button>
                   </div>
                 </div>
 
@@ -6522,8 +6678,11 @@ export default function MidwayLabDashboard() {
                           setIngestionStatus(`✅ Sucesso! ${orders.length} pedidos lidos do arquivo ${file.name}. Gravando cargas na pasta Carga do equipamento...`);
                           showNotification(`Arquivo ${file.name} processado! ${orders.length} pedidos carregados.`);
 
-                          // Gravação física direta na pasta Carga configurada do equipamento!
-                          await salvarTodasWorklistsDireto(generated);
+                          // Se já houver pasta Carga vinculada, grava direto nela automaticamente
+                          const autoHandle = handleCarga || await obterOuSolicitarHandleCarga(false);
+                          if (autoHandle) {
+                            await salvarTodasWorklistsDireto(generated);
+                          }
                         } catch (err: any) {
                           setIngestionStatus(`❌ Erro ao ler arquivo: ${err.message}`);
                         }
