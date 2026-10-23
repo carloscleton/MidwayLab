@@ -338,6 +338,8 @@ export default function MidwayLabDashboard() {
   const [generatedWorklists, setGeneratedWorklists] = useState<Array<{ pedido: string; arquivo: string; formato: string; nomeArquivo: string }>>([]);
   const [ingestionStatus, setIngestionStatus] = useState<string | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+  const [savedWorklistsToDisk, setSavedWorklistsToDisk] = useState<Record<string, string>>({});
+  const [isSavingDirectWorklist, setIsSavingDirectWorklist] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers" | "equipamentos" | "ingestao" | "simulador">("depara");
 
@@ -1794,6 +1796,99 @@ export default function MidwayLabDashboard() {
   const [logFilterDirection, setLogFilterDirection] = useState<"TODOS" | "IDA" | "VOLTA">("TODOS");
   const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
+  // RESOLVE A PASTA DE CARGA FÍSICA DO EQUIPAMENTO ATUAL
+  const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+  const equipAtivo = equipamentosList.find(eq =>
+    (activeTenantObj ? eq.tenant_id === activeTenantObj.id : true) &&
+    eq.modelo === selectedTargetEquipamento
+  );
+  const currentCargaPath = equipAtivo?.diretorio_carga || `C:\\MidwayLab\\Equipamentos\\${selectedTargetEquipamento || 'SYSMEX_UF_1500'}\\Carga`;
+
+  // GRAVAÇÃO DIRETA NA PASTA DE CARGA DO EQUIPAMENTO VIA API LOCAL
+  const salvarWorklistDireto = async (
+    item: { pedido: string; arquivo: string; formato: string; nomeArquivo: string },
+    silencioso: boolean = false
+  ) => {
+    try {
+      setIsSavingDirectWorklist(true);
+      const res = await fetch('/api/save-worklist-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelo: selectedTargetEquipamento,
+          diretorioCarga: currentCargaPath,
+          nomeArquivo: item.nomeArquivo,
+          conteudo: item.arquivo,
+          pedido: item.pedido
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSavedWorklistsToDisk(prev => ({
+          ...prev,
+          [item.pedido]: data.caminhoCompleto
+        }));
+        if (!silencioso) {
+          showNotification(`✅ Carga salva diretamente na pasta: ${data.caminhoCompleto}`);
+        }
+        return data.caminhoCompleto;
+      } else {
+        throw new Error(data.error || 'Falha ao gravar arquivo');
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar direto:', err);
+      if (!silencioso) {
+        showNotification(`⚠️ Não foi possível gravar direto na pasta (${err.message}). Faça download manual.`);
+      }
+      return null;
+    } finally {
+      setIsSavingDirectWorklist(false);
+    }
+  };
+
+  const salvarTodasWorklistsDireto = async (
+    lista: Array<{ pedido: string; arquivo: string; formato: string; nomeArquivo: string }>
+  ) => {
+    if (!lista || lista.length === 0) return;
+    try {
+      setIsSavingDirectWorklist(true);
+      const res = await fetch('/api/save-worklist-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelo: selectedTargetEquipamento,
+          diretorioCarga: currentCargaPath,
+          pedidos: lista.map(l => ({
+            pedido: l.pedido,
+            nomeArquivo: l.nomeArquivo,
+            conteudo: l.arquivo,
+            modelo: selectedTargetEquipamento,
+            diretorioCarga: currentCargaPath
+          }))
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.arquivos) {
+        const novosSalvos: Record<string, string> = {};
+        data.arquivos.forEach((ar: any) => {
+          novosSalvos[ar.pedido] = ar.caminhoCompleto;
+        });
+        setSavedWorklistsToDisk(prev => ({ ...prev, ...novosSalvos }));
+        showNotification(`✅ ${data.total} carga(s) gravada(s) diretamente na pasta: ${currentCargaPath}`);
+        setIngestionStatus(`✅ ${data.total} carga(s) salvas diretamente na pasta do analisador: ${currentCargaPath}`);
+      } else {
+        throw new Error(data.error || 'Erro ao gravar cargas');
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar todas cargas:', err);
+      showNotification(`⚠️ Falha ao gravar cargas na pasta: ${err.message}`);
+    } finally {
+      setIsSavingDirectWorklist(false);
+    }
+  };
+
   // VARREDURA NATIVA NO NAVEGADOR VIA FILE SYSTEM ACCESS API
   const scanLocalDirectory = async (dirEntradaHandle: any, dirProcHandle?: any) => {
     if (!dirEntradaHandle) return;
@@ -1828,6 +1923,9 @@ export default function MidwayLabDashboard() {
               });
 
               setGeneratedWorklists(prev => [...generated, ...prev]);
+
+              // Gravação direta na pasta Carga do equipamento
+              salvarTodasWorklistsDireto(generated);
 
               // 1. COPIAR PARA A PASTA DE PROCESSADOS (SELECIONADA OU PASTA 'Processados' FORA DE PEDIDOS)
               let copiedSuccessfully = false;
@@ -6378,6 +6476,12 @@ export default function MidwayLabDashboard() {
                       Ativo no Monitor
                     </span>
                   </div>
+                  <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 pt-0.5">
+                    <span className="text-slate-500">Pasta Carga:</span>
+                    <span className="text-indigo-300 font-semibold truncate" title={currentCargaPath}>
+                      {currentCargaPath}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 space-y-1.5">
@@ -6389,7 +6493,7 @@ export default function MidwayLabDashboard() {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const reader = new FileReader();
-                      reader.onload = (event) => {
+                      reader.onload = async (event) => {
                         const content = event.target?.result as string;
                         if (!content) return;
                         try {
@@ -6415,8 +6519,11 @@ export default function MidwayLabDashboard() {
                           });
 
                           setGeneratedWorklists(generated);
-                          setIngestionStatus(`✅ Sucesso! ${orders.length} pedidos e clientes lidos do arquivo ${file.name}`);
+                          setIngestionStatus(`✅ Sucesso! ${orders.length} pedidos lidos do arquivo ${file.name}. Gravando cargas na pasta Carga do equipamento...`);
                           showNotification(`Arquivo ${file.name} processado! ${orders.length} pedidos carregados.`);
+
+                          // Gravação física direta na pasta Carga configurada do equipamento!
+                          await salvarTodasWorklistsDireto(generated);
                         } catch (err: any) {
                           setIngestionStatus(`❌ Erro ao ler arquivo: ${err.message}`);
                         }
@@ -6449,7 +6556,16 @@ export default function MidwayLabDashboard() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={isSavingDirectWorklist || generatedWorklists.length === 0}
+                      onClick={() => salvarTodasWorklistsDireto(generatedWorklists)}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow cursor-pointer disabled:opacity-50"
+                      title={`Gravar todos os arquivos gerados diretamente na pasta Carga (${currentCargaPath})`}
+                    >
+                      <FolderCheck className="w-3.5 h-3.5" /> ⚡ Gravar Todos em Carga ({generatedWorklists.length})
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -6519,22 +6635,49 @@ export default function MidwayLabDashboard() {
 
                           <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
                             {generatedItem && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const blob = new Blob([generatedItem.arquivo], { type: "text/plain;charset=utf-8" });
-                                  const url = URL.createObjectURL(blob);
-                                  const a = document.createElement("a");
-                                  a.href = url;
-                                  a.download = generatedItem.nomeArquivo;
-                                  a.click();
-                                  URL.revokeObjectURL(url);
-                                  showNotification(`Download do arquivo para o equipamento iniciado: ${generatedItem.nomeArquivo}`);
-                                }}
-                                className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow"
-                              >
-                                <Download className="w-3.5 h-3.5" /> Baixar Carga ({generatedItem.formato})
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isSavingDirectWorklist}
+                                  onClick={() => salvarWorklistDireto(generatedItem)}
+                                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow ${
+                                    savedWorklistsToDisk[generatedItem.pedido]
+                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30"
+                                      : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-500/30"
+                                  }`}
+                                  title={
+                                    savedWorklistsToDisk[generatedItem.pedido]
+                                      ? `Arquivo gravado em: ${savedWorklistsToDisk[generatedItem.pedido]}`
+                                      : `Salvar diretamente na pasta Carga do analisador (${currentCargaPath})`
+                                  }
+                                >
+                                  <FolderCheck className="w-3.5 h-3.5" />
+                                  {savedWorklistsToDisk[generatedItem.pedido] ? (
+                                    <span>✓ Gravado em Carga</span>
+                                  ) : (
+                                    <span>⚡ Salvar na Pasta Carga ({generatedItem.formato})</span>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const blob = new Blob([generatedItem.arquivo], { type: "text/plain;charset=utf-8" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = generatedItem.nomeArquivo;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                    showNotification(`Cópia baixada na pasta Downloads: ${generatedItem.nomeArquivo}`);
+                                  }}
+                                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1 cursor-pointer transition"
+                                  title="Baixar cópia manual do arquivo na pasta Downloads"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Cópia</span>
+                                </button>
+                              </>
                             )}
 
                             {/* BOTÃO COM AS SETAS PARA BAIXO / CIMA */}
