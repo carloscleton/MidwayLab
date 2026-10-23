@@ -279,7 +279,11 @@ export default function MidwayLabDashboard() {
   const [isNovoExameModalOpen, setIsNovoExameModalOpen] = useState<boolean>(false);
   const [editingExameItem, setEditingExameItem] = useState<IExameEquipamentoRecord | null>(null);
   const [exameExpandidoKey, setExameExpandidoKey] = useState<string | null>(null);
-  const [editingInlineCell, setEditingInlineCell] = useState<{ id: string; field: 'codigoEquipamento' | 'codigoLabfacilSugerido' } | null>(null);
+  const [editingInlineCell, setEditingInlineCell] = useState<{
+    key: string;
+    field: 'codigoEquipamento' | 'codigoLabfacilSugerido';
+    tempValue: string;
+  } | null>(null);
   const [draggedExameIndex, setDraggedExameIndex] = useState<number | null>(null);
   const [dragOverExameIndex, setDragOverExameIndex] = useState<number | null>(null);
   const [dragActiveRowIndex, setDragActiveRowIndex] = useState<number | null>(null);
@@ -336,6 +340,32 @@ export default function MidwayLabDashboard() {
       showNotification(`⚠️ Não foi possível gravar no banco: ${res.erro || "erro desconhecido"}`);
     }
     setIsSavingExamesAparelho(false);
+  };
+
+  // Atualiza um campo individual (código do aparelho ou código Labfacil) com precisão pelo ID/Código único do exame
+  const salvarInlineCell = (
+    exameAlvo: IExameEquipamentoRecord,
+    campo: 'codigoEquipamento' | 'codigoLabfacilSugerido',
+    valor: string
+  ) => {
+    const val = valor.trim().toUpperCase();
+    const novaLista = equipamentoExamesList.map(item => {
+      const ehMesmo = (exameAlvo.id && item.id === exameAlvo.id) ||
+                      (item.codigoEquipamento === exameAlvo.codigoEquipamento);
+      if (ehMesmo) {
+        return { ...item, [campo]: val };
+      }
+      return item;
+    });
+
+    setEquipamentoExamesList(novaLista);
+    setEditingInlineCell(null);
+
+    persistirExamesAparelho(
+      novaLista,
+      `💾 ${campo === 'codigoEquipamento' ? 'Código do aparelho' : 'Código Labfacil'} atualizado para ${val || '-'}`,
+      false
+    );
   };
 
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
@@ -4235,24 +4265,26 @@ export default function MidwayLabDashboard() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             {/* CÓDIGO DO APARELHO (DUPLO CLIQUE PARA ALTERAR) */}
-                            {editingInlineCell?.id === (item.id || String(eqIdx)) && editingInlineCell?.field === 'codigoEquipamento' ? (
+                            {editingInlineCell?.key === (item.id || item.codigoEquipamento) && editingInlineCell?.field === 'codigoEquipamento' ? (
                               <input
                                 type="text"
                                 autoFocus
-                                value={item.codigoEquipamento}
+                                value={editingInlineCell.tempValue}
                                 onFocus={(e) => e.target.select()}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => {
-                                  const novoCod = e.target.value.toUpperCase();
-                                  setEquipamentoExamesList(prev => prev.map((it, idx) => (idx === eqIdx || (item.id && it.id === item.id)) ? { ...it, codigoEquipamento: novoCod } : it));
+                                  const val = e.target.value.toUpperCase();
+                                  setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                 }}
                                 onBlur={() => {
-                                  setEditingInlineCell(null);
-                                  persistirExamesAparelho(equipamentoExamesList, `💾 Código ${item.codigoEquipamento} gravado no banco.`);
+                                  salvarInlineCell(item, 'codigoEquipamento', editingInlineCell.tempValue);
                                 }}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === "Escape") {
-                                    e.currentTarget.blur();
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    salvarInlineCell(item, 'codigoEquipamento', editingInlineCell.tempValue);
+                                  } else if (e.key === "Escape") {
+                                    setEditingInlineCell(null);
                                   }
                                 }}
                                 className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none"
@@ -4261,7 +4293,11 @@ export default function MidwayLabDashboard() {
                               <span
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingInlineCell({ id: item.id || String(eqIdx), field: 'codigoEquipamento' });
+                                  setEditingInlineCell({
+                                    key: item.id || item.codigoEquipamento,
+                                    field: 'codigoEquipamento',
+                                    tempValue: item.codigoEquipamento
+                                  });
                                 }}
                                 className="font-mono text-xs font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded cursor-pointer"
                                 title="Duplo clique para alterar o código do aparelho"
@@ -4271,24 +4307,26 @@ export default function MidwayLabDashboard() {
                             )}
 
                             {/* CÓDIGO LABFACIL SUGERIDO / VINCULADO (DUPLO CLIQUE PARA ALTERAR) */}
-                            {editingInlineCell?.id === (item.id || String(eqIdx)) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
+                            {editingInlineCell?.key === (item.id || item.codigoEquipamento) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
                               <input
                                 type="text"
                                 autoFocus
-                                value={item.codigoLabfacilSugerido || ""}
+                                value={editingInlineCell.tempValue}
                                 onFocus={(e) => e.target.select()}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => {
-                                  const novoLab = e.target.value.toUpperCase();
-                                  setEquipamentoExamesList(prev => prev.map((it, idx) => (idx === eqIdx || (item.id && it.id === item.id)) ? { ...it, codigoLabfacilSugerido: novoLab } : it));
+                                  const val = e.target.value.toUpperCase();
+                                  setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                 }}
                                 onBlur={() => {
-                                  setEditingInlineCell(null);
-                                  persistirExamesAparelho(equipamentoExamesList, `💾 Código Labfacil de ${item.codigoEquipamento} gravado no banco.`);
+                                  salvarInlineCell(item, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
                                 }}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === "Escape") {
-                                    e.currentTarget.blur();
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    salvarInlineCell(item, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                  } else if (e.key === "Escape") {
+                                    setEditingInlineCell(null);
                                   }
                                 }}
                                 className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none"
@@ -4297,7 +4335,11 @@ export default function MidwayLabDashboard() {
                               <span
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingInlineCell({ id: item.id || String(eqIdx), field: 'codigoLabfacilSugerido' });
+                                  setEditingInlineCell({
+                                    key: item.id || item.codigoEquipamento,
+                                    field: 'codigoLabfacilSugerido',
+                                    tempValue: item.codigoLabfacilSugerido || ''
+                                  });
                                 }}
                                 className="text-[10px] font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-2 py-0.5 rounded cursor-pointer"
                                 title="Duplo clique para alterar o código Labfacil"
@@ -4650,30 +4692,40 @@ export default function MidwayLabDashboard() {
 
                               {/* CÓDIGO APARELHO (DUPLO CLIQUE PARA EDITAR) */}
                               <td className="py-2 px-3">
-                                {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoEquipamento' ? (
+                                {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoEquipamento' ? (
                                   <input
                                     type="text"
                                     autoFocus
-                                    value={ex.codigoEquipamento}
+                                    value={editingInlineCell.tempValue}
                                     onFocus={(e) => e.target.select()}
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => {
-                                      const novoCodigo = e.target.value.toUpperCase();
-                                      setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoEquipamento: novoCodigo } : item));
+                                      const val = e.target.value.toUpperCase();
+                                      setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                     }}
                                     onBlur={() => {
-                                      setEditingInlineCell(null);
-                                      persistirExamesAparelho(equipamentoExamesList, `💾 Código ${ex.codigoEquipamento} gravado no banco.`);
+                                      salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
                                     }}
                                     onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === "Escape") {
-                                        e.currentTarget.blur();
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
+                                      } else if (e.key === "Escape") {
+                                        setEditingInlineCell(null);
                                       }
                                     }}
                                     className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none"
                                   />
                                 ) : (
                                   <div
-                                    onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoEquipamento' })}
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingInlineCell({
+                                        key: ex.id || ex.codigoEquipamento,
+                                        field: 'codigoEquipamento',
+                                        tempValue: ex.codigoEquipamento
+                                      });
+                                    }}
                                     className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
                                     title="Duplo clique para alterar o código do aparelho"
                                   >
@@ -4686,30 +4738,40 @@ export default function MidwayLabDashboard() {
 
                               {/* CÓDIGO LABFACIL (DUPLO CLIQUE PARA EDITAR) */}
                               <td className="py-2 px-3">
-                                {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
+                                {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
                                   <input
                                     type="text"
                                     autoFocus
-                                    value={ex.codigoLabfacilSugerido || ""}
+                                    value={editingInlineCell.tempValue}
                                     onFocus={(e) => e.target.select()}
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => {
-                                      const novoCodLab = e.target.value.toUpperCase();
-                                      setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
+                                      const val = e.target.value.toUpperCase();
+                                      setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                     }}
                                     onBlur={() => {
-                                      setEditingInlineCell(null);
-                                      persistirExamesAparelho(equipamentoExamesList, `💾 Código Labfacil de ${ex.codigoEquipamento} gravado no banco.`);
+                                      salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
                                     }}
                                     onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === "Escape") {
-                                        e.currentTarget.blur();
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                      } else if (e.key === "Escape") {
+                                        setEditingInlineCell(null);
                                       }
                                     }}
                                     className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none"
                                   />
                                 ) : (
                                   <div
-                                    onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoLabfacilSugerido' })}
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingInlineCell({
+                                        key: ex.id || ex.codigoEquipamento,
+                                        field: 'codigoLabfacilSugerido',
+                                        tempValue: ex.codigoLabfacilSugerido || ''
+                                      });
+                                    }}
                                     className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
                                     title="Duplo clique para alterar o código do Labfacil"
                                   >
@@ -8652,23 +8714,26 @@ export default function MidwayLabDashboard() {
                         </td>
                         {/* CÓDIGO DO APARELHO - DUPLO CLIQUE PARA EDITAR */}
                         <td className="py-2 px-3">
-                          {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoEquipamento' ? (
+                          {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoEquipamento' ? (
                             <input
                               type="text"
                               autoFocus
-                              value={ex.codigoEquipamento}
+                              value={editingInlineCell.tempValue}
                               onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => {
-                                const novoCodigo = e.target.value.toUpperCase();
-                                setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoEquipamento: novoCodigo } : item));
+                                const val = e.target.value.toUpperCase();
+                                setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                               }}
                               onBlur={() => {
-                                setEditingInlineCell(null);
-                                persistirExamesAparelho(equipamentoExamesList, `💾 Código ${ex.codigoEquipamento} gravado no banco.`);
+                                salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
                               }}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === "Escape") {
-                                  e.currentTarget.blur();
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
+                                } else if (e.key === "Escape") {
+                                  setEditingInlineCell(null);
                                 }
                               }}
                               className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none ring-2 ring-amber-400/50"
@@ -8676,7 +8741,14 @@ export default function MidwayLabDashboard() {
                             />
                           ) : (
                             <div
-                              onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoEquipamento' })}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingInlineCell({
+                                  key: ex.id || ex.codigoEquipamento,
+                                  field: 'codigoEquipamento',
+                                  tempValue: ex.codigoEquipamento
+                                });
+                              }}
                               className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
                               title="Duplo clique para alterar o código do aparelho"
                             >
@@ -8689,23 +8761,26 @@ export default function MidwayLabDashboard() {
 
                         {/* CÓDIGO LABFACIL - DUPLO CLIQUE PARA EDITAR */}
                         <td className="py-2 px-3">
-                          {editingInlineCell?.id === (ex.id || String(exIdx)) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
+                          {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
                             <input
                               type="text"
                               autoFocus
-                              value={ex.codigoLabfacilSugerido || ""}
+                              value={editingInlineCell.tempValue}
                               onFocus={(e) => e.target.select()}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => {
-                                const novoCodLab = e.target.value.toUpperCase();
-                                setEquipamentoExamesList(prev => prev.map((item, idx) => (idx === exIdx || (ex.id && item.id === ex.id)) ? { ...item, codigoLabfacilSugerido: novoCodLab } : item));
+                                const val = e.target.value.toUpperCase();
+                                setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                               }}
                               onBlur={() => {
-                                setEditingInlineCell(null);
-                                persistirExamesAparelho(equipamentoExamesList, `💾 Código Labfacil de ${ex.codigoEquipamento} gravado no banco.`);
+                                salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
                               }}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === "Escape") {
-                                  e.currentTarget.blur();
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                } else if (e.key === "Escape") {
+                                  setEditingInlineCell(null);
                                 }
                               }}
                               className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none ring-2 ring-cyan-400/50"
@@ -8713,7 +8788,14 @@ export default function MidwayLabDashboard() {
                             />
                           ) : (
                             <div
-                              onDoubleClick={() => setEditingInlineCell({ id: ex.id || String(exIdx), field: 'codigoLabfacilSugerido' })}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingInlineCell({
+                                  key: ex.id || ex.codigoEquipamento,
+                                  field: 'codigoLabfacilSugerido',
+                                  tempValue: ex.codigoLabfacilSugerido || ''
+                                });
+                              }}
                               className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
                               title="Duplo clique para alterar o código do Labfacil"
                             >
