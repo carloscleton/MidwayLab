@@ -75,6 +75,7 @@ import {
   Info,
   Printer,
   Folder,
+  FolderCheck,
   ChevronDown,
   ChevronUp,
   Users,
@@ -223,6 +224,9 @@ export default function MidwayLabDashboard() {
   const [equipamentoModalExamesList, setEquipamentoModalExamesList] = useState<IExameEquipamentoRecord[]>([]);
   const [modalExameSearch, setModalExameSearch] = useState<string>("");
   const [isLoadingModalExames, setIsLoadingModalExames] = useState<boolean>(false);
+  const [isGeneratingEquipFolders, setIsGeneratingEquipFolders] = useState<boolean>(false);
+  const [equipFoldersCreatedFeedback, setEquipFoldersCreatedFeedback] = useState<string | null>(null);
+  const [equipAutoStartRobot, setEquipAutoStartRobot] = useState<boolean>(true);
 
   const carregarExamesParaModalEquipamento = async (modeloCodigo: string, equipId?: string, tenantId?: string) => {
     setIsLoadingModalExames(true);
@@ -5333,11 +5337,12 @@ export default function MidwayLabDashboard() {
                       formato_arquivo: (cfg.formato_arquivo || (tipoCom === "ARQUIVO_COMPARTILHADO" ? "JSON" : "ASTM")) as any,
                       ip_host: cfg.ip_host || (tipoCom === "SERIAL" ? "COM1" : "192.168.1.150"),
                       porta: cfg.porta ?? (tipoCom === "SERIAL" ? (cfg.baud_rate || 9600) : 5100),
-                      diretorio_carga: cfg.diretorio_carga || `C:\\Equipamentos\\${cod}\\Carga`,
-                      diretorio_resultados: cfg.diretorio_resultados || `C:\\Equipamentos\\${cod}\\Resultados`,
+                      diretorio_carga: cfg.diretorio_carga || `C:\\MidwayLab\\Equipamentos\\${cod}\\Carga`,
+                      diretorio_resultados: cfg.diretorio_resultados || `C:\\MidwayLab\\Equipamentos\\${cod}\\Resultados`,
                       ativo: true
                     });
                     setModalExameSearch("");
+                    setEquipFoldersCreatedFeedback(null);
                     const activeT = tenants.find(t => t.nome === selectedTenant);
                     carregarExamesParaModalEquipamento(cod, undefined, activeT?.id);
                     setIsEquipamentoModalOpen(true);
@@ -5441,6 +5446,7 @@ export default function MidwayLabDashboard() {
                           setEditingEquipamento(eq);
                           setEquipamentoForm({ ...eq });
                           setModalExameSearch("");
+                          setEquipFoldersCreatedFeedback(null);
                           carregarExamesParaModalEquipamento(eq.modelo, eq.id, eq.tenant_id);
                           setIsEquipamentoModalOpen(true);
                         }}
@@ -6983,6 +6989,35 @@ export default function MidwayLabDashboard() {
                     );
                   }
 
+                  // Cria fisicamente as pastas no disco local C:\MidwayLab
+                  try {
+                    await fetch('/api/setup-local-folders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        tenantId: saved.tenant_id,
+                        equipamentos: [saved],
+                        pastaRaiz: 'C:\\MidwayLab'
+                      })
+                    });
+                  } catch (_) {}
+
+                  // Se a opção de ativar o robô estiver marcada, inicia o robô em produção
+                  if (equipAutoStartRobot) {
+                    try {
+                      await fetch('/api/robot-service', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          acao: 'iniciar',
+                          tenantId: saved.tenant_id,
+                          pastaRaiz: 'C:\\MidwayLab'
+                        })
+                      });
+                      setIsWatcherRunning(true);
+                    } catch (_) {}
+                  }
+
                   setEquipamentosList(prev => {
                     const idx = prev.findIndex(item => item.id === saved.id);
                     if (idx >= 0) {
@@ -6992,7 +7027,7 @@ export default function MidwayLabDashboard() {
                     }
                     return [...prev, saved];
                   });
-                  showNotification(`✓ Equipamento ${saved.nome} e ${equipamentoModalExamesList.length} códigos de exames salvos com sucesso!`);
+                  showNotification(`✓ Equipamento ${saved.nome} salvo! Pastas criadas em C:\\MidwayLab e Robô ativado.`);
                 }
                 setIsEquipamentoModalOpen(false);
                 setEquipTestResult(null);
@@ -7030,15 +7065,18 @@ export default function MidwayLabDashboard() {
                           formato_arquivo: (cfg.formato_arquivo || "ASTM") as any,
                           porta: cfg.porta ?? equipamentoForm.porta,
                           ip_host: cfg.ip_host ?? equipamentoForm.ip_host,
-                          diretorio_carga: cfg.diretorio_carga ?? `C:\\Equipamentos\\${mod}\\Carga`,
-                          diretorio_resultados: cfg.diretorio_resultados ?? `C:\\Equipamentos\\${mod}\\Resultados`
+                          diretorio_carga: cfg.diretorio_carga || `C:\\MidwayLab\\Equipamentos\\${mod}\\Carga`,
+                          diretorio_resultados: cfg.diretorio_resultados || `C:\\MidwayLab\\Equipamentos\\${mod}\\Resultados`
                         });
                       } else {
                         setEquipamentoForm({
                           ...equipamentoForm,
-                          modelo: mod
+                          modelo: mod,
+                          diretorio_carga: `C:\\MidwayLab\\Equipamentos\\${mod}\\Carga`,
+                          diretorio_resultados: `C:\\MidwayLab\\Equipamentos\\${mod}\\Resultados`
                         });
                       }
+                      setEquipFoldersCreatedFeedback(null);
                       const activeT = tenants.find(t => t.nome === selectedTenant);
                       carregarExamesParaModalEquipamento(mod, editingEquipamento?.id, activeT?.id);
                     }}
@@ -7418,6 +7456,147 @@ export default function MidwayLabDashboard() {
                     {equipTestResult.message}
                   </div>
                 )}
+              </div>
+
+              {/* PASTAS LOCAIS DO EQUIPAMENTO & ROBÔ DE MONITORAMENTO */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-teal-300 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                      <HardDrive className="w-4 h-4 text-teal-400" /> Pastas Locais do Equipamento & Robô 24h
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      Estrutura no disco local para entrada de pedidos do Labfácil e carga/resultados deste analisador.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={isGeneratingEquipFolders}
+                      onClick={async () => {
+                        setIsGeneratingEquipFolders(true);
+                        setEquipFoldersCreatedFeedback(null);
+                        try {
+                          const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+                          const res = await fetch("/api/setup-local-folders", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              tenantId: activeTenantObj?.id,
+                              equipamentos: [{
+                                ...equipamentoForm,
+                                id: editingEquipamento?.id || "temp-equip"
+                              }],
+                              pastaRaiz: "C:\\MidwayLab"
+                            })
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            setEquipFoldersCreatedFeedback(`Pastas criadas e testadas com sucesso em C:\\MidwayLab!`);
+                            showNotification(`✓ Pastas criadas no disco C:\\MidwayLab para ${equipamentoForm.modelo}!`);
+                          } else {
+                            showNotification(`⚠️ ${data.error}`);
+                          }
+                        } catch (err: any) {
+                          showNotification(`⚠️ Erro: ${err.message}`);
+                        } finally {
+                          setIsGeneratingEquipFolders(false);
+                        }
+                      }}
+                      className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-teal-500/20 disabled:opacity-50"
+                      title="Criar fisicamente as pastas no disco local C:\ e validar permissões"
+                    >
+                      <FolderCheck className={`w-3.5 h-3.5 ${isGeneratingEquipFolders ? "animate-spin" : ""}`} />
+                      {isGeneratingEquipFolders ? "Criando Pastas..." : "📁 Gerar Pastas Deste Equipamento"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const novoEstado = !isWatcherRunning;
+                        setIsWatcherRunning(novoEstado);
+                        try {
+                          const activeTenantObj = tenants.find(t => t.nome === selectedTenant) || tenants[0];
+                          await fetch("/api/robot-service", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              acao: novoEstado ? "iniciar" : "parar",
+                              tenantId: activeTenantObj?.id,
+                              pastaRaiz: "C:\\MidwayLab"
+                            })
+                          });
+                          showNotification(novoEstado ? "🚀 Robô iniciado em produção 24h!" : "⏸️ Robô pausado.");
+                        } catch (_) {}
+                      }}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                        isWatcherRunning
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                      }`}
+                      title="Ativar ou pausar o serviço autônomo do robô"
+                    >
+                      <span className={`w-2 h-2 rounded-full ${isWatcherRunning ? "bg-emerald-400 animate-ping" : "bg-slate-500"}`} />
+                      {isWatcherRunning ? "🟢 Robô Ativo (24h)" : "⚪ Acionar Robô"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* VISUALIZAÇÃO DOS CAMINHOS DO EQUIPAMENTO */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs font-mono">
+                  <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl space-y-1">
+                    <span className="text-[10px] text-teal-400 font-bold block">📥 ENTRADA (LABFÁCIL / PEDIDOS)</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`C:\\MidwayLab\\Labfacil\\${equipamentoForm.modelo || 'MODELO'}\\Entrada`}
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-teal-300 text-[11px] font-mono cursor-default"
+                    />
+                    <span className="text-[9px] text-slate-500 font-sans block">Onde o Labfácil grava XML/JSON</span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl space-y-1">
+                    <span className="text-[10px] text-cyan-400 font-bold block">📦 CARGA DO ANALISADOR (WORKLIST)</span>
+                    <input
+                      type="text"
+                      value={equipamentoForm.diretorio_carga || `C:\\MidwayLab\\Equipamentos\\${equipamentoForm.modelo || 'MODELO'}\\Carga`}
+                      onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_carga: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-cyan-300 text-[11px] font-mono"
+                    />
+                    <span className="text-[9px] text-slate-500 font-sans block">Onde o analisador busca a carga</span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl space-y-1">
+                    <span className="text-[10px] text-amber-400 font-bold block">📊 RESULTADOS DO ANALISADOR</span>
+                    <input
+                      type="text"
+                      value={equipamentoForm.diretorio_resultados || `C:\\MidwayLab\\Equipamentos\\${equipamentoForm.modelo || 'MODELO'}\\Resultados`}
+                      onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_resultados: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-amber-300 text-[11px] font-mono"
+                    />
+                    <span className="text-[9px] text-slate-500 font-sans block">Onde o analisador entrega os testes</span>
+                  </div>
+                </div>
+
+                {equipFoldersCreatedFeedback && (
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{equipFoldersCreatedFeedback}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-800/60">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 font-sans">
+                    <input
+                      type="checkbox"
+                      checked={equipAutoStartRobot}
+                      onChange={(e) => setEquipAutoStartRobot(e.target.checked)}
+                      className="rounded border-slate-700 text-teal-500 focus:ring-teal-400 bg-slate-950 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Gerar pastas automaticamente e manter o <strong>Robô de Monitoramento ativado</strong> ao salvar este equipamento</span>
+                  </label>
+                </div>
               </div>
 
               {/* SEÇÃO: CÓDIGOS DE EXAMES DO ANALISADOR (IMAGEM 2) */}
