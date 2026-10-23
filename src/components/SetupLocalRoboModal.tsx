@@ -133,7 +133,15 @@ export function SetupLocalRoboModal({
       const data = await res.json();
       if (data.success) {
         setPastasCriadas(data.resultados || []);
-        showNotification(`✓ Estrutura de pastas criada com sucesso em ${data.pastaRaiz}!`);
+        if (data.todasCriadasNoDisco) {
+          showNotification(`✓ Estrutura de pastas criada com sucesso no disco em ${data.pastaRaiz}!`);
+        } else {
+          // Ambiente Web/Vercel: baixa o script .bat para criar com 2 cliques no Windows
+          if (data.batScript) {
+            downloadArquivo(data.batScript, 'CRIAR_PASTAS_MIDWAYLAB.bat');
+          }
+          showNotification(`📥 Arquivo 'CRIAR_PASTAS_MIDWAYLAB.bat' baixado! Dê dois cliques para criar as pastas no seu Windows.`);
+        }
         if (onConfigAtualizada) onConfigAtualizada();
       } else {
         showNotification(`⚠️ Falha ao criar pastas: ${data.error}`);

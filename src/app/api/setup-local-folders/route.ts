@@ -154,7 +154,7 @@ export async function POST(request: Request) {
       })
       .eq('id', tenantId);
 
-    // 5. Cria arquivo README de instruções na raiz C:\MidwayLab
+    // 5. Cria arquivo README de instruções na raiz C:\MidwayLab se o disco permitir
     try {
       const readmePath = path.join(baseDir, 'COMO_FUNCIONA_O_ROBO_MIDWAY.txt');
       const readmeContent = [
@@ -184,12 +184,46 @@ export async function POST(request: Request) {
       fs.writeFileSync(readmePath, readmeContent, 'utf8');
     } catch (_) {}
 
+    // 6. Monta script Batch para execução no Windows
+    const batCommands: string[] = [
+      '@echo off',
+      'title MIDWAY LAB - GERADOR OFICIAL DE PASTAS',
+      'color 0A',
+      'echo ========================================================',
+      'echo       MIDWAY LAB - GERADOR DE PASTAS NO DISCO LOCAL      ',
+      'echo ========================================================',
+      'echo.',
+      `echo Criando a estrutura oficial de pastas em ${baseDir}...`,
+      'echo.'
+    ];
+
+    for (const r of resultados) {
+      batCommands.push(`if not exist "${r.diretorioEntrada}" mkdir "${r.diretorioEntrada}"`);
+      batCommands.push(`if not exist "${r.diretorioProcessados}" mkdir "${r.diretorioProcessados}"`);
+      batCommands.push(`if not exist "${r.diretorioErros}" mkdir "${r.diretorioErros}"`);
+      batCommands.push(`if not exist "${r.diretorioCarga}" mkdir "${r.diretorioCarga}"`);
+      batCommands.push(`if not exist "${r.diretorioResultados}" mkdir "${r.diretorioResultados}"`);
+    }
+
+    batCommands.push('echo.');
+    batCommands.push(`echo [OK] Estrutura oficial criada com sucesso em ${baseDir}!`);
+    batCommands.push('echo.');
+    batCommands.push('timeout /t 5 >nul');
+    batCommands.push('exit');
+
+    const batScript = batCommands.join('\r\n');
+    const todasCriadasNoDisco = resultados.every(r => r.permissoesOk);
+
     return NextResponse.json({
       success: true,
       pastaRaiz: baseDir,
       totalEquipamentos: resultados.length,
       resultados,
-      message: `Estrutura de pastas criada com sucesso em ${baseDir}!`
+      todasCriadasNoDisco,
+      batScript,
+      message: todasCriadasNoDisco
+        ? `Estrutura de pastas criada com sucesso em ${baseDir}!`
+        : `Configurações salvas! Baixe e execute o script gerador para criar as pastas no Windows.`
     });
   } catch (error: any) {
     console.error('[API setup-local-folders] Erro:', error);

@@ -7164,7 +7164,7 @@ export default function MidwayLabDashboard() {
 
                   // Cria fisicamente as pastas no disco local C:\MidwayLab (tanto analisador quanto Labfacil)
                   try {
-                    await fetch('/api/setup-local-folders', {
+                    const resPastas = await fetch('/api/setup-local-folders', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -7173,6 +7173,22 @@ export default function MidwayLabDashboard() {
                         pastaRaiz: 'C:\\MidwayLab'
                       })
                     });
+                    if (resPastas.ok) {
+                      const dataPastas = await resPastas.json();
+                      if (dataPastas.batScript && !dataPastas.todasCriadasNoDisco) {
+                        try {
+                          const blob = new Blob([dataPastas.batScript], { type: 'text/plain;charset=utf-8' });
+                          const url = URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `CRIAR_PASTAS_${saved.modelo}.bat`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          URL.revokeObjectURL(url);
+                        } catch (_) {}
+                      }
+                    }
                   } catch (_) {}
 
                   // Se a opção de ativar o robô estiver marcada, inicia o robô em produção
