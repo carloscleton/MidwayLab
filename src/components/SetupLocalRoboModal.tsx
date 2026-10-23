@@ -273,6 +273,59 @@ export function SetupLocalRoboModal({
           </div>
         </div>
 
+        {/* GUIA / EXEMPLO DA ESTRUTURA DE PASTAS CASO QUEIRA CRIAR MANUALMENTE */}
+        <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-bold text-slate-200">
+                Exemplo da Estrutura Oficial de Pastas (Referência para Criação Manual no Windows)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const modeloExemplo = equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500';
+                const texto = [
+                  `${pastaRaiz || 'C:\\MidwayLab'}\\`,
+                  `├── Labfacil\\`,
+                  `│   └── ${modeloExemplo}\\`,
+                  `│       ├── Entrada\\       <- Onde o Labfácil deposita os pedidos`,
+                  `│       ├── Processados\\   <- Arquivos já lidos e convertidos`,
+                  `│       └── Erros\\         <- Arquivos com divergência`,
+                  `└── Equipamentos\\`,
+                  `    └── ${modeloExemplo}\\`,
+                  `        ├── Carga\\         <- Onde o analisador busca a worklist`,
+                  `        └── Resultados\\    <- Onde o analisador grava os resultados`
+                ].join('\n');
+                navigator.clipboard.writeText(texto);
+                showNotification('📋 Exemplo de estrutura de pastas copiado para a área de transferência!');
+              }}
+              className="text-[11px] text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-1 rounded-lg font-mono font-semibold transition cursor-pointer flex items-center gap-1.5"
+              title="Copiar árvore de exemplo para colar na documentação ou bloco de notas"
+            >
+              <Copy className="w-3.5 h-3.5" /> Copiar Estrutura Exemplo
+            </button>
+          </div>
+
+          <p className="text-[11px] text-slate-400">
+            Se preferir criar as pastas manualmente pelo Windows Explorer, siga exatamente este padrão de diretórios para garantir que o robô e o Labfácil se comuniquem perfeitamente:
+          </p>
+
+          <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-3 font-mono text-[11px] text-teal-300 select-all leading-relaxed overflow-x-auto">
+            <span className="text-amber-300 font-bold">{pastaRaiz || 'C:\\MidwayLab'}\</span><br />
+            ├── <span className="text-slate-100 font-semibold">Labfacil\</span><br />
+            │   └── <span className="text-cyan-300 font-bold">{equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500'}\</span><br />
+            │       ├── <span className="text-emerald-400 font-bold">Entrada\</span>       <span className="text-slate-500">&lt;- Onde o Labfácil deposita os pedidos (XML / JSON)</span><br />
+            │       ├── <span className="text-slate-400 font-bold">Processados\</span>   <span className="text-slate-500">&lt;- Arquivos já lidos e convertidos com timestamp</span><br />
+            │       └── <span className="text-rose-400 font-bold">Erros\</span>         <span className="text-slate-500">&lt;- Arquivos com divergência para auditoria</span><br />
+            └── <span className="text-slate-100 font-semibold">Equipamentos\</span><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;└── <span className="text-cyan-300 font-bold">{equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500'}\</span><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── <span className="text-indigo-300 font-bold">Carga\</span>         <span className="text-slate-500">&lt;- Onde o analisador busca a worklist gerada</span><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <span className="text-amber-400 font-bold">Resultados\</span>    <span className="text-slate-500">&lt;- Onde o analisador grava os resultados processados</span>
+          </div>
+        </div>
+
         {/* FEEDBACK DE PASTAS CRIADAS */}
         {pastasCriadas.length > 0 && (
           <div className="bg-emerald-950/20 border border-emerald-500/40 rounded-2xl p-4 space-y-3">

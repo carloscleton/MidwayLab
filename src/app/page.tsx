@@ -6135,6 +6135,55 @@ export default function MidwayLabDashboard() {
                 </div>
               </div>
 
+              {/* GUIA VISUAL: ESTRUTURA OFICIAL DE PASTAS PARA CRIAÇÃO MANUAL */}
+              <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs font-bold text-slate-200">
+                      Exemplo da Estrutura Oficial de Pastas (Referência para Criação Manual no Windows)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const mod = selectedTargetEquipamento || 'SYSMEX_UF_1500';
+                      const texto = [
+                        `C:\\MidwayLab\\`,
+                        `├── Labfacil\\`,
+                        `│   └── ${mod}\\`,
+                        `│       ├── Entrada\\       <- Onde o Labfácil deposita os pedidos`,
+                        `│       ├── Processados\\   <- Arquivos já lidos e convertidos`,
+                        `│       └── Erros\\         <- Arquivos com divergência`,
+                        `└── Equipamentos\\`,
+                        `    └── ${mod}\\`,
+                        `        ├── Carga\\         <- Onde o analisador busca a worklist`,
+                        `        └── Resultados\\    <- Onde o analisador grava os resultados`
+                      ].join('\n');
+                      navigator.clipboard.writeText(texto);
+                      showNotification('📋 Exemplo de estrutura de pastas copiado!');
+                    }}
+                    className="text-[11px] text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-1 rounded-lg font-mono font-semibold transition cursor-pointer flex items-center gap-1.5"
+                    title="Copiar estrutura de pastas para a área de transferência"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Copiar Exemplo de Pastas
+                  </button>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-3 font-mono text-[11px] text-teal-300 select-all leading-relaxed overflow-x-auto">
+                  <span className="text-amber-300 font-bold">C:\MidwayLab\</span><br />
+                  ├── <span className="text-slate-100 font-semibold">Labfacil\</span><br />
+                  │   └── <span className="text-cyan-300 font-bold">{selectedTargetEquipamento || 'SYSMEX_UF_1500'}\</span><br />
+                  │       ├── <span className="text-emerald-400 font-bold">Entrada\</span>       <span className="text-slate-500">&lt;- Onde o Labfácil deposita os pedidos</span><br />
+                  │       ├── <span className="text-slate-400 font-bold">Processados\</span>   <span className="text-slate-500">&lt;- Arquivos já lidos e convertidos</span><br />
+                  │       └── <span className="text-rose-400 font-bold">Erros\</span>         <span className="text-slate-500">&lt;- Arquivos com divergência</span><br />
+                  └── <span className="text-slate-100 font-semibold">Equipamentos\</span><br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;└── <span className="text-cyan-300 font-bold">{selectedTargetEquipamento || 'SYSMEX_UF_1500'}\</span><br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── <span className="text-indigo-300 font-bold">Carga\</span>         <span className="text-slate-500">&lt;- Onde o analisador busca a worklist</span><br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <span className="text-amber-400 font-bold">Resultados\</span>    <span className="text-slate-500">&lt;- Onde o analisador grava os resultados</span>
+                </div>
+              </div>
+
               {/* LOG DE ATIVIDADES DO WATCHER */}
               {watcherLogs.length > 0 && (
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-mono">
@@ -7295,13 +7344,13 @@ export default function MidwayLabDashboard() {
                       <label className="block text-slate-300 font-semibold mb-1 text-xs">Diretório de Carga (Pasta Compartilhada)</label>
                       <input
                         type="text"
-                        placeholder="C:\Equipamentos\Carga"
+                        placeholder={`C:\\MidwayLab\\Equipamentos\\${equipamentoForm.modelo || 'MODELO'}\\Carga`}
                         value={equipamentoForm.diretorio_carga || ""}
                         onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_carga: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500"
                       />
                       <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        Pasta onde os arquivos de worklist e pedidos são gravados para o analisador ler.
+                        Pasta onde os arquivos de worklist e pedidos são gravados para o analisador ler. Padrão: <code className="text-teal-300 font-mono">C:\MidwayLab\Equipamentos\{equipamentoForm.modelo || 'MODELO'}\Carga</code>
                       </span>
                     </div>
 
@@ -7309,13 +7358,13 @@ export default function MidwayLabDashboard() {
                       <label className="block text-slate-300 font-semibold mb-1 text-xs">Diretório de Resultados do Equipamento</label>
                       <input
                         type="text"
-                        placeholder="C:\Equipamentos\Resultados"
+                        placeholder={`C:\\MidwayLab\\Equipamentos\\${equipamentoForm.modelo || 'MODELO'}\\Resultados`}
                         value={equipamentoForm.diretorio_resultados || ""}
                         onChange={(e) => setEquipamentoForm({ ...equipamentoForm, diretorio_resultados: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500"
                       />
                       <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        Pasta onde o analisador grava os arquivos de resultados processados.
+                        Pasta onde o analisador grava os arquivos de resultados processados. Padrão: <code className="text-teal-300 font-mono">C:\MidwayLab\Equipamentos\{equipamentoForm.modelo || 'MODELO'}\Resultados</code>
                       </span>
                     </div>
                   </div>
