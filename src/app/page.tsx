@@ -79,7 +79,8 @@ import {
   ChevronDown,
   ChevronUp,
   Users,
-  HardDrive
+  HardDrive,
+  GripVertical
 } from "lucide-react";
 
 export interface ILabfacilExamItem {
@@ -279,6 +280,8 @@ export default function MidwayLabDashboard() {
   const [editingExameItem, setEditingExameItem] = useState<IExameEquipamentoRecord | null>(null);
   const [exameExpandidoKey, setExameExpandidoKey] = useState<string | null>(null);
   const [editingInlineCell, setEditingInlineCell] = useState<{ id: string; field: 'codigoEquipamento' | 'codigoLabfacilSugerido' } | null>(null);
+  const [draggedExameIndex, setDraggedExameIndex] = useState<number | null>(null);
+  const [dragOverExameIndex, setDragOverExameIndex] = useState<number | null>(null);
   const [novoExameForm, setNovoExameForm] = useState({
     codigoEquipamento: "",
     nomeExame: "",
@@ -4454,7 +4457,7 @@ export default function MidwayLabDashboard() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
                     <tr>
-                      <th className="py-2.5 px-3 w-10 text-center font-mono">Nº</th>
+                      <th className="py-2.5 px-3 w-16 text-center font-mono">Nº / Ordem</th>
                       <th className="py-2.5 px-3 w-16 text-center">Status</th>
                       <th className="py-2.5 px-3">Código Aparelho</th>
                       <th className="py-2.5 px-3">Cód. Labfacil</th>
@@ -4497,44 +4500,99 @@ export default function MidwayLabDashboard() {
                       .map((ex, exIdx) => {
                         const realIdx = equipamentoExamesList.indexOf(ex);
                         const isExpanded = exameExpandidoKey === (ex.id || ex.codigoEquipamento);
+                        const isDragging = draggedExameIndex === realIdx;
+                        const isDragOver = dragOverExameIndex === realIdx && draggedExameIndex !== realIdx;
                         return (
                           <React.Fragment key={ex.id || ex.codigoEquipamento}>
                             <tr
+                              draggable={!editingInlineCell}
+                              onDragStart={(e) => {
+                                setDraggedExameIndex(realIdx);
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData("text/plain", String(realIdx));
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                                if (dragOverExameIndex !== realIdx) {
+                                  setDragOverExameIndex(realIdx);
+                                }
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverExameIndex === realIdx) {
+                                  setDragOverExameIndex(null);
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (draggedExameIndex === null || draggedExameIndex === realIdx) {
+                                  setDraggedExameIndex(null);
+                                  setDragOverExameIndex(null);
+                                  return;
+                                }
+                                const novaLista = [...equipamentoExamesList];
+                                const [itemMovido] = novaLista.splice(draggedExameIndex, 1);
+                                novaLista.splice(realIdx, 0, itemMovido);
+                                setEquipamentoExamesList(novaLista);
+                                persistirExamesAparelho(novaLista, `↕ Exame ${itemMovido.codigoEquipamento} movido para posição ${realIdx + 1}`);
+                                setDraggedExameIndex(null);
+                                setDragOverExameIndex(null);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedExameIndex(null);
+                                setDragOverExameIndex(null);
+                              }}
                               onClick={() => handleSelectEquipamentoExam(ex)}
-                              className={`hover:bg-slate-800/40 transition cursor-pointer ${
-                                selectedEquipamentoExam?.codigoEquipamento === ex.codigoEquipamento
+                              className={`transition cursor-pointer ${
+                                isDragging
+                                  ? "opacity-30 bg-teal-500/20 scale-[0.99] border-y-2 border-teal-400"
+                                  : isDragOver
+                                  ? "bg-cyan-500/25 border-t-2 border-t-cyan-400"
+                                  : selectedEquipamentoExam?.codigoEquipamento === ex.codigoEquipamento
                                   ? "bg-cyan-500/15"
                                   : !ex.ativo
                                   ? "opacity-50 bg-slate-950/40"
-                                  : ""
+                                  : "hover:bg-slate-800/40"
                               }`}
                             >
-                              {/* Nº E MOVER */}
-                              <td className="py-2 px-2 text-center">
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <span className="text-slate-500 font-mono text-[10px] tabular-nums">{realIdx + 1}</span>
-                                  <button
-                                    type="button"
-                                    disabled={realIdx === 0}
-                                    onClick={() => {
-                                      const nova = [...equipamentoExamesList];
-                                      [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
-                                      persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
-                                    }}
-                                    className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
-                                    title="Mover para cima"
-                                  >▲</button>
-                                  <button
-                                    type="button"
-                                    disabled={realIdx === equipamentoExamesList.length - 1}
-                                    onClick={() => {
-                                      const nova = [...equipamentoExamesList];
-                                      [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
-                                      persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
-                                    }}
-                                    className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
-                                    title="Mover para baixo"
-                                  >▼</button>
+                              {/* Nº E MOVER COM GRIP DRAG & DROP */}
+                              <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-1">
+                                  <span
+                                    className="text-slate-600 hover:text-cyan-400 cursor-grab active:cursor-grabbing p-0.5"
+                                    title="Clique e arraste para reordenar"
+                                  >
+                                    <GripVertical className="w-3.5 h-3.5 text-slate-500 hover:text-cyan-400" />
+                                  </span>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-slate-500 font-mono text-[10px] tabular-nums font-bold">{realIdx + 1}</span>
+                                    <div className="flex items-center gap-0.5">
+                                      <button
+                                        type="button"
+                                        disabled={realIdx === 0}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const nova = [...equipamentoExamesList];
+                                          [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
+                                          persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
+                                        }}
+                                        className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
+                                        title="Mover para cima"
+                                      >▲</button>
+                                      <button
+                                        type="button"
+                                        disabled={realIdx === equipamentoExamesList.length - 1}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const nova = [...equipamentoExamesList];
+                                          [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
+                                          persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
+                                        }}
+                                        className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
+                                        title="Mover para baixo"
+                                      >▼</button>
+                                    </div>
+                                  </div>
                                 </div>
                               </td>
 
@@ -8396,12 +8454,23 @@ export default function MidwayLabDashboard() {
               </div>
             </div>
 
+            {/* DICA DE ARRASTAR E SOLTAR */}
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-1">
+              <span className="flex items-center gap-1.5 text-teal-300">
+                <GripVertical className="w-3.5 h-3.5 text-teal-400" />
+                Dica: Arraste qualquer exame para cima ou para baixo para reordenar a lista.
+              </span>
+              <span className="text-slate-500 font-mono text-[10px]">
+                {equipamentoExamesList.length} testes cadastrados
+              </span>
+            </div>
+
             {/* TABELA DE EXAMES COM CRUD E HABILITAR/DESABILITAR */}
             <div className="overflow-y-auto flex-1 rounded-xl border border-slate-800 custom-scrollbar">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
                   <tr>
-                    <th className="py-2.5 px-3 w-10 text-center font-mono">Nº</th>
+                    <th className="py-2.5 px-3 w-16 text-center font-mono">Nº / Ordem</th>
                     <th className="py-2.5 px-3 w-16 text-center">Status</th>
                     <th className="py-2.5 px-3">Código Aparelho</th>
                     <th className="py-2.5 px-3">Cód. Labfacil</th>
@@ -8427,35 +8496,94 @@ export default function MidwayLabDashboard() {
                     })
                     .map((ex, exIdx) => {
                       const realIdx = equipamentoExamesList.indexOf(ex);
+                      const isDragging = draggedExameIndex === realIdx;
+                      const isDragOver = dragOverExameIndex === realIdx && draggedExameIndex !== realIdx;
                       return (
                       <React.Fragment key={ex.id || ex.codigoEquipamento}>
-                      <tr className={`hover:bg-slate-800/40 transition ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}>
-                        {/* NÚMERO E MOVER */}
-                        <td className="py-2 px-2 text-center">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-slate-500 font-mono text-[10px] tabular-nums">{realIdx + 1}</span>
-                            <button
-                              type="button"
-                              disabled={realIdx === 0}
-                              onClick={() => {
-                                const nova = [...equipamentoExamesList];
-                                [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
-                                persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
-                              }}
-                              className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
-                              title="Mover para cima"
-                            >▲</button>
-                            <button
-                              type="button"
-                              disabled={realIdx === equipamentoExamesList.length - 1}
-                              onClick={() => {
-                                const nova = [...equipamentoExamesList];
-                                [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
-                                persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
-                              }}
-                              className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[10px] leading-none block"
-                              title="Mover para baixo"
-                            >▼</button>
+                      <tr
+                        draggable={!editingInlineCell}
+                        onDragStart={(e) => {
+                          setDraggedExameIndex(realIdx);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", String(realIdx));
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverExameIndex !== realIdx) {
+                            setDragOverExameIndex(realIdx);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverExameIndex === realIdx) {
+                            setDragOverExameIndex(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedExameIndex === null || draggedExameIndex === realIdx) {
+                            setDraggedExameIndex(null);
+                            setDragOverExameIndex(null);
+                            return;
+                          }
+                          const novaLista = [...equipamentoExamesList];
+                          const [itemMovido] = novaLista.splice(draggedExameIndex, 1);
+                          novaLista.splice(realIdx, 0, itemMovido);
+                          setEquipamentoExamesList(novaLista);
+                          persistirExamesAparelho(novaLista, `↕ Exame ${itemMovido.codigoEquipamento} movido para posição ${realIdx + 1}`);
+                          setDraggedExameIndex(null);
+                          setDragOverExameIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedExameIndex(null);
+                          setDragOverExameIndex(null);
+                        }}
+                        className={`transition cursor-grab active:cursor-grabbing select-none ${
+                          isDragging
+                            ? "opacity-30 bg-teal-500/20 scale-[0.99] border-y-2 border-teal-400"
+                            : isDragOver
+                            ? "bg-cyan-500/25 border-t-2 border-t-cyan-400"
+                            : "hover:bg-slate-800/40"
+                        } ${!ex.ativo ? "opacity-50 bg-slate-950/40" : ""}`}
+                      >
+                        {/* NÚMERO E MOVER COM GRIP DRAG & DROP */}
+                        <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            <span
+                              className="text-slate-600 hover:text-cyan-400 cursor-grab active:cursor-grabbing p-0.5"
+                              title="Clique e arraste para cima ou para baixo para reordenar"
+                            >
+                              <GripVertical className="w-3.5 h-3.5 text-slate-500 hover:text-cyan-400" />
+                            </span>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-slate-500 font-mono text-[10px] tabular-nums font-bold">{realIdx + 1}</span>
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  disabled={realIdx === 0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nova = [...equipamentoExamesList];
+                                    [nova[realIdx - 1], nova[realIdx]] = [nova[realIdx], nova[realIdx - 1]];
+                                    persistirExamesAparelho(nova, `↑ ${ex.codigoEquipamento} movido para cima.`);
+                                  }}
+                                  className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
+                                  title="Mover para cima"
+                                >▲</button>
+                                <button
+                                  type="button"
+                                  disabled={realIdx === equipamentoExamesList.length - 1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nova = [...equipamentoExamesList];
+                                    [nova[realIdx + 1], nova[realIdx]] = [nova[realIdx], nova[realIdx + 1]];
+                                    persistirExamesAparelho(nova, `↓ ${ex.codigoEquipamento} movido para baixo.`);
+                                  }}
+                                  className="text-slate-500 hover:text-teal-300 disabled:opacity-20 cursor-pointer disabled:cursor-default text-[9px] leading-none"
+                                  title="Mover para baixo"
+                                >▼</button>
+                              </div>
+                            </div>
                           </div>
                         </td>
                         {/* TOGGLE HABILITAR / DESABILITAR */}
