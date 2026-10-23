@@ -14,6 +14,7 @@ import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/e
 import ExameResultadosCalculados from "../components/ExameResultadosCalculados";
 import NovoModeloModal from "../components/NovoModeloModal";
 import GerenciarModelosModal from "../components/GerenciarModelosModal";
+import { SetupLocalRoboModal } from "../components/SetupLocalRoboModal";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
@@ -76,7 +77,8 @@ import {
   Folder,
   ChevronDown,
   ChevronUp,
-  Users
+  Users,
+  HardDrive
 } from "lucide-react";
 
 export interface ILabfacilExamItem {
@@ -243,6 +245,7 @@ export default function MidwayLabDashboard() {
   const [catalogoModelos, setCatalogoModelos] = useState<IModeloEquipamentoRecord[]>([]);
   const [isNovoModeloModalOpen, setIsNovoModeloModalOpen] = useState(false);
   const [isGerenciarModelosModalOpen, setIsGerenciarModelosModalOpen] = useState(false);
+  const [isSetupLocalModalOpen, setIsSetupLocalModalOpen] = useState(false);
 
   const recarregarCatalogoModelos = async () => {
     try {
@@ -5292,6 +5295,14 @@ export default function MidwayLabDashboard() {
               <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
                 <button
                   type="button"
+                  onClick={() => setIsSetupLocalModalOpen(true)}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-emerald-500/25 cursor-pointer"
+                  title="Assistente de Instalação Local: Criar pastas no disco C:\ e colocar o Robô 24h em produção"
+                >
+                  <HardDrive className="w-4 h-4 text-slate-950" /> 🛠️ Instalação Local & Robô
+                </button>
+                <button
+                  type="button"
                   onClick={() => setIsGerenciarModelosModalOpen(true)}
                   className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 text-xs border border-slate-700 cursor-pointer shadow-md"
                   title="Listar, editar, desativar (deixar off) ou excluir modelos de equipamentos gravados no banco"
@@ -5528,6 +5539,14 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSetupLocalModalOpen(true)}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/25"
+                    title="Assistente de Instalação: Criar pastas no disco C:\ e colocar o robô em produção 24h"
+                  >
+                    <HardDrive className="w-4 h-4 text-slate-950" /> 🛠️ Assistente de Pastas & Robô
+                  </button>
                   {/* TOGGLE LIGAR / DESLIGAR */}
                   <button
                     type="button"
@@ -7560,6 +7579,22 @@ export default function MidwayLabDashboard() {
         onAtualizarCatalogo={recarregarCatalogoModelos}
         onAbrirNovoModeloWeb={() => setIsNovoModeloModalOpen(true)}
         showNotification={showNotification}
+      />
+
+      {/* ASSISTENTE DE INSTALAÇÃO LOCAL E ROBÔ EM PRODUÇÃO (ADMIN CARLOS CLETON) */}
+      <SetupLocalRoboModal
+        isOpen={isSetupLocalModalOpen}
+        onClose={() => setIsSetupLocalModalOpen(false)}
+        activeTenant={tenants.find(t => t.nome === selectedTenant) || null}
+        equipamentos={equipamentosList}
+        showNotification={showNotification}
+        onConfigAtualizada={async () => {
+          const activeT = tenants.find(t => t.nome === selectedTenant);
+          if (activeT) {
+            await loadEquipamentosForTenant(activeT.id);
+            await loadWatcherConfigForTenant(activeT);
+          }
+        }}
       />
 
       {/* MODAL: DOCUMENTAÇÃO TÉCNICA E CÓDIGOS DO EQUIPAMENTO COM CRUD NO BANCO */}

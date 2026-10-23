@@ -150,23 +150,65 @@ export class FolderWatcherService {
         // Parse do arquivo do Labfacil (XML ou JSON)
         const parsedOrders = LabfacilParserService.parseFile(content, fileName);
 
+        // Carrega o DE-PARA do Supabase para a empresa e equipamento
+        const mapaDePara = new Map<string, string>();
+        if (this.config.tenantId) {
+          try {
+            const { data: deparaRows } = await supabase
+              .from('depara_exames')
+              .select('codigo_labfacil, codigo_equipamento, codigo_softlab')
+              .eq('tenant_id', this.config.tenantId);
+
+            if (deparaRows) {
+              deparaRows.forEach((r: any) => {
+                const eqCod = (r.codigo_equipamento || '').trim().toUpperCase();
+                if (r.codigo_labfacil && eqCod) mapaDePara.set(r.codigo_labfacil.trim().toUpperCase(), eqCod);
+                if (r.codigo_softlab && eqCod) mapaDePara.set(r.codigo_softlab.trim().toUpperCase(), eqCod);
+              });
+            }
+          } catch (_) {}
+        }
+
         for (const order of parsedOrders) {
-          // Geração da carga para o equipamento (CB350, Yumizen, etc)
+          // Geração da carga para o equipamento (Sysmex, CB350, Yumizen, etc)
           const result = LabfacilParserService.gerarCargaEquipamento(
             order,
             this.config.equipamentoDestino,
-            new Map<string, string>() // DE-PARA dinâmico
+            mapaDePara
           );
 
-          // Determina diretório de saída do equipamento (ex: C:\Equipamentos\CB350\Carga)
-          const equipDir = path.join(
+          // Determina diretório de saída do equipamento (ex: C:\MidwayLab\Equipamentos\SYSMEX\Carga)
+          let equipDir = path.join(
             this.config.diretorioProcessados,
             'Cargas_' + this.config.equipamentoDestino
           );
+
+          // Se tiver pasta Carga oficial do equipamento configurada, usa ela prioritariamente
+          const dirCargaPadrao = `C:\\MidwayLab\\Equipamentos\\${this.config.equipamentoDestino}\\Carga`;
+          if (fs.existsSync(dirCargaPadrao)) {
+            equipDir = dirCargaPadrao;
+          }
+
           this.assegurarDiretorio(equipDir);
 
           const outputFilePath = path.join(equipDir, result.nomeArquivoSugerido);
           fs.writeFileSync(outputFilePath, result.conteudoArquivo, 'utf8');
+
+          // Grava o pedido processado no Supabase para acompanhamento na Web
+          if (this.config.tenantId) {
+            try {
+              await supabase.from('pedidos').insert({
+                tenant_id: this.config.tenantId,
+                codigo_pedido_labfacil: order.numeroPedido,
+                paciente_nome: order.cliente.nome,
+                exames: order.exames.map(e => e.codigoEquipamento || e.codigo),
+                status: 'PROCESSADO',
+                origem_arquivo: fileName,
+                equipamento_destino: this.config.equipamentoDestino,
+                created_at: new Date().toISOString()
+              });
+            } catch (_) {}
+          }
 
           // Registra log de sucesso
           this.adicionarLog({
