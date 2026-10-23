@@ -319,10 +319,10 @@ export default function MidwayLabDashboard() {
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
   // FOLDER WATCHER AUTOMÁTICO (MONITORAMENTO DE PASTAS)
   const [watcherConfig, setWatcherConfig] = useState({
-    diretorioEntrada: "C:\\Labfacil\\Pedidos",
-    diretorioProcessados: "C:\\Labfacil\\Processados",
-    diretorioErros: "C:\\Labfacil\\Erros",
-    equipamentoDestino: "CB350",
+    diretorioEntrada: "C:\\MidwayLab\\Labfacil\\SYSMEX_UF_1500\\Entrada",
+    diretorioProcessados: "C:\\MidwayLab\\Labfacil\\SYSMEX_UF_1500\\Processados",
+    diretorioErros: "C:\\MidwayLab\\Labfacil\\SYSMEX_UF_1500\\Erros",
+    equipamentoDestino: "SYSMEX_UF_1500",
     ativo: false
   });
   const [watcherLogs, setWatcherLogs] = useState<Array<{ id: string; timestamp: string; arquivo: string; status: string; mensagem: string }>>([]);
@@ -2016,16 +2016,41 @@ export default function MidwayLabDashboard() {
   // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT) POR EQUIPAMENTO
   const loadWatcherConfigForTenant = async (tenantObj: any, targetEquipModelo?: string) => {
     if (!tenantObj) return;
-    const modeloAtual = (targetEquipModelo || selectedTargetEquipamento || "CB350").toUpperCase().trim();
+
+    // Buscar lista de equipamentos do tenant para encontrar o modelo correto
+    const tenantEquips = equipamentosList.filter(eq => eq.tenant_id === tenantObj.id || !eq.tenant_id);
+    let modeloAtual = targetEquipModelo || selectedTargetEquipamento;
+
+    // Se o modeloAtual for CB350 e não estiver na lista de equipamentos do tenant, mas o tenant tiver outro equipamento (ex: SYSMEX_UF_1500), prioriza o equipamento do tenant
+    if (tenantEquips.length > 0 && !tenantEquips.some(eq => eq.modelo === modeloAtual)) {
+      modeloAtual = tenantEquips[0].modelo;
+      setSelectedTargetEquipamento(modeloAtual);
+    }
+    modeloAtual = (modeloAtual || "SYSMEX_UF_1500").toUpperCase().trim();
     
-    // 1. Busca configurações específicas deste equipamento (ex: Yumizen, CB350, Access)
+    // 1. Busca configurações específicas deste equipamento (ex: SYSMEX_UF_1500, Yumizen, CB350)
     const equipConfigs = tenantObj.configuracoes?.equipamentos_pastas?.[modeloAtual];
     
-    // Se não tiver configuração salva para este equipamento, sugere pastas dedicadas padrão para ele em vez de puxar as de outro equipamento
+    // Padronização na raiz C:\MidwayLab conforme configurado no cadastro de equipamentos
+    let dirEntrada = equipConfigs?.diretorio_entrada;
+    let dirProcessados = equipConfigs?.diretorio_processados;
+    let dirErros = equipConfigs?.diretorio_erros;
+
+    // Se não tiver configuração ou se a configuração salva contiver resquícios legados de outro modelo, assume os caminhos de C:\MidwayLab
+    if (!dirEntrada || (modeloAtual !== 'CB350' && dirEntrada.toUpperCase().includes('CB350')) || dirEntrada.includes('C:\\Labfacil')) {
+      dirEntrada = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\Entrada`;
+    }
+    if (!dirProcessados || (modeloAtual !== 'CB350' && dirProcessados.toUpperCase().includes('CB350')) || dirProcessados.includes('C:\\Labfacil')) {
+      dirProcessados = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\Processados`;
+    }
+    if (!dirErros || (modeloAtual !== 'CB350' && dirErros.toUpperCase().includes('CB350')) || dirErros.includes('C:\\Labfacil')) {
+      dirErros = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\Erros`;
+    }
+
     const configPorEmpresa = {
-      diretorioEntrada: equipConfigs?.diretorio_entrada || `C:\\Labfacil\\${modeloAtual}\\Enviados`,
-      diretorioProcessados: equipConfigs?.diretorio_processados || `C:\\Labfacil\\${modeloAtual}\\Enviados\\Processados`,
-      diretorioErros: equipConfigs?.diretorio_erros || `C:\\Labfacil\\Erros`,
+      diretorioEntrada: dirEntrada,
+      diretorioProcessados: dirProcessados,
+      diretorioErros: dirErros,
       equipamentoDestino: modeloAtual,
       ativo: equipConfigs?.monitor_ativo !== undefined ? Boolean(equipConfigs.monitor_ativo) : Boolean(tenantObj.configuracoes?.ingestao_pastas?.monitor_ativo)
     };
@@ -2089,7 +2114,20 @@ export default function MidwayLabDashboard() {
         return;
       }
       const data = await EquipamentoService.listarEquipamentos(tenantId);
-      setEquipamentosList(data || []);
+      const equips = data || [];
+      setEquipamentosList(equips);
+
+      // Sincroniza selectedTargetEquipamento e pastas com o equipamento do tenant
+      if (equips.length > 0) {
+        const jaExiste = equips.find(eq => eq.modelo === selectedTargetEquipamento);
+        const novoModelo = jaExiste ? jaExiste.modelo : equips[0].modelo;
+        setSelectedTargetEquipamento(novoModelo);
+
+        const activeTenant = tenants.find(t => t.id === tenantId);
+        if (activeTenant) {
+          loadWatcherConfigForTenant(activeTenant, novoModelo);
+        }
+      }
     } catch (e) {
       console.warn("[Dashboard] Erro ao carregar equipamentos do tenant:", e);
       setEquipamentosList([]);
@@ -5494,11 +5532,14 @@ export default function MidwayLabDashboard() {
                     {(() => {
                       const activeT = tenants.find(t => t.nome === selectedTenant);
                       const equipsDoTenant = equipamentosList.filter(eq => activeT ? eq.tenant_id === activeT.id : true);
+                      const modeloValido = equipsDoTenant.some(eq => eq.modelo === selectedTargetEquipamento)
+                        ? selectedTargetEquipamento
+                        : (equipsDoTenant[0]?.modelo || selectedTargetEquipamento || "SYSMEX_UF_1500");
 
                       if (equipsDoTenant.length > 0) {
                         return (
                           <select
-                            value={selectedTargetEquipamento}
+                            value={modeloValido}
                             onChange={(e) => {
                               const novoEquip = e.target.value;
                               setSelectedTargetEquipamento(novoEquip);
@@ -5545,6 +5586,60 @@ export default function MidwayLabDashboard() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* BOTÃO PARA PUXAR AUTOMATICAMENTE OS CAMINHOS DE C:\MidwayLab DO EQUIPAMENTO */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const activeTenant = tenants.find(t => t.nome === selectedTenant);
+                      if (!activeTenant) return;
+                      const activeT = activeTenant;
+                      const equipsDoTenant = equipamentosList.filter(eq => eq.tenant_id === activeT.id);
+                      const modeloSalvar = (selectedTargetEquipamento || equipsDoTenant[0]?.modelo || "SYSMEX_UF_1500").toUpperCase().trim();
+                      
+                      const novasPastas = {
+                        diretorio_entrada: `C:\\MidwayLab\\Labfacil\\${modeloSalvar}\\Entrada`,
+                        diretorio_processados: `C:\\MidwayLab\\Labfacil\\${modeloSalvar}\\Processados`,
+                        diretorio_erros: `C:\\MidwayLab\\Labfacil\\${modeloSalvar}\\Erros`,
+                        equipamento_destino: modeloSalvar,
+                        monitor_ativo: isWatcherRunning
+                      };
+
+                      setWatcherConfig({
+                        diretorioEntrada: novasPastas.diretorio_entrada,
+                        diretorioProcessados: novasPastas.diretorio_processados,
+                        diretorioErros: novasPastas.diretorio_erros,
+                        equipamentoDestino: modeloSalvar,
+                        ativo: isWatcherRunning
+                      });
+
+                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, novasPastas, modeloSalvar);
+                      if (ok) {
+                        setTenants(prev => prev.map(t => {
+                          if (t.id === activeTenant.id) {
+                            const prevPastas = t.configuracoes?.equipamentos_pastas || {};
+                            return {
+                              ...t,
+                              configuracoes: {
+                                ...(t.configuracoes || {}),
+                                equipamentos_pastas: {
+                                  ...prevPastas,
+                                  [modeloSalvar]: novasPastas
+                                },
+                                ingestao_pastas: novasPastas
+                              }
+                            };
+                          }
+                          return t;
+                        }));
+                        showNotification(`⚡ Pastas padrão de C:\\MidwayLab sincronizadas e salvas para ${modeloSalvar}!`);
+                      }
+                    }}
+                    className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    title="Preencher com os caminhos padronizados do analisador no C:\MidwayLab"
+                  >
+                    <FolderCheck className="w-4 h-4 text-teal-400" /> ⚡ Padrão C:\MidwayLab
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setIsSetupLocalModalOpen(true)}
@@ -5584,13 +5679,14 @@ export default function MidwayLabDashboard() {
                       // Persistir estado no JSONB da empresa ativa
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
+                        const modeloSalvar = (selectedTargetEquipamento || "SYSMEX_UF_1500").toUpperCase().trim();
                         TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: selectedTargetEquipamento,
+                          equipamento_destino: modeloSalvar,
                           monitor_ativo: novoEstado
-                        }, selectedTargetEquipamento);
+                        }, modeloSalvar);
                       }
                       showNotification(novoEstado ? "▶️ Monitoramento automático ligado e salvo no banco!" : "⏸️ Monitoramento automático desligado e salvo no banco.");
                     }}
@@ -5659,28 +5755,61 @@ export default function MidwayLabDashboard() {
                     onClick={async () => {
                       setIsSavingWatcherConfig(true);
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                      if (!activeTenant) return;
+                      if (!activeTenant) {
+                        setIsSavingWatcherConfig(false);
+                        return;
+                      }
+
+                      const equipsDoTenant = activeTenant ? equipamentosList.filter(eq => eq.tenant_id === activeTenant.id) : [];
+                      const modeloSalvar = (selectedTargetEquipamento || equipsDoTenant[0]?.modelo || "SYSMEX_UF_1500").toUpperCase().trim();
 
                       const payloadJsonb = {
                         diretorio_entrada: watcherConfig.diretorioEntrada,
                         diretorio_processados: watcherConfig.diretorioProcessados,
                         diretorio_erros: watcherConfig.diretorioErros,
-                        equipamento_destino: selectedTargetEquipamento,
+                        equipamento_destino: modeloSalvar,
                         monitor_ativo: isWatcherRunning
                       };
 
-                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb, selectedTargetEquipamento);
+                      const ok = await TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadJsonb, modeloSalvar);
                       if (ok) {
-                        const existingEquipPastas = activeTenant.configuracoes?.equipamentos_pastas || {};
-                        activeTenant.configuracoes = {
-                          ...(activeTenant.configuracoes || {}),
-                          equipamentos_pastas: {
-                            ...existingEquipPastas,
-                            [selectedTargetEquipamento]: payloadJsonb
-                          },
-                          ingestao_pastas: payloadJsonb
-                        };
-                        showNotification(`💾 Pastas do equipamento ${selectedTargetEquipamento} salvas no banco para ${selectedTenant}!`);
+                        setTenants(prev => prev.map(t => {
+                          if (t.id === activeTenant.id) {
+                            const existingEquipPastas = t.configuracoes?.equipamentos_pastas || {};
+                            return {
+                              ...t,
+                              configuracoes: {
+                                ...(t.configuracoes || {}),
+                                equipamentos_pastas: {
+                                  ...existingEquipPastas,
+                                  [modeloSalvar]: payloadJsonb
+                                },
+                                ingestao_pastas: payloadJsonb
+                              }
+                            };
+                          }
+                          return t;
+                        }));
+
+                        // Notifica o backend folder watcher
+                        try {
+                          await fetch("/api/folder-watcher", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              acao: "atualizar_config",
+                              config: {
+                                diretorioEntrada: watcherConfig.diretorioEntrada,
+                                diretorioProcessados: watcherConfig.diretorioProcessados,
+                                diretorioErros: watcherConfig.diretorioErros,
+                                equipamentoDestino: modeloSalvar,
+                                ativo: isWatcherRunning
+                              }
+                            })
+                          });
+                        } catch (_) {}
+
+                        showNotification(`💾 Pastas do equipamento ${modeloSalvar} salvas com sucesso no banco para ${selectedTenant}!`);
                       } else {
                         showNotification(`Erro ao salvar no banco Supabase.`);
                       }
@@ -5720,13 +5849,13 @@ export default function MidwayLabDashboard() {
                             const handle = await window.showDirectoryPicker(pickerOptions);
                             setHandleEntrada(handle);
                             const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                            const modeloAtual = selectedTargetEquipamento || "CB350";
+                            const modeloAtual = (selectedTargetEquipamento || "SYSMEX_UF_1500").toUpperCase().trim();
                             if (activeTenant?.id) {
                               DirectoryStorageService.salvarHandle(`entrada_${activeTenant.id}_${modeloAtual}`, handle);
                               DirectoryStorageService.salvarHandle(`entrada_${activeTenant.id}`, handle);
                             }
                             // Extrai o nome da pasta selecionada pelo usuário no Windows
-                            const selectedFolder = handle.name || "Enviados";
+                            const selectedFolder = handle.name || "Entrada";
                             
                             // Reconstitui o caminho exato preservando o equipamento ativo
                             let pathName = "";
@@ -5738,10 +5867,10 @@ export default function MidwayLabDashboard() {
                                 parts[parts.length - 1] = selectedFolder;
                                 pathName = parts.join(separator);
                               } else {
-                                pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
+                                pathName = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                               }
                             } else {
-                              pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
+                              pathName = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                             }
 
                             setWatcherConfig(prev => {
@@ -5751,19 +5880,27 @@ export default function MidwayLabDashboard() {
                                   diretorio_entrada: pathName,
                                   diretorio_processados: prev.diretorioProcessados,
                                   diretorio_erros: prev.diretorioErros,
-                                  equipamento_destino: selectedTargetEquipamento,
+                                  equipamento_destino: modeloAtual,
                                   monitor_ativo: true
                                 };
-                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadEquip, selectedTargetEquipamento);
-                                const existingEquipPastas = activeTenant.configuracoes?.equipamentos_pastas || {};
-                                activeTenant.configuracoes = {
-                                  ...(activeTenant.configuracoes || {}),
-                                  equipamentos_pastas: {
-                                    ...existingEquipPastas,
-                                    [selectedTargetEquipamento]: payloadEquip
-                                  },
-                                  ingestao_pastas: payloadEquip
-                                };
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadEquip, modeloAtual);
+                                setTenants(tPrev => tPrev.map(t => {
+                                  if (t.id === activeTenant.id) {
+                                    const existingEquipPastas = t.configuracoes?.equipamentos_pastas || {};
+                                    return {
+                                      ...t,
+                                      configuracoes: {
+                                        ...(t.configuracoes || {}),
+                                        equipamentos_pastas: {
+                                          ...existingEquipPastas,
+                                          [modeloAtual]: payloadEquip
+                                        },
+                                        ingestao_pastas: payloadEquip
+                                      }
+                                    };
+                                  }
+                                  return t;
+                                }));
                               }
                               return updated;
                             });
@@ -5790,43 +5927,42 @@ export default function MidwayLabDashboard() {
                     onBlur={() => {
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
-                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                        const modeloAtual = (selectedTargetEquipamento || watcherConfig.equipamentoDestino || "SYSMEX_UF_1500").toUpperCase().trim();
+                        const payload = {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
+                          equipamento_destino: modeloAtual,
                           monitor_ativo: isWatcherRunning
-                        }, selectedTargetEquipamento).then((ok) => {
+                        };
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, payload, modeloAtual).then((ok) => {
                           if (ok) {
-                            showNotification(`💾 Caminho de Entrada gravado para ${selectedTargetEquipamento} (${selectedTenant})!`);
+                            showNotification(`💾 Caminho de Entrada gravado para ${modeloAtual} (${selectedTenant})!`);
                           }
                         });
-                        const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
-                        activeTenant.configuracoes = {
-                          ...(activeTenant.configuracoes || {}),
-                          ingestao_pastas: {
-                            ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                            diretorio_entrada: watcherConfig.diretorioEntrada,
-                            diretorio_processados: watcherConfig.diretorioProcessados,
-                            diretorio_erros: watcherConfig.diretorioErros,
-                            equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
-                            monitor_ativo: isWatcherRunning
-                          },
-                          equipamentos_pastas: {
-                            ...equipConfigs,
-                            [selectedTargetEquipamento]: {
-                              diretorio_entrada: watcherConfig.diretorioEntrada,
-                              diretorio_processados: watcherConfig.diretorioProcessados,
-                              diretorio_erros: watcherConfig.diretorioErros,
-                              equipamento_destino: selectedTargetEquipamento,
-                              monitor_ativo: isWatcherRunning,
-                              atualizado_em: new Date().toISOString()
-                            }
+                        setTenants(tPrev => tPrev.map(t => {
+                          if (t.id === activeTenant.id) {
+                            const equipConfigs = t.configuracoes?.equipamentos_pastas || {};
+                            return {
+                              ...t,
+                              configuracoes: {
+                                ...(t.configuracoes || {}),
+                                ingestao_pastas: payload,
+                                equipamentos_pastas: {
+                                  ...equipConfigs,
+                                  [modeloAtual]: {
+                                    ...payload,
+                                    atualizado_em: new Date().toISOString()
+                                  }
+                                }
+                              }
+                            };
                           }
-                        };
+                          return t;
+                        }));
                       }
                     }}
-                    placeholder="Ex: C:\Labfacil\Pedidos"
+                    placeholder="Ex: C:\MidwayLab\Labfacil\SYSMEX_UF_1500\Entrada"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-teal-300 focus:outline-none text-[11px]"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">
@@ -5861,7 +5997,7 @@ export default function MidwayLabDashboard() {
                             const handle = await window.showDirectoryPicker(pickerOptions);
                             setHandleProcessados(handle);
                             const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                            const modeloAtual = selectedTargetEquipamento || "CB350";
+                            const modeloAtual = (selectedTargetEquipamento || "SYSMEX_UF_1500").toUpperCase().trim();
                             if (activeTenant?.id) {
                               DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}_${modeloAtual}`, handle);
                               DirectoryStorageService.salvarHandle(`processados_${activeTenant.id}`, handle);
@@ -5878,45 +6014,43 @@ export default function MidwayLabDashboard() {
                                 parts[parts.length - 1] = selectedFolder;
                                 pathName = parts.join(separator);
                               } else {
-                                pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
+                                pathName = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                               }
                             } else {
-                              pathName = `C:\\Labfacil\\${modeloAtual}\\Enviados\\${selectedFolder}`;
+                              pathName = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                             }
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioProcessados: pathName };
                               if (activeTenant) {
-                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                                const payloadEquip = {
                                   diretorio_entrada: prev.diretorioEntrada,
                                   diretorio_processados: pathName,
                                   diretorio_erros: prev.diretorioErros,
-                                  equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
+                                  equipamento_destino: modeloAtual,
                                   monitor_ativo: isWatcherRunning
-                                }, selectedTargetEquipamento);
-                                const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
-                                activeTenant.configuracoes = {
-                                  ...(activeTenant.configuracoes || {}),
-                                  ingestao_pastas: {
-                                    ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                                    diretorio_entrada: prev.diretorioEntrada,
-                                    diretorio_processados: pathName,
-                                    diretorio_erros: prev.diretorioErros,
-                                    equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
-                                    monitor_ativo: isWatcherRunning
-                                  },
-                                  equipamentos_pastas: {
-                                    ...equipConfigs,
-                                    [selectedTargetEquipamento]: {
-                                      diretorio_entrada: prev.diretorioEntrada,
-                                      diretorio_processados: pathName,
-                                      diretorio_erros: prev.diretorioErros,
-                                      equipamento_destino: selectedTargetEquipamento,
-                                      monitor_ativo: isWatcherRunning,
-                                      atualizado_em: new Date().toISOString()
-                                    }
-                                  }
                                 };
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadEquip, modeloAtual);
+                                setTenants(tPrev => tPrev.map(t => {
+                                  if (t.id === activeTenant.id) {
+                                    const equipConfigs = t.configuracoes?.equipamentos_pastas || {};
+                                    return {
+                                      ...t,
+                                      configuracoes: {
+                                        ...(t.configuracoes || {}),
+                                        ingestao_pastas: payloadEquip,
+                                        equipamentos_pastas: {
+                                          ...equipConfigs,
+                                          [modeloAtual]: {
+                                            ...payloadEquip,
+                                            atualizado_em: new Date().toISOString()
+                                          }
+                                        }
+                                      }
+                                    };
+                                  }
+                                  return t;
+                                }));
                               }
                               return updated;
                             });
@@ -5945,43 +6079,42 @@ export default function MidwayLabDashboard() {
                     onBlur={() => {
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
-                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                        const modeloAtual = (selectedTargetEquipamento || watcherConfig.equipamentoDestino || "SYSMEX_UF_1500").toUpperCase().trim();
+                        const payload = {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
+                          equipamento_destino: modeloAtual,
                           monitor_ativo: isWatcherRunning
-                        }, selectedTargetEquipamento).then((ok) => {
+                        };
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, payload, modeloAtual).then((ok) => {
                           if (ok) {
-                            showNotification(`💾 Caminho de Processados gravado para ${selectedTargetEquipamento} (${selectedTenant})!`);
+                            showNotification(`💾 Caminho de Processados gravado para ${modeloAtual} (${selectedTenant})!`);
                           }
                         });
-                        const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
-                        activeTenant.configuracoes = {
-                          ...(activeTenant.configuracoes || {}),
-                          ingestao_pastas: {
-                            ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                            diretorio_entrada: watcherConfig.diretorioEntrada,
-                            diretorio_processados: watcherConfig.diretorioProcessados,
-                            diretorio_erros: watcherConfig.diretorioErros,
-                            equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
-                            monitor_ativo: isWatcherRunning
-                          },
-                          equipamentos_pastas: {
-                            ...equipConfigs,
-                            [selectedTargetEquipamento]: {
-                              diretorio_entrada: watcherConfig.diretorioEntrada,
-                              diretorio_processados: watcherConfig.diretorioProcessados,
-                              diretorio_erros: watcherConfig.diretorioErros,
-                              equipamento_destino: selectedTargetEquipamento,
-                              monitor_ativo: isWatcherRunning,
-                              atualizado_em: new Date().toISOString()
-                            }
+                        setTenants(tPrev => tPrev.map(t => {
+                          if (t.id === activeTenant.id) {
+                            const equipConfigs = t.configuracoes?.equipamentos_pastas || {};
+                            return {
+                              ...t,
+                              configuracoes: {
+                                ...(t.configuracoes || {}),
+                                ingestao_pastas: payload,
+                                equipamentos_pastas: {
+                                  ...equipConfigs,
+                                  [modeloAtual]: {
+                                    ...payload,
+                                    atualizado_em: new Date().toISOString()
+                                  }
+                                }
+                              }
+                            };
                           }
-                        };
+                          return t;
+                        }));
                       }
                     }}
-                    placeholder="Ex: C:\Labfacil\Processados"
+                    placeholder="Ex: C:\MidwayLab\Labfacil\SYSMEX_UF_1500\Processados"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-cyan-300 focus:outline-none text-[11px]"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">
@@ -6016,7 +6149,7 @@ export default function MidwayLabDashboard() {
                             const handle = await window.showDirectoryPicker(pickerOptions);
                             setHandleErros(handle);
                             const activeTenant = tenants.find(t => t.nome === selectedTenant);
-                            const modeloAtual = selectedTargetEquipamento || "CB350";
+                            const modeloAtual = (selectedTargetEquipamento || "SYSMEX_UF_1500").toUpperCase().trim();
                             if (activeTenant?.id) {
                               DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}_${modeloAtual}`, handle);
                               DirectoryStorageService.salvarHandle(`erros_${activeTenant.id}`, handle);
@@ -6033,45 +6166,43 @@ export default function MidwayLabDashboard() {
                                 parts[parts.length - 1] = selectedFolder;
                                 pathName = parts.join(separator);
                               } else {
-                                pathName = `C:\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
+                                pathName = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                               }
                             } else {
-                              pathName = `C:\\Labfacil\\Erros`;
+                              pathName = `C:\\MidwayLab\\Labfacil\\${modeloAtual}\\${selectedFolder}`;
                             }
 
                             setWatcherConfig(prev => {
                               const updated = { ...prev, diretorioErros: pathName };
                               if (activeTenant) {
-                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                                const payloadEquip = {
                                   diretorio_entrada: prev.diretorioEntrada,
                                   diretorio_processados: prev.diretorioProcessados,
                                   diretorio_erros: pathName,
-                                  equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
+                                  equipamento_destino: modeloAtual,
                                   monitor_ativo: isWatcherRunning
-                                }, selectedTargetEquipamento);
-                                const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
-                                activeTenant.configuracoes = {
-                                  ...(activeTenant.configuracoes || {}),
-                                  ingestao_pastas: {
-                                    ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                                    diretorio_entrada: prev.diretorioEntrada,
-                                    diretorio_processados: prev.diretorioProcessados,
-                                    diretorio_erros: pathName,
-                                    equipamento_destino: selectedTargetEquipamento || prev.equipamentoDestino,
-                                    monitor_ativo: isWatcherRunning
-                                  },
-                                  equipamentos_pastas: {
-                                    ...equipConfigs,
-                                    [selectedTargetEquipamento]: {
-                                      diretorio_entrada: prev.diretorioEntrada,
-                                      diretorio_processados: prev.diretorioProcessados,
-                                      diretorio_erros: pathName,
-                                      equipamento_destino: selectedTargetEquipamento,
-                                      monitor_ativo: isWatcherRunning,
-                                      atualizado_em: new Date().toISOString()
-                                    }
-                                  }
                                 };
+                                TenantService.salvarConfigIngestaoPastas(activeTenant.id, payloadEquip, modeloAtual);
+                                setTenants(tPrev => tPrev.map(t => {
+                                  if (t.id === activeTenant.id) {
+                                    const equipConfigs = t.configuracoes?.equipamentos_pastas || {};
+                                    return {
+                                      ...t,
+                                      configuracoes: {
+                                        ...(t.configuracoes || {}),
+                                        ingestao_pastas: payloadEquip,
+                                        equipamentos_pastas: {
+                                          ...equipConfigs,
+                                          [modeloAtual]: {
+                                            ...payloadEquip,
+                                            atualizado_em: new Date().toISOString()
+                                          }
+                                        }
+                                      }
+                                    };
+                                  }
+                                  return t;
+                                }));
                               }
                               return updated;
                             });
@@ -6096,47 +6227,46 @@ export default function MidwayLabDashboard() {
                     onBlur={() => {
                       const activeTenant = tenants.find(t => t.nome === selectedTenant);
                       if (activeTenant) {
-                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, {
+                        const modeloAtual = (selectedTargetEquipamento || watcherConfig.equipamentoDestino || "SYSMEX_UF_1500").toUpperCase().trim();
+                        const payload = {
                           diretorio_entrada: watcherConfig.diretorioEntrada,
                           diretorio_processados: watcherConfig.diretorioProcessados,
                           diretorio_erros: watcherConfig.diretorioErros,
-                          equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
+                          equipamento_destino: modeloAtual,
                           monitor_ativo: isWatcherRunning
-                        }, selectedTargetEquipamento).then((ok) => {
+                        };
+                        TenantService.salvarConfigIngestaoPastas(activeTenant.id, payload, modeloAtual).then((ok) => {
                           if (ok) {
-                            showNotification(`💾 Caminho de Erros gravado para ${selectedTargetEquipamento} (${selectedTenant})!`);
+                            showNotification(`💾 Caminho de Erros gravado para ${modeloAtual} (${selectedTenant})!`);
                           }
                         });
-                        const equipConfigs = activeTenant.configuracoes?.equipamentos_pastas || {};
-                        activeTenant.configuracoes = {
-                          ...(activeTenant.configuracoes || {}),
-                          ingestao_pastas: {
-                            ...(activeTenant.configuracoes?.ingestao_pastas || {}),
-                            diretorio_entrada: watcherConfig.diretorioEntrada,
-                            diretorio_processados: watcherConfig.diretorioProcessados,
-                            diretorio_erros: watcherConfig.diretorioErros,
-                            equipamento_destino: selectedTargetEquipamento || watcherConfig.equipamentoDestino,
-                            monitor_ativo: isWatcherRunning
-                          },
-                          equipamentos_pastas: {
-                            ...equipConfigs,
-                            [selectedTargetEquipamento]: {
-                              diretorio_entrada: watcherConfig.diretorioEntrada,
-                              diretorio_processados: watcherConfig.diretorioProcessados,
-                              diretorio_erros: watcherConfig.diretorioErros,
-                              equipamento_destino: selectedTargetEquipamento,
-                              monitor_ativo: isWatcherRunning,
-                              atualizado_em: new Date().toISOString()
-                            }
+                        setTenants(tPrev => tPrev.map(t => {
+                          if (t.id === activeTenant.id) {
+                            const equipConfigs = t.configuracoes?.equipamentos_pastas || {};
+                            return {
+                              ...t,
+                              configuracoes: {
+                                ...(t.configuracoes || {}),
+                                ingestao_pastas: payload,
+                                equipamentos_pastas: {
+                                  ...equipConfigs,
+                                  [modeloAtual]: {
+                                    ...payload,
+                                    atualizado_em: new Date().toISOString()
+                                  }
+                                }
+                              }
+                            };
                           }
-                        };
+                          return t;
+                        }));
                       }
                     }}
-                    placeholder="Ex: C:\Labfacil\Erros"
+                    placeholder="Ex: C:\MidwayLab\Labfacil\SYSMEX_UF_1500\Erros"
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-rose-300 focus:outline-none text-[11px]"
                   />
                   <span className="text-[10px] text-slate-400 font-sans block">
-                    Arquivos corrompidos ou com XML inválido são movidos para cá.
+                    Pedidos com exames não mapeados no De-Para caem aqui.
                   </span>
                 </div>
               </div>
@@ -6979,6 +7109,49 @@ export default function MidwayLabDashboard() {
                 });
 
                 if (saved) {
+                  // Sincroniza imediatamente o seletor da Ingestão com o novo equipamento criado
+                  setSelectedTargetEquipamento(saved.modelo);
+
+                  // Define caminhos padrão em C:\MidwayLab\Labfacil\... derivados do novo equipamento
+                  const defaultLabfacilPastas = {
+                    diretorio_entrada: `C:\\MidwayLab\\Labfacil\\${saved.modelo}\\Entrada`,
+                    diretorio_processados: `C:\\MidwayLab\\Labfacil\\${saved.modelo}\\Processados`,
+                    diretorio_erros: `C:\\MidwayLab\\Labfacil\\${saved.modelo}\\Erros`,
+                    equipamento_destino: saved.modelo,
+                    monitor_ativo: equipAutoStartRobot || isWatcherRunning
+                  };
+
+                  // Salva no banco de dados para este modelo específico
+                  await TenantService.salvarConfigIngestaoPastas(saved.tenant_id, defaultLabfacilPastas, saved.modelo);
+
+                  // Atualiza o estado em memória dos tenants
+                  setTenants(prev => prev.map(t => {
+                    if (t.id === saved.tenant_id) {
+                      const existingPastas = t.configuracoes?.equipamentos_pastas || {};
+                      return {
+                        ...t,
+                        configuracoes: {
+                          ...(t.configuracoes || {}),
+                          equipamentos_pastas: {
+                            ...existingPastas,
+                            [saved.modelo]: defaultLabfacilPastas
+                          },
+                          ingestao_pastas: defaultLabfacilPastas
+                        }
+                      };
+                    }
+                    return t;
+                  }));
+
+                  // Atualiza a tela de Ingestão imediatamente com os caminhos do equipamento criado
+                  setWatcherConfig({
+                    diretorioEntrada: defaultLabfacilPastas.diretorio_entrada,
+                    diretorioProcessados: defaultLabfacilPastas.diretorio_processados,
+                    diretorioErros: defaultLabfacilPastas.diretorio_erros,
+                    equipamentoDestino: saved.modelo,
+                    ativo: defaultLabfacilPastas.monitor_ativo
+                  });
+
                   // Grava também os exames ajustados do analisador diretamente na tabela public.depara_exames
                   if (equipamentoModalExamesList.length > 0) {
                     await EquipamentoExamesService.salvarExamesNoBanco(
@@ -6989,7 +7162,7 @@ export default function MidwayLabDashboard() {
                     );
                   }
 
-                  // Cria fisicamente as pastas no disco local C:\MidwayLab
+                  // Cria fisicamente as pastas no disco local C:\MidwayLab (tanto analisador quanto Labfacil)
                   try {
                     await fetch('/api/setup-local-folders', {
                       method: 'POST',
@@ -7027,7 +7200,7 @@ export default function MidwayLabDashboard() {
                     }
                     return [...prev, saved];
                   });
-                  showNotification(`✓ Equipamento ${saved.nome} salvo! Pastas criadas em C:\\MidwayLab e Robô ativado.`);
+                  showNotification(`✓ Equipamento ${saved.nome} salvo! Pastas criadas em C:\\MidwayLab e sincronizadas na Ingestão.`);
                 }
                 setIsEquipamentoModalOpen(false);
                 setEquipTestResult(null);
