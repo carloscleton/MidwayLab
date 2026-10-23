@@ -16,7 +16,8 @@ import {
   Zap,
   HardDrive,
   Copy,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
 
 interface ISetupLocalRoboModalProps {
@@ -59,6 +60,29 @@ export function SetupLocalRoboModal({
   const [isLoadingRobo, setIsLoadingRobo] = useState(false);
   const [scriptWindowsGerado, setScriptWindowsGerado] = useState<string | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [copiedStartupCmd, setCopiedStartupCmd] = useState(false);
+  const [scriptInfo, setScriptInfo] = useState<{
+    batPath: string;
+    batContent: string;
+    vbsContent?: string;
+    gravadoNoDisco: boolean;
+  } | null>(null);
+
+  const downloadArquivo = (conteudo: string, nomeArquivo: string) => {
+    try {
+      const blob = new Blob([conteudo], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.warn("Falha ao disparar download automático:", e);
+    }
+  };
 
   // Carrega status atual do robô ao abrir o modal
   const carregarStatusRobo = async () => {
@@ -163,7 +187,23 @@ export function SetupLocalRoboModal({
       const data = await res.json();
       if (data.success) {
         setScriptWindowsGerado(data.batPath);
-        showNotification(data.message);
+        setScriptInfo({
+          batPath: data.batPath,
+          batContent: data.batContent,
+          vbsContent: data.vbsContent,
+          gravadoNoDisco: Boolean(data.gravadoNoDisco)
+        });
+
+        // Se veio o conteúdo do script, inicia download imediato para a máquina local
+        if (data.batContent) {
+          downloadArquivo(data.batContent, 'INICIAR_ROBO_MIDWAY.bat');
+        }
+
+        if (data.gravadoNoDisco) {
+          showNotification(`✓ Script gerado em ${data.batPath} e configurado no Windows!`);
+        } else {
+          showNotification(`📥 Arquivo 'INICIAR_ROBO_MIDWAY.bat' baixado! Coloque-o na pasta Startup do Windows.`);
+        }
       } else {
         showNotification(`⚠️ Erro: ${data.error}`);
       }
@@ -421,34 +461,73 @@ export function SetupLocalRoboModal({
             </div>
           </div>
 
-          {/* SCRIPT WINDOWS GERADO */}
+          {/* SCRIPT WINDOWS GERADO & INSTRUÇÕES DE STARTUP */}
           {scriptWindowsGerado && (
-            <div className="bg-indigo-950/30 border border-indigo-500/40 rounded-xl p-3 text-xs flex items-center justify-between gap-2">
-              <div className="space-y-0.5 font-mono text-[11px]">
-                <div className="text-indigo-300 font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Script de Inicialização Automática Criado com Sucesso!
+            <div className="bg-indigo-950/40 border border-indigo-500/40 rounded-2xl p-4 space-y-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-500/30 pb-2.5">
+                <div className="space-y-0.5 font-mono text-[11px]">
+                  <div className="text-indigo-300 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    Script de Inicialização Automática Pronto!
+                  </div>
+                  <div className="text-slate-300">
+                    Caminho padrão: <code className="text-teal-300 font-bold">{scriptWindowsGerado}</code>
+                  </div>
                 </div>
-                <div className="text-slate-300">
-                  Arquivo: <code className="text-teal-300 font-bold">{scriptWindowsGerado}</code>
-                </div>
-                <div className="text-slate-400 text-[10px]">
-                  Configurado para iniciar o robô automaticamente sempre que o computador for ligado.
+
+                <div className="flex items-center gap-2">
+                  {scriptInfo?.batContent && (
+                    <button
+                      type="button"
+                      onClick={() => downloadArquivo(scriptInfo.batContent, 'INICIAR_ROBO_MIDWAY.bat')}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Baixar .BAT
+                    </button>
+                  )}
+                  {scriptInfo?.vbsContent && (
+                    <button
+                      type="button"
+                      onClick={() => downloadArquivo(scriptInfo.vbsContent || '', 'MidwayLab_Silencioso.vbs')}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                      title="Script VBS para iniciar o robô sem janela preta aberta"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Baixar .VBS (Oculto)
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(scriptWindowsGerado);
-                  setCopiedScript(true);
-                  setTimeout(() => setCopiedScript(false), 2000);
-                }}
-                className="p-1.5 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-                title="Copiar caminho do arquivo"
-              >
-                {copiedScript ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              </button>
+              {/* GUIA PASSO A PASSO PARA INICIAR COM O WINDOWS */}
+              <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 space-y-2 text-[11px]">
+                <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                  📌 Como colocar para iniciar sozinho ao ligar o computador Windows:
+                </span>
+                <ol className="list-decimal list-inside space-y-1 text-slate-300 font-sans">
+                  <li>
+                    Pressione as teclas <kbd className="bg-slate-800 text-teal-300 px-1.5 py-0.5 rounded border border-slate-700 font-mono font-bold">Win + R</kbd> no teclado.
+                  </li>
+                  <li className="flex items-center gap-2 flex-wrap">
+                    <span>Digite o comando:</span>
+                    <code className="bg-slate-900 text-emerald-400 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">shell:startup</code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('shell:startup');
+                        setCopiedStartupCmd(true);
+                        setTimeout(() => setCopiedStartupCmd(false), 2000);
+                      }}
+                      className="text-[10px] text-teal-400 hover:text-teal-300 underline font-mono flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedStartupCmd ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copiedStartupCmd ? 'Copiado!' : 'Copiar comando'}
+                    </button>
+                  </li>
+                  <li>
+                    A pasta <strong className="text-slate-100">Inicializar do Windows</strong> vai se abrir. Cole o arquivo <code className="text-teal-300 font-mono">INICIAR_ROBO_MIDWAY.bat</code> lá dentro!
+                  </li>
+                </ol>
+              </div>
             </div>
           )}
 

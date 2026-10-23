@@ -177,19 +177,45 @@ export class FolderWatcherService {
             mapaDePara
           );
 
-          // Determina diretório de saída do equipamento (ex: C:\MidwayLab\Equipamentos\SYSMEX\Carga)
-          let equipDir = path.join(
-            this.config.diretorioProcessados,
-            'Cargas_' + this.config.equipamentoDestino
-          );
-
-          // Se tiver pasta Carga oficial do equipamento configurada, usa ela prioritariamente
-          const dirCargaPadrao = `C:\\MidwayLab\\Equipamentos\\${this.config.equipamentoDestino}\\Carga`;
-          if (fs.existsSync(dirCargaPadrao)) {
-            equipDir = dirCargaPadrao;
+          // Extrai a pasta raiz do MidwayLab (ex: C:\MidwayLab) a partir da pasta de entrada configurada
+          let baseMidway = 'C:\\MidwayLab';
+          if (this.config.diretorioEntrada && this.config.diretorioEntrada.toLowerCase().includes('labfacil')) {
+            const partes = this.config.diretorioEntrada.split(/[\\/]labfacil/i);
+            if (partes[0] && partes[0].trim().length > 0) {
+              baseMidway = partes[0].trim();
+            }
           }
 
+          // A pasta oficial onde o analisador busca a worklist é SEMPRE em Equipamentos/<MODELO>/Carga
+          const equipDir = path.join(
+            baseMidway,
+            'Equipamentos',
+            this.config.equipamentoDestino,
+            'Carga'
+          );
+
           this.assegurarDiretorio(equipDir);
+
+          // Remove/migra qualquer pasta legada 'Cargas_...' criada indevidamente dentro de Processados
+          try {
+            const pastaEspuria = path.join(
+              this.config.diretorioProcessados,
+              'Cargas_' + this.config.equipamentoDestino
+            );
+            if (fs.existsSync(pastaEspuria)) {
+              const arqsEspurios = fs.readdirSync(pastaEspuria);
+              for (const a of arqsEspurios) {
+                const src = path.join(pastaEspuria, a);
+                const dst = path.join(equipDir, a);
+                if (!fs.existsSync(dst)) {
+                  fs.renameSync(src, dst);
+                } else {
+                  fs.unlinkSync(src);
+                }
+              }
+              fs.rmdirSync(pastaEspuria);
+            }
+          } catch (_) {}
 
           const outputFilePath = path.join(equipDir, result.nomeArquivoSugerido);
           fs.writeFileSync(outputFilePath, result.conteudoArquivo, 'utf8');

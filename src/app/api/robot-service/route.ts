@@ -76,12 +76,10 @@ export async function POST(request: Request) {
     }
 
     if (acao === 'gerar_script_windows') {
-      // Gera o arquivo .bat no disco local C:\MidwayLab
-      if (!fs.existsSync(baseDir)) {
-        fs.mkdirSync(baseDir, { recursive: true });
-      }
+      const host = request.headers.get('host') || 'localhost:3000';
+      const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+      const appUrl = `${protocol}://${host}`;
 
-      const batPath = path.join(baseDir, 'INICIAR_ROBO_MIDWAY.bat');
       const batContent = [
         '@echo off',
         'title MIDWAY LAB - ROBO DE PRODUCAO 24H',
@@ -94,32 +92,56 @@ export async function POST(request: Request) {
         'echo ========================================================',
         '',
         'cd /d "%~dp0"',
-        `curl -X POST http://localhost:3000/api/robot-service -H "Content-Type: application/json" -d "{\\"acao\\":\\"iniciar\\",\\"tenantId\\":\\"${tenantId || ''}\\"}"`,
+        `curl -X POST ${appUrl}/api/robot-service -H "Content-Type: application/json" -d "{\\"acao\\":\\"iniciar\\",\\"tenantId\\":\\"${tenantId || ''}\\"}"`,
         'echo.',
         'echo [OK] Robo ativado em segundo plano com sucesso!',
         'timeout /t 5 >nul',
         'exit'
       ].join('\r\n');
 
-      fs.writeFileSync(batPath, batContent, 'utf8');
+      const vbsContent = [
+        'Set WshShell = CreateObject("WScript.Shell")',
+        `WshShell.Run "cmd /c ""${path.join(baseDir, 'INICIAR_ROBO_MIDWAY.bat')}""", 0, False`,
+        'Set WshShell = Nothing'
+      ].join('\r\n');
 
-      // Tenta copiar também para a pasta de Inicializar (Startup) do Windows do usuário
+      let gravadoNoDisco = false;
       let startupPathCriado = false;
+      const batPath = path.join(baseDir, 'INICIAR_ROBO_MIDWAY.bat');
+
+      // Tenta gravar no disco local se o ambiente permitir (ex: máquina local com Node.js)
       try {
-        const userProfile = process.env.USERPROFILE || 'C:\\Users\\Default';
-        const startupDir = path.join(userProfile, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
-        if (fs.existsSync(startupDir)) {
-          const startupBat = path.join(startupDir, 'MidwayLab_Robo_Startup.bat');
-          fs.writeFileSync(startupBat, batContent, 'utf8');
-          startupPathCriado = true;
+        if (!fs.existsSync(baseDir)) {
+          fs.mkdirSync(baseDir, { recursive: true });
         }
-      } catch (_) {}
+        fs.writeFileSync(batPath, batContent, 'utf8');
+        gravadoNoDisco = true;
+
+        // Tenta copiar também para a pasta de Inicializar (Startup) do Windows do usuário
+        try {
+          const userProfile = process.env.USERPROFILE || 'C:\\Users\\Default';
+          const startupDir = path.join(userProfile, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
+          if (fs.existsSync(startupDir)) {
+            const startupBat = path.join(startupDir, 'MidwayLab_Robo_Startup.bat');
+            fs.writeFileSync(startupBat, batContent, 'utf8');
+            startupPathCriado = true;
+          }
+        } catch (_) {}
+      } catch (diskErr) {
+        // Ambiente serverless / nuvem (ex: Vercel): filesystem C: não existe no servidor
+        console.warn('[API robot-service] Disco local C: não disponível no servidor:', diskErr);
+      }
 
       return NextResponse.json({
         success: true,
+        gravadoNoDisco,
         batPath,
+        batContent,
+        vbsContent,
         autoStartupWindows: startupPathCriado,
-        message: `Script de inicialização gerado com sucesso em ${batPath}${startupPathCriado ? ' e configurado no Inicializar do Windows!' : ''}`
+        message: gravadoNoDisco
+          ? `Script de inicialização gerado com sucesso em ${batPath}${startupPathCriado ? ' e configurado no Inicializar do Windows!' : ''}`
+          : `Script de inicialização gerado para download direto no seu Windows!`
       });
     }
 
