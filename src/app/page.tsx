@@ -4148,14 +4148,6 @@ export default function MidwayLabDashboard() {
                     >
                       <Plus className="w-3 h-3" /> + Incluir Exame
                     </button>
-                    <button
-                      type="button"
-                      disabled={isSavingExamesAparelho}
-                      onClick={() => persistirExamesAparelho(equipamentoExamesList, `✅ ${equipamentoExamesList.length} exames do equipamento gravados no Banco de Dados!`)}
-                      className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1 rounded border border-emerald-500/30 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Save className="w-3 h-3" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
-                    </button>
                   </div>
                 </div>
 
@@ -4651,15 +4643,6 @@ export default function MidwayLabDashboard() {
                     className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
                   >
                     <Plus className="w-3.5 h-3.5" /> + Incluir Novo Exame
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isSavingExamesAparelho}
-                    onClick={() => persistirExamesAparelho(equipamentoExamesList, `✅ ${equipamentoExamesList.length} exames gravados no Banco de Dados com sucesso!`)}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
                   </button>
                 </div>
               </div>
@@ -8722,15 +8705,6 @@ export default function MidwayLabDashboard() {
                   className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
                 >
                   <Plus className="w-4 h-4" /> Incluir Novo Exame
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isSavingExamesAparelho}
-                  onClick={() => persistirExamesAparelho(equipamentoExamesList, `✅ ${equipamentoExamesList.length} exames gravados no Banco de Dados com sucesso!`)}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" /> {isSavingExamesAparelho ? "Gravando..." : "Gravar no Banco"}
                 </button>
               </div>
             </div>
