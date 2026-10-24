@@ -4282,7 +4282,7 @@ export default function MidwayLabDashboard() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* CÓDIGO DO APARELHO (DUPLO CLIQUE PARA ALTERAR) */}
+                            {/* CÓDIGO DO APARELHO (DUPLO CLIQUE OU CLIQUE NO LÁPIS PARA ALTERAR) */}
                             {editingInlineCell?.key === (item.id || item.codigoEquipamento) && editingInlineCell?.field === 'codigoEquipamento' ? (
                               <input
                                 type="text"
@@ -4295,7 +4295,9 @@ export default function MidwayLabDashboard() {
                                   setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                 }}
                                 onBlur={() => {
-                                  salvarInlineCell(item, 'codigoEquipamento', editingInlineCell.tempValue);
+                                  if (editingInlineCell) {
+                                    salvarInlineCell(item, 'codigoEquipamento', editingInlineCell.tempValue);
+                                  }
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
@@ -4308,7 +4310,8 @@ export default function MidwayLabDashboard() {
                                 className="bg-amber-950/90 text-amber-200 border-2 border-amber-400 rounded px-2 py-0.5 text-xs font-black font-mono w-24 text-center shadow-lg shadow-amber-500/20 focus:outline-none"
                               />
                             ) : (
-                              <span
+                              <div
+                                onClick={(e) => e.stopPropagation()}
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setEditingInlineCell({
@@ -4317,14 +4320,31 @@ export default function MidwayLabDashboard() {
                                     tempValue: item.codigoEquipamento
                                   });
                                 }}
-                                className="font-mono text-xs font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded cursor-pointer"
-                                title="Duplo clique para alterar o código do aparelho"
+                                className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
+                                title="Clique no lápis ou duplo clique para alterar"
                               >
-                                {item.codigoEquipamento}
-                              </span>
+                                <span className="font-mono text-xs font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 group-hover/badge:border-amber-400 group-hover/badge:bg-amber-500/25 px-2 py-0.5 rounded transition">
+                                  {item.codigoEquipamento}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingInlineCell({
+                                      key: item.id || item.codigoEquipamento,
+                                      field: 'codigoEquipamento',
+                                      tempValue: item.codigoEquipamento
+                                    });
+                                  }}
+                                  className="text-slate-500 hover:text-amber-300 p-0.5 rounded hover:bg-slate-800 transition"
+                                  title="Editar código do equipamento"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                              </div>
                             )}
 
-                            {/* CÓDIGO LABFACIL SUGERIDO / VINCULADO (DUPLO CLIQUE PARA ALTERAR) */}
+                            {/* CÓDIGO LABFACIL SUGERIDO / VINCULADO (DUPLO CLIQUE OU CLIQUE NO LÁPIS PARA ALTERAR) */}
                             {editingInlineCell?.key === (item.id || item.codigoEquipamento) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
                               <input
                                 type="text"
@@ -4337,7 +4357,9 @@ export default function MidwayLabDashboard() {
                                   setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                 }}
                                 onBlur={() => {
-                                  salvarInlineCell(item, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                  if (editingInlineCell) {
+                                    salvarInlineCell(item, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                  }
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
@@ -4350,7 +4372,8 @@ export default function MidwayLabDashboard() {
                                 className="bg-cyan-950/90 text-cyan-200 border-2 border-cyan-400 rounded px-2 py-0.5 text-xs font-black font-mono w-28 text-center shadow-lg shadow-cyan-500/20 focus:outline-none"
                               />
                             ) : (
-                              <span
+                              <div
+                                onClick={(e) => e.stopPropagation()}
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setEditingInlineCell({
@@ -4359,11 +4382,28 @@ export default function MidwayLabDashboard() {
                                     tempValue: item.codigoLabfacilSugerido || ''
                                   });
                                 }}
-                                className="text-[10px] font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-2 py-0.5 rounded cursor-pointer"
-                                title="Duplo clique para alterar o código Labfacil"
+                                className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
+                                title="Clique no lápis ou duplo clique para alterar"
                               >
-                                Cód. Lab: {item.codigoLabfacilSugerido || "-"}
-                              </span>
+                                <span className="text-[10px] font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 group-hover/badge:border-cyan-400 group-hover/badge:bg-cyan-500/20 px-2 py-0.5 rounded transition">
+                                  Cód. Lab: {item.codigoLabfacilSugerido || "-"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingInlineCell({
+                                      key: item.id || item.codigoEquipamento,
+                                      field: 'codigoLabfacilSugerido',
+                                      tempValue: item.codigoLabfacilSugerido || ''
+                                    });
+                                  }}
+                                  className="text-slate-500 hover:text-cyan-300 p-0.5 rounded hover:bg-slate-800 transition"
+                                  title="Editar código Labfacil"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                              </div>
                             )}
 
                             {selectedLabfacilExam && item.similarity > 0 && (
@@ -4708,8 +4748,8 @@ export default function MidwayLabDashboard() {
                                 </button>
                               </td>
 
-                              {/* CÓDIGO APARELHO (DUPLO CLIQUE PARA EDITAR) */}
-                              <td className="py-2 px-3">
+                               {/* CÓDIGO APARELHO (DUPLO CLIQUE OU CLIQUE NO LÁPIS PARA EDITAR) */}
+                              <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                                 {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoEquipamento' ? (
                                   <input
                                     type="text"
@@ -4722,7 +4762,9 @@ export default function MidwayLabDashboard() {
                                       setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                     }}
                                     onBlur={() => {
-                                      salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
+                                      if (editingInlineCell) {
+                                        salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
+                                      }
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter") {
@@ -4736,6 +4778,7 @@ export default function MidwayLabDashboard() {
                                   />
                                 ) : (
                                   <div
+                                    onClick={(e) => e.stopPropagation()}
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
                                       setEditingInlineCell({
@@ -4744,18 +4787,33 @@ export default function MidwayLabDashboard() {
                                         tempValue: ex.codigoEquipamento
                                       });
                                     }}
-                                    className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
-                                    title="Duplo clique para alterar o código do aparelho"
+                                    className="inline-flex items-center gap-1.5 group/badge cursor-pointer select-none"
+                                    title="Clique no lápis ou dê duplo clique para alterar o código do aparelho"
                                   >
                                     <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 group-hover/badge:border-amber-400 group-hover/badge:text-amber-300 group-hover/badge:bg-amber-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
                                       {ex.codigoEquipamento}
                                     </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingInlineCell({
+                                          key: ex.id || ex.codigoEquipamento,
+                                          field: 'codigoEquipamento',
+                                          tempValue: ex.codigoEquipamento
+                                        });
+                                      }}
+                                      className="text-slate-500 hover:text-amber-300 p-0.5 rounded hover:bg-slate-800 transition"
+                                      title="Editar código do equipamento"
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </button>
                                   </div>
                                 )}
                               </td>
 
-                              {/* CÓDIGO LABFACIL (DUPLO CLIQUE PARA EDITAR) */}
-                              <td className="py-2 px-3">
+                              {/* CÓDIGO LABFACIL (DUPLO CLIQUE OU CLIQUE NO LÁPIS PARA EDITAR) */}
+                              <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                                 {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
                                   <input
                                     type="text"
@@ -4768,7 +4826,9 @@ export default function MidwayLabDashboard() {
                                       setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                                     }}
                                     onBlur={() => {
-                                      salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                      if (editingInlineCell) {
+                                        salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                      }
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter") {
@@ -4782,6 +4842,7 @@ export default function MidwayLabDashboard() {
                                   />
                                 ) : (
                                   <div
+                                    onClick={(e) => e.stopPropagation()}
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
                                       setEditingInlineCell({
@@ -4790,12 +4851,27 @@ export default function MidwayLabDashboard() {
                                         tempValue: ex.codigoLabfacilSugerido || ''
                                       });
                                     }}
-                                    className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
-                                    title="Duplo clique para alterar o código do Labfacil"
+                                    className="inline-flex items-center gap-1.5 group/badge cursor-pointer select-none"
+                                    title="Clique no lápis ou dê duplo clique para alterar o código do Labfacil"
                                   >
                                     <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 group-hover/badge:border-cyan-400 group-hover/badge:text-cyan-300 group-hover/badge:bg-cyan-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
                                       {ex.codigoLabfacilSugerido || "-"}
                                     </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingInlineCell({
+                                          key: ex.id || ex.codigoEquipamento,
+                                          field: 'codigoLabfacilSugerido',
+                                          tempValue: ex.codigoLabfacilSugerido || ''
+                                        });
+                                      }}
+                                      className="text-slate-500 hover:text-cyan-300 p-0.5 rounded hover:bg-slate-800 transition"
+                                      title="Editar código Labfacil"
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </button>
                                   </div>
                                 )}
                               </td>
@@ -8719,8 +8795,8 @@ export default function MidwayLabDashboard() {
                             {ex.ativo ? "ATIVO" : "INATIVO"}
                           </button>
                         </td>
-                        {/* CÓDIGO DO APARELHO - DUPLO CLIQUE PARA EDITAR */}
-                        <td className="py-2 px-3">
+                        {/* CÓDIGO DO APARELHO - DUPLO CLIQUE OU CLIQUE NO LÁPIS PARA EDITAR */}
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                           {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoEquipamento' ? (
                             <input
                               type="text"
@@ -8733,7 +8809,9 @@ export default function MidwayLabDashboard() {
                                 setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                               }}
                               onBlur={() => {
-                                salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
+                                if (editingInlineCell) {
+                                  salvarInlineCell(ex, 'codigoEquipamento', editingInlineCell.tempValue);
+                                }
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") {
@@ -8748,6 +8826,7 @@ export default function MidwayLabDashboard() {
                             />
                           ) : (
                             <div
+                              onClick={(e) => e.stopPropagation()}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
                                 setEditingInlineCell({
@@ -8756,18 +8835,33 @@ export default function MidwayLabDashboard() {
                                   tempValue: ex.codigoEquipamento
                                 });
                               }}
-                              className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
-                              title="Duplo clique para alterar o código do aparelho"
+                              className="inline-flex items-center gap-1.5 group/badge cursor-pointer select-none"
+                              title="Clique no lápis ou duplo clique para alterar o código do aparelho"
                             >
                               <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 group-hover/badge:border-amber-400 group-hover/badge:text-amber-300 group-hover/badge:bg-amber-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
                                 {ex.codigoEquipamento}
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingInlineCell({
+                                    key: ex.id || ex.codigoEquipamento,
+                                    field: 'codigoEquipamento',
+                                    tempValue: ex.codigoEquipamento
+                                  });
+                                }}
+                                className="text-slate-500 hover:text-amber-300 p-0.5 rounded hover:bg-slate-800 transition"
+                                title="Editar código do equipamento"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </button>
                             </div>
                           )}
                         </td>
 
-                        {/* CÓDIGO LABFACIL - DUPLO CLIQUE PARA EDITAR */}
-                        <td className="py-2 px-3">
+                        {/* CÓDIGO LABFACIL - DUPLO CLIQUE OU CLIQUE NO LÁPIS PARA EDITAR */}
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                           {editingInlineCell?.key === (ex.id || ex.codigoEquipamento) && editingInlineCell?.field === 'codigoLabfacilSugerido' ? (
                             <input
                               type="text"
@@ -8780,7 +8874,9 @@ export default function MidwayLabDashboard() {
                                 setEditingInlineCell(prev => prev ? { ...prev, tempValue: val } : null);
                               }}
                               onBlur={() => {
-                                salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                if (editingInlineCell) {
+                                  salvarInlineCell(ex, 'codigoLabfacilSugerido', editingInlineCell.tempValue);
+                                }
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") {
@@ -8795,6 +8891,7 @@ export default function MidwayLabDashboard() {
                             />
                           ) : (
                             <div
+                              onClick={(e) => e.stopPropagation()}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
                                 setEditingInlineCell({
@@ -8803,12 +8900,27 @@ export default function MidwayLabDashboard() {
                                   tempValue: ex.codigoLabfacilSugerido || ''
                                 });
                               }}
-                              className="inline-flex items-center gap-1 group/badge cursor-pointer select-none"
-                              title="Duplo clique para alterar o código do Labfacil"
+                              className="inline-flex items-center gap-1.5 group/badge cursor-pointer select-none"
+                              title="Clique no lápis ou duplo clique para alterar o código do Labfacil"
                             >
                               <span className="bg-teal-500/15 text-teal-300 border border-teal-500/30 group-hover/badge:border-cyan-400 group-hover/badge:text-cyan-300 group-hover/badge:bg-cyan-500/10 px-2 py-0.5 rounded text-xs font-bold font-mono transition">
                                 {ex.codigoLabfacilSugerido || "-"}
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingInlineCell({
+                                    key: ex.id || ex.codigoEquipamento,
+                                    field: 'codigoLabfacilSugerido',
+                                    tempValue: ex.codigoLabfacilSugerido || ''
+                                  });
+                                }}
+                                className="text-slate-500 hover:text-cyan-300 p-0.5 rounded hover:bg-slate-800 transition"
+                                title="Editar código Labfacil"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </button>
                             </div>
                           )}
                         </td>
