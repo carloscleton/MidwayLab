@@ -2553,6 +2553,12 @@ export default function MidwayLabDashboard() {
 
   // SMART SELECTION HANDLER FOR LABFACIL EXAM PANEL
   const handleSelectLabfacilExam = (exam: any) => {
+    // Se clicar no mesmo exame já selecionado, desseleciona (toggle)
+    if (selectedLabfacilExam?.codigo === exam.codigo) {
+      handleCancelarSelecaoVinculo();
+      return;
+    }
+
     setSelectedLabfacilExam(exam);
 
     const codeClean = (exam.codigo || "").trim().toUpperCase();
@@ -2578,11 +2584,19 @@ export default function MidwayLabDashboard() {
 
   // SELEÇÃO DO EXAME DO EQUIPAMENTO: LOCALIZA VÍNCULO NO LABFACIL (BIDIRECIONAL)
   const handleSelectEquipamentoExam = (item: any) => {
+    const codEquip = (item.codigoEquipamento || item.codigo || "").trim().toUpperCase();
+    const currCod = (selectedEquipamentoExam?.codigoEquipamento || "").trim().toUpperCase();
+
+    // Se clicar no mesmo exame já selecionado, desseleciona (toggle)
+    if (currCod && currCod === codEquip) {
+      handleCancelarSelecaoVinculo();
+      return;
+    }
+
     setSelectedEquipamentoExam(item);
     setSelectedAutolacExam({ codigo: item.codigoEquipamento || item.codigo, nome: item.nomeExame || item.nome, ...item });
 
     const codLabSugerido = (item.codigoLabfacilSugerido || "").trim().toUpperCase();
-    const codEquip = (item.codigoEquipamento || item.codigo || "").trim().toUpperCase();
 
     // 1. Procura o exame vinculado no catálogo do Labfacil
     const vinculo = labfacilExames.find(l => {
@@ -2601,6 +2615,50 @@ export default function MidwayLabDashboard() {
   };
 
   const handleSelectAutolacExam = handleSelectEquipamentoExam;
+
+  // CANCELAR SELEÇÃO DE VÍNCULO (ESC OU BOTÃO CANCELAR)
+  const handleCancelarSelecaoVinculo = () => {
+    setSelectedLabfacilExam(null);
+    setSelectedEquipamentoExam(null);
+    setSelectedAutolacExam(null);
+  };
+
+  // ATALHO GLOBAL DO TECLADO: ESC CANCELA O VÍNCULO ATUAL
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (editingInlineCell) return;
+        if (
+          viewDocEquipamentoModal ||
+          isNovoExameModalOpen ||
+          isNewTenantModalOpen ||
+          isMappedExamsModalOpen ||
+          isNovoExameLabfacilModalOpen
+        ) {
+          return;
+        }
+
+        if (selectedLabfacilExam || selectedEquipamentoExam || selectedAutolacExam) {
+          e.preventDefault();
+          handleCancelarSelecaoVinculo();
+          showNotification("✖ Seleção de vínculo cancelada com tecla ESC.");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    selectedLabfacilExam,
+    selectedEquipamentoExam,
+    selectedAutolacExam,
+    editingInlineCell,
+    viewDocEquipamentoModal,
+    isNovoExameModalOpen,
+    isNewTenantModalOpen,
+    isMappedExamsModalOpen,
+    isNovoExameLabfacilModalOpen
+  ]);
 
   // DYNAMIC FEATURE 1: DIRECT 1-CLICK DUAL MATCHER (LABFACIL ↔ EQUIPAMENTO ESCOLHIDO)
   const handleLinkSelectedPair = async () => {
@@ -4119,7 +4177,19 @@ export default function MidwayLabDashboard() {
               {/* LEFT PANEL: LABFACIL LIST (BIDIRECTIONAL SMART RANKED) */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] text-slate-400 font-semibold">1. Selecione um exame do Labfacil Apoio:</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] text-slate-400 font-semibold">1. Selecione um exame do Labfacil Apoio:</p>
+                    {selectedLabfacilExam && (
+                      <button
+                        type="button"
+                        onClick={handleCancelarSelecaoVinculo}
+                        className="text-[10px] text-slate-400 hover:text-rose-300 bg-slate-800/80 hover:bg-rose-500/10 border border-slate-700 hover:border-rose-500/30 px-1.5 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                        title="Limpar seleção atual (ESC)"
+                      >
+                        <X className="w-3 h-3" /> Limpar (ESC)
+                      </button>
+                    )}
+                  </div>
                   {(selectedEquipamentoExam || selectedAutolacExam) && (
                     <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                       ✨ Ordenado por Similaridade
@@ -4235,7 +4305,19 @@ export default function MidwayLabDashboard() {
               {/* RIGHT PANEL: EQUIPAMENTO EXAMS LIST */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[500px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] text-slate-400 font-semibold">2. Selecione o exame correspondente no {currentDeparaEquip?.nome || 'Equipamento'}:</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] text-slate-400 font-semibold">2. Selecione o exame correspondente no {currentDeparaEquip?.nome || 'Equipamento'}:</p>
+                    {(selectedEquipamentoExam || selectedAutolacExam) && (
+                      <button
+                        type="button"
+                        onClick={handleCancelarSelecaoVinculo}
+                        className="text-[10px] text-slate-400 hover:text-rose-300 bg-slate-800/80 hover:bg-rose-500/10 border border-slate-700 hover:border-rose-500/30 px-1.5 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                        title="Limpar seleção atual (ESC)"
+                      >
+                        <X className="w-3 h-3" /> Limpar (ESC)
+                      </button>
+                    )}
+                  </div>
                   {selectedLabfacilExam && (
                     <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                       ✨ Ordenado por Similaridade
@@ -4472,14 +4554,25 @@ export default function MidwayLabDashboard() {
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleLinkSelectedPair}
-                  disabled={!selectedLabfacilExam || (!selectedEquipamentoExam && !selectedAutolacExam)}
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-teal-500/30 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <Link className="w-4 h-4" /> Confirmar Vínculo DE-PARA
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelarSelecaoVinculo}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3 py-2 rounded-xl text-xs border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
+                    title="Cancelar seleção (ou aperte a tecla ESC)"
+                  >
+                    <X className="w-3.5 h-3.5 text-slate-400" /> Cancelar <kbd className="bg-slate-950 border border-slate-700 px-1 py-0.5 rounded text-[10px] font-mono text-teal-300">ESC</kbd>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLinkSelectedPair}
+                    disabled={!selectedLabfacilExam || (!selectedEquipamentoExam && !selectedAutolacExam)}
+                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-teal-500/30 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <Link className="w-4 h-4" /> Confirmar Vínculo DE-PARA
+                  </button>
+                </div>
               </div>
             )}
 
