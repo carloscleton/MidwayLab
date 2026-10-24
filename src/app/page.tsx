@@ -272,8 +272,21 @@ export default function MidwayLabDashboard() {
   });
   const [viewDocEquipamentoModal, setViewDocEquipamentoModal] = useState<IEquipamentoCatalogDoc | null>(null);
   const [docSearchTerm, setDocSearchTerm] = useState<string>("");
+  const deferredDocSearchTerm = React.useDeferredValue(docSearchTerm);
   const [activeEquipamentoForDoc, setActiveEquipamentoForDoc] = useState<IEquipamentoRecord | null>(null);
   const [equipamentoExamesList, setEquipamentoExamesList] = useState<IExameEquipamentoRecord[]>([]);
+
+  const filteredDocExames = React.useMemo(() => {
+    if (!deferredDocSearchTerm.trim()) return equipamentoExamesList;
+    const term = deferredDocSearchTerm.toLowerCase();
+    return equipamentoExamesList.filter((ex) => (
+      ex.codigoEquipamento.toLowerCase().includes(term) ||
+      ex.nomeExame.toLowerCase().includes(term) ||
+      (ex.categoria || "").toLowerCase().includes(term) ||
+      (ex.codigoLabfacilSugerido || "").toLowerCase().includes(term) ||
+      (ex.metodoOuPrincipio || "").toLowerCase().includes(term)
+    ));
+  }, [equipamentoExamesList, deferredDocSearchTerm]);
   const [origemExamesAparelho, setOrigemExamesAparelho] = useState<'BANCO' | 'DOC_APARELHO'>('DOC_APARELHO');
   const [isSavingExamesAparelho, setIsSavingExamesAparelho] = useState<boolean>(false);
   const [isNovoExameModalOpen, setIsNovoExameModalOpen] = useState<boolean>(false);
@@ -2080,13 +2093,26 @@ export default function MidwayLabDashboard() {
   const scanLocalDirectory = async (dirEntradaHandle: any, dirProcHandle?: any) => {
     if (!dirEntradaHandle) return;
     try {
+      // Coleta entradas antes de remover/mover arquivos para não invalidar o iterador do Chromium
+      const entries: any[] = [];
       // @ts-ignore
       for await (const entry of dirEntradaHandle.values()) {
+        entries.push(entry);
+      }
+
+      for (const entry of entries) {
         if (entry.kind === "file") {
           const lower = entry.name.toLowerCase();
           if ((lower.endsWith(".xml") || lower.endsWith(".json")) && !processedFileNames.has(entry.name)) {
-            const file = await entry.getFile();
-            const text = await file.text();
+            let file: File;
+            let text: string;
+            try {
+              file = await entry.getFile();
+              text = await file.text();
+            } catch {
+              // Arquivo pode estar sendo gravado ou já ter sido removido por outro processo
+              continue;
+            }
             
             try {
               const orders = LabfacilParserService.parseFile(text, file.name);
@@ -2125,7 +2151,7 @@ export default function MidwayLabDashboard() {
                   await writable.close();
                   copiedSuccessfully = true;
                 } catch (copyErr) {
-                  console.warn("Aviso ao copiar para pasta de processados:", copyErr);
+                  // Silencioso ou log de depuração
                 }
               }
 
@@ -2136,7 +2162,7 @@ export default function MidwayLabDashboard() {
                   await dirEntradaHandle.removeEntry(entry.name);
                 }
               } catch (delErr) {
-                console.warn("Aviso ao apagar da entrada:", delErr);
+                // Arquivo já removido
               }
 
               const msgStatus = copiedSuccessfully
@@ -2167,7 +2193,9 @@ export default function MidwayLabDashboard() {
         }
       }
     } catch (e: any) {
-      console.warn("Erro na varredura:", e);
+      if (e?.name !== "NotFoundError" && !e?.message?.toLowerCase().includes("could not be found")) {
+        console.warn("Aviso na varredura local:", e);
+      }
     }
   };
 
@@ -3249,77 +3277,77 @@ export default function MidwayLabDashboard() {
 
             {/* FORM 1: LOGIN */}
             {loginTab === "login" && (
-              <form key="form-login" onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-3.5 text-xs">
-                {/* Dummy inputs to absorb Chrome autofill */}
-                <input type="text" name="fake_email_login" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
-                <input type="password" name="fake_password_login" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+              <div className="space-y-3.5 text-xs">
+                <form key="form-login" onSubmit={handleLoginSubmit} className="space-y-3.5">
+                  {loginError && (
+                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-2.5 rounded-xl flex items-center gap-2 font-medium">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                      <span>{loginError}</span>
+                    </div>
+                  )}
 
-                {loginError && (
-                  <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-2.5 rounded-xl flex items-center gap-2 font-medium">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-                    <span>{loginError}</span>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-blue-200/80 font-semibold mb-1 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-cyan-400" /> E-mail de Acesso
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    autoComplete="off"
-                    placeholder="Ex.: carloscleton.nat@gmail.com"
-                    value={loginEmail || ""}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-blue-200/80 font-semibold flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
+                  <div>
+                    <label className="block text-blue-200/80 font-semibold mb-1 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-cyan-400" /> E-mail de Acesso
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const emailToKeep = loginEmail;
-                        handleSwitchLoginTab("trocarSenha");
-                        setResetEmail(emailToKeep);
-                      }}
-                      className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold transition cursor-pointer"
-                    >
-                      Esqueceu a senha?
-                    </button>
-                  </div>
-                  <div className="relative">
                     <input
-                      type={showLoginPassword ? "text" : "password"}
+                      type="email"
+                      name="email"
                       required
-                      autoComplete="new-password"
-                      placeholder="••••••••"
-                      value={loginPassword || ""}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3.5 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
+                      autoComplete="username"
+                      placeholder="Ex.: carloscleton.nat@gmail.com"
+                      value={loginEmail || ""}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowLoginPassword(!showLoginPassword)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
-                      title={showLoginPassword ? "Ocultar Senha" : "Exibir Senha"}
-                    >
-                      {showLoginPassword ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
-                    </button>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-3 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-sm cursor-pointer"
-                >
-                  <Lock className="w-4 h-4" /> Entrar no MidwayLab
-                </button>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-blue-200/80 font-semibold flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-cyan-400" /> Senha
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const emailToKeep = loginEmail;
+                          handleSwitchLoginTab("trocarSenha");
+                          setResetEmail(emailToKeep);
+                        }}
+                        className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold transition cursor-pointer"
+                      >
+                        Esqueceu a senha?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? "text" : "password"}
+                        name="password"
+                        required
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        value={loginPassword || ""}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="w-full bg-[#060D1A] border border-blue-900/60 rounded-xl pl-3.5 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+                        title={showLoginPassword ? "Ocultar Senha" : "Exibir Senha"}
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-3 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-sm cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4" /> Entrar no MidwayLab
+                  </button>
+                </form>
 
                 {/* DEMO PRESETS */}
                 <div className="pt-3 border-t border-blue-900/50 space-y-1.5">
@@ -3358,22 +3386,17 @@ export default function MidwayLabDashboard() {
                     </button>
                   </div>
                 </div>
-              </form>
+              </div>
             )}
 
             {/* FORM 2: SOLICITAR ACESSO */}
             {loginTab === "solicitar" && (
-              <form key="form-solicitar" onSubmit={handleRequestAccessSubmit} autoComplete="off" className="space-y-3 text-xs">
-                {/* Dummy inputs to absorb Chrome autofill */}
-                <input type="text" name="fake_email_solicitar" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
-                <input type="password" name="fake_password_solicitar" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
-
+              <form key="form-solicitar" onSubmit={handleRequestAccessSubmit} className="space-y-3 text-xs">
                 <div>
                   <label className="block text-blue-200/80 font-semibold mb-1">Nome do Laboratório</label>
                   <input
                     type="text"
                     required
-                    autoComplete="off"
                     placeholder="Ex.: Laboratório Bio Vida"
                     value={requestFormData.nomeLab || ""}
                     onChange={(e) => setRequestFormData({ ...requestFormData, nomeLab: e.target.value })}
@@ -3386,7 +3409,6 @@ export default function MidwayLabDashboard() {
                   <input
                     type="text"
                     required
-                    autoComplete="off"
                     placeholder="Ex.: Dra. Maria Fernanda"
                     value={requestFormData.nomeResponsavel || ""}
                     onChange={(e) => setRequestFormData({ ...requestFormData, nomeResponsavel: e.target.value })}
@@ -3399,8 +3421,8 @@ export default function MidwayLabDashboard() {
                     <label className="block text-blue-200/80 font-semibold mb-1">E-mail de Contato</label>
                     <input
                       type="email"
+                      name="email"
                       required
-                      autoComplete="off"
                       placeholder="contato@lab.com.br"
                       value={requestFormData.email || ""}
                       onChange={(e) => setRequestFormData({ ...requestFormData, email: e.target.value })}
@@ -3413,7 +3435,6 @@ export default function MidwayLabDashboard() {
                     <input
                       type="text"
                       required
-                      autoComplete="off"
                       placeholder="00.000.000/0001-00"
                       value={requestFormData.cnpj || ""}
                       onChange={(e) => setRequestFormData({ ...requestFormData, cnpj: e.target.value })}
@@ -3426,6 +3447,7 @@ export default function MidwayLabDashboard() {
                   <label className="block text-blue-200/80 font-semibold mb-1">Senha Desejada</label>
                   <input
                     type="password"
+                    name="new-password"
                     required
                     autoComplete="new-password"
                     placeholder="••••••••"
@@ -3446,11 +3468,7 @@ export default function MidwayLabDashboard() {
 
             {/* FORM 3: REDEFINIR / ALTERAR SENHA */}
             {loginTab === "trocarSenha" && (
-              <form key="form-trocarSenha" onSubmit={handleResetPasswordSubmit} autoComplete="off" className="space-y-3 text-xs">
-                {/* Dummy inputs to absorb Chrome autofill */}
-                <input type="text" name="fake_email_reset" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
-                <input type="password" name="fake_password_reset" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
-
+              <form key="form-trocarSenha" onSubmit={handleResetPasswordSubmit} className="space-y-3 text-xs">
                 <div className="bg-[#060D1A] p-2.5 rounded-xl border border-blue-900/50 text-[11px] text-blue-200/80 flex items-center gap-2">
                   <Key className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <span>Informe o e-mail da sua conta e defina a sua nova senha de acesso.</span>
@@ -3460,8 +3478,8 @@ export default function MidwayLabDashboard() {
                   <label className="block text-blue-200/80 font-semibold mb-1">E-mail Cadastrado</label>
                   <input
                     type="email"
+                    name="email"
                     required
-                    autoComplete="off"
                     placeholder="Ex.: carloscleton.nat@gmail.com"
                     value={resetEmail || ""}
                     onChange={(e) => setResetEmail(e.target.value)}
@@ -8576,18 +8594,7 @@ export default function MidwayLabDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/60 font-mono text-[11px]">
-                  {equipamentoExamesList
-                    .filter((ex) => {
-                      if (!docSearchTerm.trim()) return true;
-                      const term = docSearchTerm.toLowerCase();
-                      return (
-                        ex.codigoEquipamento.toLowerCase().includes(term) ||
-                        ex.nomeExame.toLowerCase().includes(term) ||
-                        ex.categoria.toLowerCase().includes(term) ||
-                        ex.codigoLabfacilSugerido.toLowerCase().includes(term) ||
-                        ex.metodoOuPrincipio.toLowerCase().includes(term)
-                      );
-                    })
+                  {filteredDocExames
                     .map((ex, exIdx) => {
                       const realIdx = equipamentoExamesList.indexOf(ex);
                       const isDragging = draggedExameIndex === realIdx;
