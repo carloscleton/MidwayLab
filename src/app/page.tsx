@@ -319,8 +319,14 @@ export default function MidwayLabDashboard() {
     recarregarDoBanco: boolean = true
   ) => {
     setEquipamentoExamesList(lista);
-    const modelo = viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
-    const equipId = activeEquipamentoForDoc?.id;
+
+    // Resolve tenant e equipamento com segurança garantindo que equipamento_id nunca seja nulo
+    const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+    const tenantId = activeEquipamentoForDoc?.tenant_id || activeTenantObj?.id || tenants[0]?.id;
+    const equipsDoTenant = tenantId ? equipamentosList.filter(eq => eq.tenant_id === tenantId) : equipamentosList;
+    const equip = activeEquipamentoForDoc || (viewDocEquipamentoModal ? equipsDoTenant.find(e => e.modelo === viewDocEquipamentoModal.modelo) : null) || equipsDoTenant[0];
+    const equipId = equip?.id || activeEquipamentoForDoc?.id;
+    const modelo = equip?.modelo || viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
 
     // Salva a ordem imediatamente no localStorage para o modelo e para o id do equipamento
     if (typeof window !== "undefined") {
@@ -335,15 +341,15 @@ export default function MidwayLabDashboard() {
     const res = await EquipamentoExamesService.salvarExamesNoBanco(
       lista,
       modelo,
-      activeEquipamentoForDoc?.id,
-      activeEquipamentoForDoc?.tenant_id
+      equipId,
+      tenantId
     );
     if (res.ok) {
-      if (recarregarDoBanco) {
+      if (recarregarDoBanco && equipId && tenantId) {
         const atualizado = await EquipamentoExamesService.obterExamesDoAparelho(
           modelo,
-          activeEquipamentoForDoc?.id,
-          activeEquipamentoForDoc?.tenant_id
+          equipId,
+          tenantId
         );
         setEquipamentoExamesList(atualizado.exames);
         setOrigemExamesAparelho(atualizado.origem);
@@ -740,9 +746,12 @@ export default function MidwayLabDashboard() {
       setAutolacCatalog(prev => [...newItems, ...prev]);
       showNotification(`📥 Catálogo Autolac Atualizado: ${newItems.length} novos exames salvos no Supabase!`);
     } else if (importTarget === "equipamento") {
-      const equipId = activeEquipamentoForDoc?.id;
-      const tenantId = activeEquipamentoForDoc?.tenant_id;
-      const modelo = viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      const tenantId = activeEquipamentoForDoc?.tenant_id || activeTenantObj?.id || tenants[0]?.id;
+      const equipsDoTenant = tenantId ? equipamentosList.filter(eq => eq.tenant_id === tenantId) : equipamentosList;
+      const equip = activeEquipamentoForDoc || (viewDocEquipamentoModal ? equipsDoTenant.find(e => e.modelo === viewDocEquipamentoModal.modelo) : null) || equipsDoTenant[0];
+      const equipId = equip?.id || activeEquipamentoForDoc?.id;
+      const modelo = equip?.modelo || viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
 
       let novaLista: IExameEquipamentoRecord[] = [...equipamentoExamesList];
       let mapeadosCount = 0;
@@ -2917,21 +2926,24 @@ export default function MidwayLabDashboard() {
     );
     setEquipamentoExamesList(novaListaEquip);
 
-    // 3. Persistir tanto em depara_exames quanto no catálogo do aparelho
+    // 3. Persistir no catálogo do aparelho garantindo equipamento_id
     try {
-      await DeparaService.salvarMapeamento({
-        tenant_id: tenantId,
-        codigo_autolac: equipCode,
-        descricao_autolac: equipNome,
-        codigo_labfacil: labfacilCode,
-        descricao_labfacil: selectedLabfacilExam.descricao || labfacilCode,
-        tipo_resultado: selectedLabfacilExam.tipo || 'PDF'
-      });
       const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
       const equipsDoTenant = activeTenantObj ? equipamentosList.filter(eq => eq.tenant_id === activeTenantObj.id) : [];
       const equip = activeEquipamentoForDoc || (equipsDoTenant.find(e => e.id === selectedDeparaEquipId) || equipsDoTenant[0] || null);
       if (equip) {
         await EquipamentoExamesService.salvarExamesNoBanco(novaListaEquip, equip.modelo, equip.id, equip.tenant_id);
+      } else {
+        await DeparaService.salvarMapeamento({
+          tenant_id: tenantId,
+          equipamento_id: equip?.id,
+          codigo_equipamento: equipCode,
+          codigo_autolac: equipCode,
+          descricao_autolac: equipNome,
+          codigo_labfacil: labfacilCode,
+          descricao_labfacil: selectedLabfacilExam.descricao || labfacilCode,
+          tipo_resultado: selectedLabfacilExam.tipo || 'PDF'
+        });
       }
       showNotification(`⚡ Vínculo salvo: ${labfacilCode} (Labfacil) ↔ ${equipCode} (${equip?.nome || 'Equipamento'})!`);
     } catch (err: any) {
@@ -8147,9 +8159,12 @@ export default function MidwayLabDashboard() {
                               type="button"
                               onClick={async () => {
                                 if (confirm(`Deseja remover o exame ${ex.codigoEquipamento} (${ex.nomeExame})?`)) {
-                                  const equipId = activeEquipamentoForDoc?.id;
-                                  const tenantId = activeEquipamentoForDoc?.tenant_id;
-                                  const modelo = viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
+                                  const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+                                  const tenantId = activeEquipamentoForDoc?.tenant_id || activeTenantObj?.id || tenants[0]?.id;
+                                  const equipsDoTenant = tenantId ? equipamentosList.filter(eq => eq.tenant_id === tenantId) : equipamentosList;
+                                  const equip = activeEquipamentoForDoc || (viewDocEquipamentoModal ? equipsDoTenant.find(e => e.modelo === viewDocEquipamentoModal.modelo) : null) || equipsDoTenant[0];
+                                  const equipId = equip?.id || activeEquipamentoForDoc?.id;
+                                  const modelo = equip?.modelo || viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
 
                                   // 1. Remove da tabela depara_exames no Supabase
                                   const delRes = await EquipamentoExamesService.excluirExame(ex, equipId, tenantId);
@@ -8246,11 +8261,18 @@ export default function MidwayLabDashboard() {
                 e.preventDefault();
                 if (!novoExameForm.codigoEquipamento.trim()) return;
 
+                const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+                const tenantId = activeEquipamentoForDoc?.tenant_id || activeTenantObj?.id || tenants[0]?.id;
+                const equipsDoTenant = tenantId ? equipamentosList.filter(eq => eq.tenant_id === tenantId) : equipamentosList;
+                const equip = activeEquipamentoForDoc || (viewDocEquipamentoModal ? equipsDoTenant.find(e => e.modelo === viewDocEquipamentoModal.modelo) : null) || equipsDoTenant[0];
+                const equipId = equip?.id || activeEquipamentoForDoc?.id || null;
+                const modelo = equip?.modelo || viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
+
                 const novoRegistro: IExameEquipamentoRecord = {
                   id: editingExameItem?.id || `user-${Date.now()}`,
-                  equipamento_id: activeEquipamentoForDoc?.id || null,
-                  modelo_equipamento: viewDocEquipamentoModal?.modelo || "CB350",
-                  tenant_id: activeEquipamentoForDoc?.tenant_id || null,
+                  equipamento_id: equipId,
+                  modelo_equipamento: modelo,
+                  tenant_id: tenantId,
                   codigoEquipamento: novoExameForm.codigoEquipamento.trim().toUpperCase(),
                   nomeExame: novoExameForm.nomeExame.trim(),
                   categoria: novoExameForm.categoria.trim() || "Geral",

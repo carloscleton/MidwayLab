@@ -100,18 +100,47 @@ export class DeparaService {
   }
 
   /**
-   * Cadastra ou atualiza um mapeamento DE-PARA
+   * Cadastra ou atualiza um mapeamento DE-PARA garantindo equipamento_id preenchido
    */
   static async salvarMapeamento(record: IDeparaExameRecord): Promise<void> {
+    let equipId = record.equipamento_id || null;
+    const tenantId = record.tenant_id;
+    const codEquip = record.codigo_equipamento || record.codigo_autolac || record.codigo_labfacil;
+
+    // Se equipamento_id não veio no record, busca o primeiro equipamento do tenant
+    if (!equipId && tenantId) {
+      try {
+        const { data: equips } = await supabaseBrowser
+          .from('equipamentos')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1);
+        if (equips && equips.length > 0) {
+          equipId = equips[0].id;
+        }
+      } catch (e) {
+        // Fallback silencioso
+      }
+    }
+
+    let chaveAutolac = record.codigo_autolac || codEquip;
+    if (equipId && chaveAutolac && !chaveAutolac.includes(':')) {
+      chaveAutolac = `${equipId.slice(0, 8)}:${chaveAutolac}`.slice(0, 100);
+    }
+
     const payload = {
       ...record,
+      equipamento_id: equipId,
+      codigo_equipamento: codEquip,
+      codigo_autolac: chaveAutolac,
       codigo_labfacil: record.codigo_labfacil || record.codigo_softlab,
       descricao_labfacil: record.descricao_labfacil || record.descricao_softlab,
       codigo_softlab: record.codigo_labfacil || record.codigo_softlab,
       descricao_softlab: record.descricao_labfacil || record.descricao_softlab,
+      catalogo_aparelho: true,
     };
 
-    const { error } = await supabaseBrowser.from('depara_exames').upsert(payload);
+    const { error } = await supabaseBrowser.from('depara_exames').upsert(payload, { onConflict: 'tenant_id,codigo_autolac' });
 
     if (error) {
       console.error('[DeparaService] Erro ao salvar mapeamento:', error);
@@ -135,20 +164,54 @@ export class DeparaService {
   }
 
   /**
-   * Cadastra ou atualiza uma lista de mapeamentos DE-PARA em Lote no Supabase
+   * Cadastra ou atualiza uma lista de mapeamentos DE-PARA em Lote no Supabase garantindo equipamento_id
    */
   static async salvarMapeamentoEmLote(records: IDeparaExameRecord[]): Promise<void> {
     if (!records || records.length === 0) return;
 
-    const normalizedRecords = records.map(r => ({
-      ...r,
-      codigo_labfacil: r.codigo_labfacil || r.codigo_softlab,
-      descricao_labfacil: r.descricao_labfacil || r.descricao_softlab,
-      codigo_softlab: r.codigo_labfacil || r.codigo_softlab,
-      descricao_softlab: r.descricao_labfacil || r.descricao_softlab,
-    }));
+    // Se algum record estiver sem equipamento_id, descobre pelos tenants
+    const tenantIdsSemEquip = Array.from(new Set(records.filter(r => !r.equipamento_id && r.tenant_id).map(r => r.tenant_id)));
+    const equipMapPorTenant = new Map<string, string>();
+    if (tenantIdsSemEquip.length > 0) {
+      try {
+        const { data: equips } = await supabaseBrowser
+          .from('equipamentos')
+          .select('id, tenant_id')
+          .in('tenant_id', tenantIdsSemEquip);
+        if (equips) {
+          equips.forEach((eq) => {
+            if (!equipMapPorTenant.has(eq.tenant_id)) {
+              equipMapPorTenant.set(eq.tenant_id, eq.id);
+            }
+          });
+        }
+      } catch (e) {
+        // Fallback silencioso
+      }
+    }
 
-    const { error } = await supabaseBrowser.from('depara_exames').upsert(normalizedRecords);
+    const normalizedRecords = records.map(r => {
+      const equipId = r.equipamento_id || (r.tenant_id ? equipMapPorTenant.get(r.tenant_id) : null) || null;
+      const codEquip = r.codigo_equipamento || r.codigo_autolac || r.codigo_labfacil;
+      let chaveAutolac = r.codigo_autolac || codEquip;
+      if (equipId && chaveAutolac && !chaveAutolac.includes(':')) {
+        chaveAutolac = `${equipId.slice(0, 8)}:${chaveAutolac}`.slice(0, 100);
+      }
+
+      return {
+        ...r,
+        equipamento_id: equipId,
+        codigo_equipamento: codEquip,
+        codigo_autolac: chaveAutolac,
+        codigo_labfacil: r.codigo_labfacil || r.codigo_softlab,
+        descricao_labfacil: r.descricao_labfacil || r.descricao_softlab,
+        codigo_softlab: r.codigo_labfacil || r.codigo_softlab,
+        descricao_softlab: r.descricao_labfacil || r.descricao_softlab,
+        catalogo_aparelho: true,
+      };
+    });
+
+    const { error } = await supabaseBrowser.from('depara_exames').upsert(normalizedRecords, { onConflict: 'tenant_id,codigo_autolac' });
 
     if (error) {
       console.error('[DeparaService] Erro ao salvar mapeamentos em lote:', error);
