@@ -110,7 +110,7 @@ interface IUserItem {
 export default function MidwayLabDashboard() {
   // FILE IMPORT & API SYNC STATE
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importTarget, setImportTarget] = useState<"depara" | "labfacil" | "autolac">("depara");
+  const [importTarget, setImportTarget] = useState<"depara" | "labfacil" | "autolac" | "equipamento">("equipamento");
   const [parsedImportItems, setParsedImportItems] = useState<any[]>([]);
   const [importFileName, setImportFileName] = useState("");
   const [shouldClearBeforeImport, setShouldClearBeforeImport] = useState(false);
@@ -432,7 +432,7 @@ export default function MidwayLabDashboard() {
 
       try {
         if (file.name.toLowerCase().endsWith(".xml") || content.trim().startsWith("<?xml") || content.trim().startsWith("<")) {
-          // PARSER XML NATIVO (LABFACIL / EXAMES / TABELAS)
+          // PARSER XML NATIVO (LABFACIL / EXAMES / TABELAS / EQUIPAMENTOS)
           const parser = new DOMParser();
           const xmlDoc = parser.parseFromString(content, "text/xml");
           const parseError = xmlDoc.querySelector("parsererror");
@@ -441,7 +441,7 @@ export default function MidwayLabDashboard() {
             return;
           }
 
-          let nodes = Array.from(xmlDoc.querySelectorAll("exame, Exame, EXAME, item, Item, ITEM, test, Test, TEST, pedido_item"));
+          let nodes = Array.from(xmlDoc.querySelectorAll("exame, Exame, EXAME, item, Item, ITEM, test, Test, TEST, pedido_item, parametro, Parametro, mapping, Mapping, depara, DePara"));
           if (nodes.length === 0) {
             const allElems = Array.from(xmlDoc.querySelectorAll("*"));
             nodes = allElems.filter(el => el.querySelector("codigo, Code, CODIGO, cod, Cod, sigla, id"));
@@ -458,19 +458,29 @@ export default function MidwayLabDashboard() {
               return "";
             };
 
-            const codigo = getText(["codigo", "Codigo", "CODIGO", "cod", "Cod", "code", "Code", "id", "mnemonico", "sigla"]) || `EX_${i + 1}`;
-            const descricao = getText(["descricao", "Descricao", "DESCRICAO", "nome", "Nome", "NOME", "name", "titulo"]) || codigo;
-            const abreviacao = getText(["abreviacao", "Abreviacao", "sigla", "Sigla", "mnemonico"]) || codigo;
+            const codigoEquip = getText(["codigo_equipamento", "codigo_aparelho", "aparelho", "instrument_code", "channel", "codigo_autolac", "codigo", "Codigo", "CODIGO", "cod", "Cod", "code", "Code", "id", "mnemonico", "sigla"]) || `EX_${i + 1}`;
+            const codigoLab = getText(["codigo_labfacil", "labfacil", "codigo_softlab", "softlab", "cod_labfacil", "cod_lab", "lab_code"]);
+            const descricao = getText(["descricao", "Descricao", "DESCRICAO", "nome", "Nome", "NOME", "name", "titulo", "nome_exame", "descricao_labfacil", "descricao_autolac"]) || codigoEquip;
+            const abreviacao = getText(["abreviacao", "Abreviacao", "sigla", "Sigla", "mnemonico"]) || codigoEquip;
             const tipo = getText(["tipo", "Tipo", "tipo_resultado"]) || "PDF";
-            const autolac = getText(["autolac", "codigo_autolac", "codigo_equipamento", "aparelho"]);
+            const categoria = getText(["categoria", "category", "setor", "departamento"]) || "Geral";
+            const metodo = getText(["metodo", "principio", "metodo_ou_principio", "method"]) || "-";
+            const amostra = getText(["amostra", "material", "sample", "specimen", "amostra_sugerida"]) || "Soro";
+            const unidade = getText(["unidade", "unit", "unidade_padrao"]) || "-";
 
             return {
-              codigo: codigo.toUpperCase(),
-              descricao: descricao.toUpperCase(),
+              codigo: codigoEquip.toUpperCase(),
+              codigo_equipamento: codigoEquip.toUpperCase(),
+              codigo_labfacil: codigoLab.toUpperCase(),
+              descricao: descricao,
+              nome_exame: descricao,
               abreviacao: abreviacao.toUpperCase(),
-              codigo_labfacil: codigo.toUpperCase(),
               descricao_labfacil: descricao,
-              codigo_autolac: autolac ? autolac.toUpperCase() : "",
+              codigo_autolac: codigoEquip.toUpperCase(),
+              categoria,
+              metodo_ou_principio: metodo,
+              amostra_sugerida: amostra,
+              unidade_padrao: unidade,
               tipo: tipo
             };
           });
@@ -483,7 +493,24 @@ export default function MidwayLabDashboard() {
           setParsedImportItems(items);
         } else if (file.name.toLowerCase().endsWith(".json")) {
           const parsed = JSON.parse(content);
-          const items = Array.isArray(parsed) ? parsed : [parsed];
+          const rawArray = Array.isArray(parsed) ? parsed : (parsed.exames || parsed.tests || parsed.data || parsed.items || [parsed]);
+          const items = rawArray.map((item: any, i: number) => {
+            const codEq = (item.codigo_equipamento || item.codigo_aparelho || item.aparelho || item.instrument_code || item.channel || item.codigo_autolac || item.codigo || item.code || item.cod || item.id || `EX_${i + 1}`).toString().trim();
+            const codLab = (item.codigo_labfacil || item.labfacil || item.codigo_softlab || item.softlab || item.cod_labfacil || item.cod_lab || item.lab_code || "").toString().trim();
+            const desc = (item.nome_exame || item.nome || item.descricao || item.descricao_labfacil || item.descricao_autolac || item.test_name || codEq).toString().trim();
+            return {
+              ...item,
+              codigo: codEq.toUpperCase() || codLab.toUpperCase(),
+              codigo_equipamento: codEq.toUpperCase(),
+              codigo_labfacil: codLab.toUpperCase(),
+              descricao: desc,
+              nome_exame: desc,
+              categoria: item.categoria || item.category || "Geral",
+              metodo_ou_principio: item.metodo_ou_principio || item.metodo || item.principio || "-",
+              amostra_sugerida: item.amostra_sugerida || item.amostra || item.material || "Soro",
+              unidade_padrao: item.unidade_padrao || item.unidade || "-"
+            };
+          });
           setParsedImportItems(items);
         } else {
           // CSV Parser
@@ -492,15 +519,31 @@ export default function MidwayLabDashboard() {
             alert("O arquivo CSV selecionado está vazio ou contém apenas o cabeçalho!");
             return;
           }
-          const header = lines[0].toLowerCase().split(/[,;]/).map(h => h.trim().replace(/^"|"$/g, ''));
+          const delimiter = lines[0].includes(";") ? ";" : lines[0].includes("\t") ? "\t" : ",";
+          const header = lines[0].toLowerCase().split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, '').replace(/[\s.-]+/g, '_'));
           
           const items = lines.slice(1).map(line => {
-            const cols = line.split(/[,;]/).map(c => c.trim().replace(/^"|"$/g, ''));
+            const cols = line.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, ''));
             const row: any = {};
             header.forEach((h, idx) => {
               row[h] = cols[idx] || "";
             });
-            return row;
+            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || "").toString().trim();
+            const codLab = (row.codigo_labfacil || row.labfacil || row.codigo_softlab || row.softlab || row.cod_labfacil || row.cod_lab || row.lab_code || "").toString().trim();
+            const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
+
+            return {
+              ...row,
+              codigo: codEq.toUpperCase() || codLab.toUpperCase(),
+              codigo_equipamento: codEq.toUpperCase(),
+              codigo_labfacil: codLab.toUpperCase(),
+              descricao: desc,
+              nome_exame: desc,
+              categoria: row.categoria || row.category || "Geral",
+              metodo_ou_principio: row.metodo_ou_principio || row.metodo || row.principio || "-",
+              amostra_sugerida: row.amostra_sugerida || row.amostra || row.material || "Soro",
+              unidade_padrao: row.unidade_padrao || row.unidade || "-"
+            };
           });
           setParsedImportItems(items);
         }
@@ -582,6 +625,88 @@ export default function MidwayLabDashboard() {
 
       setAutolacCatalog(prev => [...newItems, ...prev]);
       showNotification(`📥 Catálogo Autolac Atualizado: ${newItems.length} novos exames salvos no Supabase!`);
+    } else if (importTarget === "equipamento") {
+      const equipId = activeEquipamentoForDoc?.id;
+      const tenantId = activeEquipamentoForDoc?.tenant_id;
+      const modelo = viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
+
+      let novaLista: IExameEquipamentoRecord[] = [...equipamentoExamesList];
+      let mapeadosCount = 0;
+      let novosCount = 0;
+
+      for (const item of parsedImportItems) {
+        const codEq = (item.codigo_equipamento || item.codigo || "").trim().toUpperCase();
+        const codLab = (item.codigo_labfacil || "").trim().toUpperCase();
+        const nome = (item.nome_exame || item.nome || item.descricao || codEq || codLab || "Exame Importado").trim();
+        const cat = item.categoria || "Geral";
+        const met = item.metodo_ou_principio || "-";
+        const am = item.amostra_sugerida || "Soro";
+        const un = item.unidade_padrao || "-";
+
+        if (!codEq && !codLab) continue;
+
+        // Procura se já existe um exame no analisador com o mesmo código de aparelho ou código Labfacil
+        const idxExistente = novaLista.findIndex(e => 
+          (codEq && e.codigoEquipamento.toUpperCase() === codEq) ||
+          (codLab && e.codigoLabfacilSugerido?.toUpperCase() === codLab)
+        );
+
+        if (idxExistente >= 0) {
+          novaLista[idxExistente] = {
+            ...novaLista[idxExistente],
+            codigoEquipamento: codEq || novaLista[idxExistente].codigoEquipamento,
+            codigoLabfacilSugerido: codLab || novaLista[idxExistente].codigoLabfacilSugerido,
+            nomeExame: nome || novaLista[idxExistente].nomeExame,
+            categoria: cat !== "Geral" ? cat : novaLista[idxExistente].categoria,
+            metodoOuPrincipio: met !== "-" ? met : novaLista[idxExistente].metodoOuPrincipio,
+            amostraSugerida: am !== "Soro" ? am : novaLista[idxExistente].amostraSugerida,
+            unidadePadrao: un !== "-" ? un : novaLista[idxExistente].unidadePadrao,
+            ativo: true
+          };
+          mapeadosCount++;
+        } else {
+          novaLista.push({
+            id: `import-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+            equipamento_id: equipId || null,
+            modelo_equipamento: modelo,
+            tenant_id: tenantId || null,
+            codigoEquipamento: codEq || codLab,
+            nomeExame: nome,
+            categoria: cat,
+            metodoOuPrincipio: met,
+            codigoLabfacilSugerido: codLab,
+            amostraSugerida: am,
+            unidadePadrao: un,
+            ativo: true,
+            origem: 'BANCO'
+          });
+          novosCount++;
+        }
+      }
+
+      setEquipamentoExamesList(novaLista);
+      setIsSavingExamesAparelho(true);
+
+      const res = await EquipamentoExamesService.salvarExamesNoBanco(
+        novaLista,
+        modelo,
+        equipId,
+        tenantId
+      );
+
+      setIsSavingExamesAparelho(false);
+
+      if (res.ok) {
+        setOrigemExamesAparelho('BANCO');
+        if (typeof window !== "undefined") {
+          const codigos = novaLista.map(e => e.codigoEquipamento);
+          if (modelo) localStorage.setItem(`ordem_exames_${modelo}`, JSON.stringify(codigos));
+          if (equipId) localStorage.setItem(`ordem_exames_${equipId}`, JSON.stringify(codigos));
+        }
+        showNotification(`🎉 Importação Concluída: ${mapeadosCount} mapeamentos vinculados e ${novosCount} novos exames salvos no banco Supabase!`);
+      } else {
+        showNotification(`⚠️ Erro ao salvar no banco: ${res.erro}`);
+      }
     }
 
 
@@ -7532,6 +7657,20 @@ export default function MidwayLabDashboard() {
                 <button
                   type="button"
                   onClick={() => {
+                    setImportTarget("equipamento");
+                    setParsedImportItems([]);
+                    setImportFileName("");
+                    setIsImportModalOpen(true);
+                  }}
+                  className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
+                  title="Importar arquivo XML, JSON ou CSV para adicionar e fazer o mapeamento com os códigos do equipamento"
+                >
+                  <Upload className="w-4 h-4 text-emerald-400" /> Importar (XML / JSON / CSV)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setEditingExameItem(null);
                     setNovoExameForm({
                       codigoEquipamento: "",
@@ -9612,16 +9751,22 @@ P1`}
         );
       })()}
 
-      {/* MODAL 3: IMPORTADOR DE ARQUIVOS (CSV / JSON) */}
+      {/* MODAL 3: IMPORTADOR DE ARQUIVOS (CSV / JSON / XML) */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Upload className="w-5 h-5 text-teal-400" />
-                {importTarget === "depara" ? "Importar Planilha de DE-PARA em Lote (CSV / JSON)" :
-                 importTarget === "labfacil" ? "Importar Catálogo do Labfacil (CSV / JSON)" :
-                 "Importar Catálogo do Autolac (CSV / JSON)"}
+                {importTarget === "equipamento" ? (
+                  <>Importar & Mapear Exames: <span className="text-teal-300">{viewDocEquipamentoModal?.nomeCompleto || activeEquipamentoForDoc?.nome || "Equipamento"}</span></>
+                ) : importTarget === "depara" ? (
+                  "Importar Planilha de DE-PARA em Lote (CSV / JSON / XML)"
+                ) : importTarget === "labfacil" ? (
+                  "Importar Catálogo do Labfacil (CSV / JSON / XML)"
+                ) : (
+                  "Importar Catálogo do Autolac (CSV / JSON / XML)"
+                )}
               </h3>
               <button
                 type="button"
@@ -9634,7 +9779,9 @@ P1`}
 
             <div className="space-y-4 text-xs">
               <p className="text-slate-300">
-                {importTarget === "depara"
+                {importTarget === "equipamento"
+                  ? "Selecione um arquivo XML, JSON ou CSV contendo a relação de exames e códigos para adicionar ao catálogo do aparelho e realizar o mapeamento DE-PARA com o Labfacil diretamente no banco Supabase."
+                  : importTarget === "depara"
                   ? "Selecione um arquivo XML, JSON ou CSV contendo as colunas 'codigo_autolac' e 'codigo_labfacil' para importar o mapeamento em lote diretamente para o Supabase."
                   : "Selecione um arquivo XML (tags <exame> ou <item>), JSON ou CSV para importar a relação de exames para a empresa selecionada."}
               </p>
@@ -9674,7 +9821,6 @@ P1`}
                 </label>
               )}
 
-
               {/* PREVIEW OF PARSED ITEMS */}
               {parsedImportItems.length > 0 && (
                 <div className="space-y-2">
@@ -9682,19 +9828,45 @@ P1`}
                     <span>Pré-Visualização dos Dados ({parsedImportItems.length} itens lidos):</span>
                     <span className="text-emerald-400">✓ Pronto para Importar</span>
                   </div>
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-40 overflow-y-auto space-y-1 font-mono text-[11px]">
-                    {parsedImportItems.slice(0, 10).map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-900 text-slate-300">
-                        <span className="truncate text-teal-300 font-bold">
-                          {importTarget === "depara" ? `${item.codigo_autolac || item.autolac || 'AUT'} ↔ ${item.codigo_labfacil || item.labfacil || 'SOFT'}` : (item.codigo || item.code || item.codigo_labfacil || item.codigo_autolac || 'ITEM')}
-                        </span>
-                        <span className="truncate text-slate-400 max-w-[200px]">
-                          {item.descricao || item.nome || item.descricao_autolac || "Item Lido"}
-                        </span>
-                      </div>
-                    ))}
-                    {parsedImportItems.length > 10 && (
-                      <p className="text-center text-slate-500 pt-1 text-[10px]">...e mais {parsedImportItems.length - 10} itens</p>
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-48 overflow-y-auto space-y-1 font-mono text-[11px]">
+                    {parsedImportItems.slice(0, 15).map((item, idx) => {
+                      const codEq = item.codigo_equipamento || item.codigo_aparelho || item.aparelho || item.codigo_autolac || item.codigo || item.code || "-";
+                      const codLab = item.codigo_labfacil || item.labfacil || item.codigo_softlab || item.softlab || "";
+                      const nome = item.nome_exame || item.nome || item.descricao || item.descricao_labfacil || item.descricao_autolac || "Item Lido";
+                      const jaExiste = equipamentoExamesList.some(e => 
+                        (codEq !== "-" && e.codigoEquipamento.toUpperCase() === String(codEq).toUpperCase()) ||
+                        (codLab && e.codigoLabfacilSugerido?.toUpperCase() === String(codLab).toUpperCase())
+                      );
+
+                      return (
+                        <div key={idx} className="flex items-center justify-between py-1.5 px-2 rounded border-b border-slate-900 text-slate-300 hover:bg-slate-900/50">
+                          <div className="flex items-center gap-2">
+                            {importTarget === "equipamento" && (
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                jaExiste 
+                                  ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30" 
+                                  : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                              }`}>
+                                {jaExiste ? "Atualizar DE-PARA" : "+ Novo Exame"}
+                              </span>
+                            )}
+                            <span className="truncate text-teal-300 font-bold">
+                              {importTarget === "equipamento" 
+                                ? `${codEq}${codLab ? ` ➔ ${codLab}` : ''}`
+                                : importTarget === "depara" 
+                                ? `${item.codigo_autolac || item.autolac || 'AUT'} ↔ ${item.codigo_labfacil || item.labfacil || 'SOFT'}` 
+                                : (item.codigo || item.code || item.codigo_labfacil || item.codigo_autolac || 'ITEM')
+                              }
+                            </span>
+                          </div>
+                          <span className="truncate text-slate-400 max-w-[240px] text-right">
+                            {nome}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {parsedImportItems.length > 15 && (
+                      <p className="text-center text-slate-500 pt-1 text-[10px]">...e mais {parsedImportItems.length - 15} itens</p>
                     )}
                   </div>
                 </div>
