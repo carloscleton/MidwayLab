@@ -10,7 +10,7 @@ import { LabfacilParserService, ILabfacilPedidoParsed } from "../services/labfac
 import { DirectoryStorageService } from "../services/DirectoryStorageService";
 import { CATALOGO_EQUIPAMENTOS_DOC, IEquipamentoCatalogDoc } from "../data/equipamentos-catalog";
 import { EquipamentoSimulatorService, ISimulatedSampleRelease } from "../services/equipamento-simulator-service";
-import { EquipamentoExamesService, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
+import { EquipamentoExamesService, IExameEquipamentoRecord, ILinhaResultado, ICalculadoExame } from "../services/equipamento-exames-service";
 import ExameResultadosCalculados from "../components/ExameResultadosCalculados";
 import NovoModeloModal from "../components/NovoModeloModal";
 import GerenciarModelosModal from "../components/GerenciarModelosModal";
@@ -431,6 +431,48 @@ export default function MidwayLabDashboard() {
       if (!content) return;
 
       try {
+        // FUNÇÕES AUXILIARES PARA NORMALIZAR LINHAS DE RESULTADO E CALCULADOS
+        const normalizarLinhas = (raw: any, defaultCodEq: string, defaultDesc: string, defaultParam: string): ILinhaResultado[] => {
+          if (!raw) return [];
+          let lista: any[] = [];
+          if (Array.isArray(raw)) {
+            lista = raw;
+          } else if (typeof raw === "string" && raw.trim().startsWith("[")) {
+            try { lista = JSON.parse(raw); } catch (e) { lista = []; }
+          } else if (typeof raw === "object") {
+            lista = [raw];
+          }
+          return lista.map((l: any) => ({
+            codigoEquipamento: String(l.codigoEquipamento || l.codigo_equipamento || l.codigo || defaultCodEq || "").trim().toUpperCase(),
+            descricao: String(l.descricao || l.nome || defaultDesc || "").trim(),
+            parametroRetorno: String(l.parametroRetorno || l.parametro_retorno || l.parametro || defaultParam || "").trim().toUpperCase(),
+            enviaParaEquip: l.enviaParaEquip !== undefined ? Boolean(l.enviaParaEquip) : l.envia_para_equip !== undefined ? Boolean(l.envia_para_equip) : true,
+            mascara: String(l.mascara || l.mask || "").trim(),
+            fatorMultiplicacao: String(l.fatorMultiplicacao || l.fator_multiplicacao || l.fator || "").trim()
+          })).filter(l => Boolean(l.codigoEquipamento));
+        };
+
+        const normalizarCalculados = (raw: any, defaultParam: string): ICalculadoExame[] => {
+          if (!raw) return [];
+          let lista: any[] = [];
+          if (Array.isArray(raw)) {
+            lista = raw;
+          } else if (typeof raw === "string" && raw.trim().startsWith("[")) {
+            try { lista = JSON.parse(raw); } catch (e) { lista = []; }
+          } else if (typeof raw === "object") {
+            lista = [raw];
+          }
+          return lista.map((c: any) => ({
+            codigo: String(c.codigo || c.cod || "").trim().toUpperCase(),
+            descricao: String(c.descricao || c.nome || "").trim(),
+            parametroRetorno: String(c.parametroRetorno || c.parametro_retorno || c.parametro || defaultParam || "").trim().toUpperCase(),
+            formula: String(c.formula || c.expressao || "").trim(),
+            global: Boolean(c.global),
+            mascara: String(c.mascara || c.mask || "").trim(),
+            calcularAutomaticamente: c.calcularAutomaticamente !== undefined ? Boolean(c.calcularAutomaticamente) : c.calcular_automaticamente !== undefined ? Boolean(c.calcular_automaticamente) : true
+          })).filter(c => Boolean(c.codigo));
+        };
+
         if (file.name.toLowerCase().endsWith(".xml") || content.trim().startsWith("<?xml") || content.trim().startsWith("<")) {
           // PARSER XML NATIVO (LABFACIL / EXAMES / TABELAS / EQUIPAMENTOS)
           const parser = new DOMParser();
@@ -468,6 +510,51 @@ export default function MidwayLabDashboard() {
             const amostra = getText(["amostra", "material", "sample", "specimen", "amostra_sugerida"]) || "Soro";
             const unidade = getText(["unidade", "unit", "unidade_padrao"]) || "-";
 
+            // Extrai linhas de resultado do XML (tags <linhas_resultado>, <linhasResultado>, <linhas>, <resultados> ou filhos <linha>, <resultado>)
+            const linhaNodes = Array.from(node.querySelectorAll("linhas_resultado > linha, linhasResultado > linha, linhas > linha, resultados > resultado, linha_resultado, linha, resultado"));
+            const parsedLinhasXml: ILinhaResultado[] = linhaNodes.map(ln => {
+              const getSubText = (tags: string[]) => {
+                for (const tag of tags) {
+                  const found = ln.querySelector(tag);
+                  if (found && found.textContent?.trim()) return found.textContent.trim();
+                  const attr = ln.getAttribute(tag);
+                  if (attr && attr.trim()) return attr.trim();
+                }
+                return "";
+              };
+              return {
+                codigoEquipamento: (getSubText(["codigoEquipamento", "codigo_equipamento", "codigo", "cod"]) || codigoEquip).toUpperCase(),
+                descricao: getSubText(["descricao", "nome"]) || descricao,
+                parametroRetorno: (getSubText(["parametroRetorno", "parametro_retorno", "parametro", "codigo_labfacil"]) || codigoLab || "").toUpperCase(),
+                enviaParaEquip: getSubText(["enviaParaEquip", "envia_para_equip", "envia"]) !== "false",
+                mascara: getSubText(["mascara", "mask"]),
+                fatorMultiplicacao: getSubText(["fatorMultiplicacao", "fator_multiplicacao", "fator", "multiplicador"])
+              };
+            }).filter(l => Boolean(l.codigoEquipamento));
+
+            // Extrai calculados do XML (tags <calculados>, <exames_calculados>, <formulas> ou filhos <calculado>, <calculo>, <formula>)
+            const calcNodes = Array.from(node.querySelectorAll("calculados > calculado, exames_calculados > calculado, formulas > formula, calculados > calculo, calculado, calculo, formula"));
+            const parsedCalcsXml: ICalculadoExame[] = calcNodes.map(cn => {
+              const getSubText = (tags: string[]) => {
+                for (const tag of tags) {
+                  const found = cn.querySelector(tag);
+                  if (found && found.textContent?.trim()) return found.textContent.trim();
+                  const attr = cn.getAttribute(tag);
+                  if (attr && attr.trim()) return attr.trim();
+                }
+                return "";
+              };
+              return {
+                codigo: (getSubText(["codigo", "cod", "id"])).toUpperCase(),
+                descricao: getSubText(["descricao", "nome"]) || "",
+                parametroRetorno: (getSubText(["parametroRetorno", "parametro_retorno", "parametro"]) || codigoLab || "").toUpperCase(),
+                formula: getSubText(["formula", "expressao", "calculo"]),
+                global: getSubText(["global"]) === "true",
+                mascara: getSubText(["mascara", "mask"]),
+                calcularAutomaticamente: getSubText(["calcularAutomaticamente", "calcular_automaticamente", "automatico"]) !== "false"
+              };
+            }).filter(c => Boolean(c.codigo));
+
             return {
               codigo: codigoEquip.toUpperCase(),
               codigo_equipamento: codigoEquip.toUpperCase(),
@@ -481,7 +568,9 @@ export default function MidwayLabDashboard() {
               metodo_ou_principio: metodo,
               amostra_sugerida: amostra,
               unidade_padrao: unidade,
-              tipo: tipo
+              tipo: tipo,
+              linhasResultado: parsedLinhasXml,
+              calculados: parsedCalcsXml
             };
           });
 
@@ -498,6 +587,17 @@ export default function MidwayLabDashboard() {
             const codEq = (item.codigo_equipamento || item.codigo_aparelho || item.aparelho || item.instrument_code || item.channel || item.codigo_autolac || item.codigo || item.code || item.cod || item.id || `EX_${i + 1}`).toString().trim();
             const codLab = (item.codigo_labfacil || item.labfacil || item.codigo_softlab || item.softlab || item.cod_labfacil || item.cod_lab || item.lab_code || "").toString().trim();
             const desc = (item.nome_exame || item.nome || item.descricao || item.descricao_labfacil || item.descricao_autolac || item.test_name || codEq).toString().trim();
+            const linhas = normalizarLinhas(
+              item.linhasResultado || item.linhas_resultado || item.linhas || item.resultados,
+              codEq,
+              desc,
+              codLab
+            );
+            const calcs = normalizarCalculados(
+              item.calculados || item.exames_calculados || item.formulas,
+              codLab
+            );
+
             return {
               ...item,
               codigo: codEq.toUpperCase() || codLab.toUpperCase(),
@@ -508,7 +608,9 @@ export default function MidwayLabDashboard() {
               categoria: item.categoria || item.category || "Geral",
               metodo_ou_principio: item.metodo_ou_principio || item.metodo || item.principio || "-",
               amostra_sugerida: item.amostra_sugerida || item.amostra || item.material || "Soro",
-              unidade_padrao: item.unidade_padrao || item.unidade || "-"
+              unidade_padrao: item.unidade_padrao || item.unidade || "-",
+              linhasResultado: linhas,
+              calculados: calcs
             };
           });
           setParsedImportItems(items);
@@ -531,6 +633,16 @@ export default function MidwayLabDashboard() {
             const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || "").toString().trim();
             const codLab = (row.codigo_labfacil || row.labfacil || row.codigo_softlab || row.softlab || row.cod_labfacil || row.cod_lab || row.lab_code || "").toString().trim();
             const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
+            const linhas = normalizarLinhas(
+              row.linhasResultado || row.linhas_resultado || row.linhas || row.resultados,
+              codEq,
+              desc,
+              codLab
+            );
+            const calcs = normalizarCalculados(
+              row.calculados || row.exames_calculados || row.formulas,
+              codLab
+            );
 
             return {
               ...row,
@@ -542,7 +654,9 @@ export default function MidwayLabDashboard() {
               categoria: row.categoria || row.category || "Geral",
               metodo_ou_principio: row.metodo_ou_principio || row.metodo || row.principio || "-",
               amostra_sugerida: row.amostra_sugerida || row.amostra || row.material || "Soro",
-              unidade_padrao: row.unidade_padrao || row.unidade || "-"
+              unidade_padrao: row.unidade_padrao || row.unidade || "-",
+              linhasResultado: linhas,
+              calculados: calcs
             };
           });
           setParsedImportItems(items);
@@ -645,6 +759,13 @@ export default function MidwayLabDashboard() {
 
         if (!codEq && !codLab) continue;
 
+        const linhasRes: ILinhaResultado[] = Array.isArray(item.linhasResultado) && item.linhasResultado.length > 0
+          ? item.linhasResultado
+          : [];
+        const calcs: ICalculadoExame[] = Array.isArray(item.calculados) && item.calculados.length > 0
+          ? item.calculados
+          : [];
+
         // Procura se já existe um exame no analisador com o mesmo código de aparelho ou código Labfacil
         const idxExistente = novaLista.findIndex(e => 
           (codEq && e.codigoEquipamento.toUpperCase() === codEq) ||
@@ -652,16 +773,19 @@ export default function MidwayLabDashboard() {
         );
 
         if (idxExistente >= 0) {
+          const existente = novaLista[idxExistente];
           novaLista[idxExistente] = {
-            ...novaLista[idxExistente],
-            codigoEquipamento: codEq || novaLista[idxExistente].codigoEquipamento,
-            codigoLabfacilSugerido: codLab || novaLista[idxExistente].codigoLabfacilSugerido,
-            nomeExame: nome || novaLista[idxExistente].nomeExame,
-            categoria: cat !== "Geral" ? cat : novaLista[idxExistente].categoria,
-            metodoOuPrincipio: met !== "-" ? met : novaLista[idxExistente].metodoOuPrincipio,
-            amostraSugerida: am !== "Soro" ? am : novaLista[idxExistente].amostraSugerida,
-            unidadePadrao: un !== "-" ? un : novaLista[idxExistente].unidadePadrao,
-            ativo: true
+            ...existente,
+            codigoEquipamento: codEq || existente.codigoEquipamento,
+            codigoLabfacilSugerido: codLab || existente.codigoLabfacilSugerido,
+            nomeExame: nome || existente.nomeExame,
+            categoria: cat !== "Geral" ? cat : existente.categoria,
+            metodoOuPrincipio: met !== "-" ? met : existente.metodoOuPrincipio,
+            amostraSugerida: am !== "Soro" ? am : existente.amostraSugerida,
+            unidadePadrao: un !== "-" ? un : existente.unidadePadrao,
+            ativo: true,
+            linhasResultado: linhasRes.length > 0 ? linhasRes : (existente.linhasResultado || []),
+            calculados: calcs.length > 0 ? calcs : (existente.calculados || [])
           };
           mapeadosCount++;
         } else {
@@ -678,7 +802,9 @@ export default function MidwayLabDashboard() {
             amostraSugerida: am,
             unidadePadrao: un,
             ativo: true,
-            origem: 'BANCO'
+            origem: 'BANCO',
+            linhasResultado: linhasRes,
+            calculados: calcs
           });
           novosCount++;
         }
@@ -703,7 +829,7 @@ export default function MidwayLabDashboard() {
           if (modelo) localStorage.setItem(`ordem_exames_${modelo}`, JSON.stringify(codigos));
           if (equipId) localStorage.setItem(`ordem_exames_${equipId}`, JSON.stringify(codigos));
         }
-        showNotification(`🎉 Importação Concluída: ${mapeadosCount} mapeamentos vinculados e ${novosCount} novos exames salvos no banco Supabase!`);
+        showNotification(`🎉 Importação Concluída: ${mapeadosCount} mapeamentos atualizados e ${novosCount} novos exames salvos (com linhas de resultado e calculados) no banco Supabase!`);
       } else {
         showNotification(`⚠️ Erro ao salvar no banco: ${res.erro}`);
       }
@@ -9859,9 +9985,25 @@ P1`}
                               }
                             </span>
                           </div>
-                          <span className="truncate text-slate-400 max-w-[240px] text-right">
-                            {nome}
-                          </span>
+                          <div className="flex items-center gap-2 max-w-[320px]">
+                            <span className="truncate text-slate-400 text-right">
+                              {nome}
+                            </span>
+                            {importTarget === "equipamento" && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                {(item.linhasResultado?.length || 0) > 0 && (
+                                  <span className="text-[9px] bg-sky-500/20 text-sky-300 border border-sky-500/30 px-1 py-0.5 rounded font-mono" title={`${item.linhasResultado.length} Linhas de Resultado`}>
+                                    {item.linhasResultado.length}L
+                                  </span>
+                                )}
+                                {(item.calculados?.length || 0) > 0 && (
+                                  <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1 py-0.5 rounded font-mono" title={`${item.calculados.length} Fórmulas Calculadas`}>
+                                    {item.calculados.length}ƒ
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
