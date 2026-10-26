@@ -286,15 +286,86 @@ export class EquipamentoExamesService {
   }
 
   /**
-   * Exclui um exame da tabela
+   * Exclui um exame da tabela public.depara_exames no Supabase.
+   * Remove por ID real (UUID), por (equipamento_id, codigo_equipamento) e por codigo_autolac.
    */
-  static async excluirExame(id: string): Promise<boolean> {
+  static async excluirExame(
+    exameOuId: string | IExameEquipamentoRecord,
+    equipamentoId?: string | null,
+    tenantId?: string | null
+  ): Promise<{ ok: boolean; erro?: string }> {
     try {
-      if (!isIdReal(id)) return true;
-      const { error } = await supabaseBrowser.from(TABELA).delete().eq('id', id);
-      return !error;
-    } catch (e) {
-      return false;
+      const isString = typeof exameOuId === 'string';
+      const id = isString ? exameOuId : exameOuId?.id;
+      const exame = isString ? null : exameOuId;
+      const equipId = equipamentoId || exame?.equipamento_id || null;
+      const tId = tenantId || exame?.tenant_id || null;
+      const codEq = exame?.codigoEquipamento?.trim().toUpperCase();
+
+      // 1. Se tem id UUID real, remove diretamente pelo id
+      if (id && isIdReal(id)) {
+        const { error: errId } = await supabaseBrowser.from(TABELA).delete().eq('id', id);
+        if (errId) {
+          console.error('[EquipamentoExamesService] Erro ao deletar por id:', errId);
+        }
+      }
+
+      // 2. Remove por equipamento_id + codigo_equipamento e codigo_autolac
+      if (equipId && codEq) {
+        const { error: err1 } = await supabaseBrowser
+          .from(TABELA)
+          .delete()
+          .eq('equipamento_id', equipId)
+          .ilike('codigo_equipamento', codEq);
+
+        if (err1) {
+          console.error('[EquipamentoExamesService] Erro ao deletar por equipamento_id + codigo_equipamento:', err1);
+        }
+
+        const chaveAutolac = this.chaveAutolac(equipId, codEq);
+        const { error: err2 } = await supabaseBrowser
+          .from(TABELA)
+          .delete()
+          .eq('codigo_autolac', chaveAutolac);
+
+        if (err2) {
+          console.error('[EquipamentoExamesService] Erro ao deletar por codigo_autolac:', err2);
+        }
+      }
+
+      // 3. Fallback adicional por tenant_id e codigo_equipamento
+      if (tId && codEq) {
+        await supabaseBrowser
+          .from(TABELA)
+          .delete()
+          .eq('tenant_id', tId)
+          .ilike('codigo_equipamento', codEq);
+      }
+
+      // 4. Limpa do localStorage para o código não voltar pela ordenação
+      if (typeof window !== 'undefined' && codEq) {
+        try {
+          const chaves = [];
+          if (equipId) chaves.push(`ordem_exames_${equipId}`);
+          if (exame?.modelo_equipamento) chaves.push(`ordem_exames_${exame.modelo_equipamento}`);
+          for (const k of chaves) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list: string[] = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                localStorage.setItem(k, JSON.stringify(list.filter(c => c.toUpperCase() !== codEq)));
+              }
+            }
+          }
+        } catch (e) {
+          // ignore localStorage error
+        }
+      }
+
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[EquipamentoExamesService] Erro ao excluir exame:', e);
+      return { ok: false, erro: e?.message || 'Falha ao excluir exame do Supabase' };
     }
   }
 }
