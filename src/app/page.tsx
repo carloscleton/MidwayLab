@@ -3540,17 +3540,18 @@ export default function MidwayLabDashboard() {
   // ACTION 2: Save Tenant
   const handleSaveTenant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tenantFormData.nome || !tenantFormData.identificacaoEntidade) {
-      alert("Por favor, preencha o Nome e a Identificação da Entidade!");
+    if (!tenantFormData.nome || !tenantFormData.nome.trim()) {
+      alert("Por favor, preencha o Nome do Laboratório!");
       return;
     }
+    const identEntidade = tenantFormData.identificacaoEntidade || tenantFormData.nome.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 'entidade_padrao';
 
     let savedTenant: any = null;
     try {
       savedTenant = await TenantService.salvarTenant({
         id: editingTenant?.id,
         nome: tenantFormData.nome,
-        identificacao_entidade: tenantFormData.identificacaoEntidade,
+        identificacao_entidade: identEntidade,
         senha_ws: tenantFormData.senhaWs,
         codigo_entidade: tenantFormData.codigoAgente || '1',
         labfacil_base_url: tenantFormData.labfacilBaseUrl || 'http://apoio.labfacilsolucoes.com.br',
@@ -9133,150 +9134,11 @@ export default function MidwayLabDashboard() {
                 />
               </div>
 
-              {/* SEÇÃO 1: INTEGRACAO AUTOLAC (LIFESYS) */}
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 gap-2">
-                  <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">1. Parâmetros do WebService Autolac (LifeSys)</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTestTenantConnection("autolac")}
-                    disabled={testingTarget !== "none"}
-                    className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50 shrink-0"
-                    title="Testar especificamente a conexão do Autolac"
-                  >
-                    <Zap className="w-3 h-3 text-cyan-400 fill-current" />
-                    {testingTarget === "autolac" ? "Testando Autolac..." : "Testar Conexão Autolac"}
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Identificação da Entidade (Autolac)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex.: 783 ou autolac6@gcont.com.br"
-                      value={tenantFormData.identificacaoEntidade}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Senha de Acesso ao WS (Autolac)</label>
-                    <div className="relative">
-                      <input
-                        type={showSenhaWs ? "text" : "password"}
-                        required
-                        autoComplete="current-password"
-                        placeholder="Ex.: Soft@2026"
-                        value={tenantFormData.senhaWs}
-                        onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSenhaWs(!showSenhaWs)}
-                        className="absolute right-3 top-2 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
-                        title={showSenhaWs ? "Ocultar Senha" : "Exibir Senha"}
-                      >
-                        {showSenhaWs ? <EyeOff className="w-4 h-4 text-cyan-400" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">URL WebService Autolac (Porta 5030 / 8002)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="http://homolog.app.lifesys.com.br:5030"
-                    value={tenantFormData.wsUrl}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-cyan-500/50"
-                  />
-                </div>
-              </div>
-
-              {/* SEÇÃO 2: INTEGRACAO LABFACIL APOIO */}
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/60 gap-2">
-                  <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span className="font-bold text-teal-300 text-xs tracking-wide uppercase">2. Credenciais e API Labfacil Apoio</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTestTenantConnection("labfacil")}
-                    disabled={testingTarget !== "none"}
-                    className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-[11px] disabled:opacity-50 shrink-0"
-                    title="Testar especificamente a API Labfacil Apoio"
-                  >
-                    <Zap className="w-3 h-3 text-teal-400 fill-current" />
-                    {testingTarget === "labfacil" ? "Testando Labfacil..." : "Testar Conexão Labfacil"}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Login API Labfacil Apoio</label>
-                    <input
-                      type="email"
-                      required
-                      autoComplete="username"
-                      placeholder="Ex.: yorod23826@qicont.com"
-                      value={tenantFormData.labfacilLogin}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilLogin: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Senha API Labfacil Apoio</label>
-                    <div className="relative">
-                      <input
-                        type={showLabfacilSenha ? "text" : "password"}
-                        required
-                        autoComplete="current-password"
-                        placeholder="Ex.: Smt@2026"
-                        value={tenantFormData.labfacilSenha}
-                        onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilSenha: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowLabfacilSenha(!showLabfacilSenha)}
-                        className="absolute right-3 top-2 text-slate-400 hover:text-teal-300 transition cursor-pointer"
-                        title={showLabfacilSenha ? "Ocultar Senha" : "Exibir Senha"}
-                      >
-                        {showLabfacilSenha ? <EyeOff className="w-4 h-4 text-teal-400" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">URL Base da API Labfacil Apoio</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="http://apoio.labfacilsolucoes.com.br"
-                    value={tenantFormData.labfacilBaseUrl}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilBaseUrl: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-teal-500/50"
-                  />
-                </div>
-              </div>
-
-              {/* SEÇÃO 3: CONFIGURAÇÃO DE CATÁLOGO (GLOBAL VS CUSTOMIZADO) */}
+              {/* CONFIGURAÇÃO DE CATÁLOGO (GLOBAL VS CUSTOMIZADO) */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
                   <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">3. Tipo de Catálogo de Exames Labfacil</span>
+                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">Configuração do Catálogo de Exames Labfacil</span>
                 </div>
 
                 <label className="flex items-start gap-3 cursor-pointer group bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-teal-500/40 transition">
@@ -9305,93 +9167,21 @@ export default function MidwayLabDashboard() {
                 </label>
               </div>
 
-              {/* DIAGNOSTIC TEST CONNECTION OUTPUT BOX */}
-              {testingTarget !== "none" && (
-                <div className="bg-slate-950 border border-teal-500/30 p-3.5 rounded-xl font-mono text-xs text-teal-300 animate-pulse flex items-center gap-3">
-                  <RefreshCw className="w-4 h-4 text-teal-400 animate-spin shrink-0" />
-                  <span>
-                    {testingTarget === "labfacil" && "Testando autenticação da API Labfacil Apoio..."}
-                    {testingTarget === "autolac" && "Testando conectividade do WebService Autolac..."}
-                    {testingTarget === "both" && "Testando autenticação API Labfacil e conectividade WebService Autolac..."}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center justify-end pt-4 border-t border-slate-800 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                >
+                  Cancelar
+                </button>
 
-              {tenantTestResult && (tenantTestResult.labfacilMsg || tenantTestResult.autolacMsg) && (
-                <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs font-mono">
-                  <div className="flex items-center justify-between text-slate-400 font-bold border-b border-slate-900 pb-1.5">
-                    <span>⚡ Relatório Diagnóstico de Conexão</span>
-                    {tenantTestResult.labfacilSuccess !== false && tenantTestResult.autolacSuccess !== false ? (
-                      <span className="text-emerald-400 flex items-center gap-1">✓ Teste Concluído</span>
-                    ) : (
-                      <span className="text-rose-400 flex items-center gap-1">⚠️ Teste Concluído (Com Erros)</span>
-                    )}
-                  </div>
-
-                  {tenantTestResult.autolacMsg && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-300 flex items-center gap-1.5 shrink-0">
-                        {tenantTestResult.autolacSuccess ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                        )}
-                        Autolac WebService (LifeSys):
-                      </span>
-                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] text-right ${tenantTestResult.autolacSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
-                        {tenantTestResult.autolacMsg}
-                      </span>
-                    </div>
-                  )}
-
-                  {tenantTestResult.labfacilMsg && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-300 flex items-center gap-1.5 shrink-0">
-                        {tenantTestResult.labfacilSuccess ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                        )}
-                        Labfacil Apoio API REST:
-                      </span>
-                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] text-right ${tenantTestResult.labfacilSuccess ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"}`}>
-                        {tenantTestResult.labfacilMsg}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-800 gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleTestTenantConnection("both")}
-                    disabled={testingTarget !== "none"}
-                    className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-extrabold px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50"
-                    title="Testar ambas as conexões simultaneamente"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-amber-300 fill-current" />
-                    {testingTarget === "both" ? "Testando Conexões..." : "⚡ Testar Ambos (Geral)"}
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-3 ml-auto">
-                  <button
-                    type="button"
-                    onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
-                    className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
-                  >
-                    Cancelar
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
-                  >
-                    <Save className="w-4 h-4" /> Salvar Laboratório
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
+                >
+                  <Save className="w-4 h-4" /> Salvar Laboratório
+                </button>
               </div>
             </form>
           </div>
