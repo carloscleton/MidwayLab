@@ -38,6 +38,22 @@ export default function ExameResultadosCalculados({ exame, todosExames, salvando
   const setCalc = (i: number, patch: Partial<ICalculadoExame>) =>
     onChange({ calculados: calculados.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) });
 
+  const moverLinha = (fromIdx: number, toIdx: number) => {
+    if (toIdx < 0 || toIdx >= linhas.length || fromIdx === toIdx) return;
+    const nova = [...linhas];
+    const [removido] = nova.splice(fromIdx, 1);
+    nova.splice(toIdx, 0, removido);
+    onChange({ linhasResultado: nova });
+  };
+
+  const moverCalc = (fromIdx: number, toIdx: number) => {
+    if (toIdx < 0 || toIdx >= calculados.length || fromIdx === toIdx) return;
+    const nova = [...calculados];
+    const [removido] = nova.splice(fromIdx, 1);
+    nova.splice(toIdx, 0, removido);
+    onChange({ calculados: nova });
+  };
+
   const addLinha = () =>
     onChange({
       linhasResultado: [
@@ -92,6 +108,7 @@ export default function ExameResultadosCalculados({ exame, todosExames, salvando
         <table className="w-full">
           <thead>
             <tr>
+              <th className={th + " w-16 text-center"}>Nº / Ordem</th>
               <th className={th}>Código no Equip.</th>
               <th className={th}>Descrição</th>
               <th className={th}>Parâmetro de Retorno</th>
@@ -103,10 +120,37 @@ export default function ExameResultadosCalculados({ exame, todosExames, salvando
           </thead>
           <tbody>
             {linhas.length === 0 && (
-              <tr><td colSpan={7} className="py-2 px-2 text-slate-500">Nenhuma linha de resultado. Clique em Incluir.</td></tr>
+              <tr><td colSpan={8} className="py-2 px-2 text-slate-500">Nenhuma linha de resultado. Clique em Incluir.</td></tr>
             )}
             {linhas.map((l, i) => (
-              <tr key={i} className="border-b border-slate-800/60">
+              <tr key={i} className="border-b border-slate-800/60 hover:bg-slate-900/40 transition">
+                <td className="p-1 text-center whitespace-nowrap">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-[10px] font-mono text-slate-400 font-bold tabular-nums w-4 text-right">
+                      {i + 1}
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        onClick={() => moverLinha(i, i - 1)}
+                        className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
+                        title="Mover para cima"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={i === linhas.length - 1}
+                        onClick={() => moverLinha(i, i + 1)}
+                        className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
+                        title="Mover para baixo"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </div>
+                </td>
                 <td className="p-1"><input className={inputCls} value={l.codigoEquipamento} onChange={e => setLinha(i, { codigoEquipamento: e.target.value.toUpperCase() })} /></td>
                 <td className="p-1"><input className={inputCls} value={l.descricao} onChange={e => setLinha(i, { descricao: e.target.value })} /></td>
                 <td className="p-1"><input className={inputCls} value={l.parametroRetorno} onChange={e => setLinha(i, { parametroRetorno: e.target.value.toUpperCase() })} /></td>
@@ -138,6 +182,7 @@ export default function ExameResultadosCalculados({ exame, todosExames, salvando
         <table className="w-full">
           <thead>
             <tr>
+              <th className={th + " w-16 text-center"}>Nº / Ordem</th>
               <th className={th}>Código</th>
               <th className={th}>Descrição</th>
               <th className={th}>Parâmetro de Retorno</th>
@@ -150,13 +195,40 @@ export default function ExameResultadosCalculados({ exame, todosExames, salvando
           </thead>
           <tbody>
             {calculados.length === 0 && (
-              <tr><td colSpan={8} className="py-2 px-2 text-slate-500">Nenhum exame calculado. Clique em Incluir.</td></tr>
+              <tr><td colSpan={9} className="py-2 px-2 text-slate-500">Nenhum exame calculado. Clique em Incluir.</td></tr>
             )}
             {calculados.map((c, i) => {
               const erro = c.formula ? validarFormula(c.formula, codigosDisponiveis) : null;
               return (
                 <React.Fragment key={i}>
-                  <tr className="border-b border-slate-800/60">
+                  <tr className="border-b border-slate-800/60 hover:bg-slate-900/40 transition">
+                    <td className="p-1 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-[10px] font-mono text-slate-400 font-bold tabular-nums w-4 text-right">
+                          {i + 1}
+                        </span>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            disabled={i === 0}
+                            onClick={() => moverCalc(i, i - 1)}
+                            className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
+                            title="Mover para cima"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            disabled={i === calculados.length - 1}
+                            onClick={() => moverCalc(i, i + 1)}
+                            className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
+                            title="Mover para baixo"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </div>
+                    </td>
                     <td className="p-1"><input className={inputCls} value={c.codigo} onChange={e => setCalc(i, { codigo: e.target.value.toUpperCase() })} /></td>
                     <td className="p-1"><input className={inputCls} value={c.descricao} onChange={e => setCalc(i, { descricao: e.target.value })} /></td>
                     <td className="p-1"><input className={inputCls} value={c.parametroRetorno} onChange={e => setCalc(i, { parametroRetorno: e.target.value.toUpperCase() })} /></td>
@@ -175,7 +247,7 @@ export default function ExameResultadosCalculados({ exame, todosExames, salvando
                   </tr>
                   {(erro || testeAberto === i) && (
                     <tr>
-                      <td colSpan={8} className="px-2 pb-2">
+                      <td colSpan={9} className="px-2 pb-2">
                         {erro && <div className="text-rose-400 text-[10px]">⚠ {erro}</div>}
                         {testeAberto === i && !erro && c.formula && (
                           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-300">
