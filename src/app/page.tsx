@@ -575,11 +575,32 @@ export default function MidwayLabDashboard() {
 
           // Agrupa exames suportando tanto planilha de aba única quanto multi-abas
           const mapaExames = new Map<string, any>();
+          let lastCodEqExcel = "";
+          let lastCodLabExcel = "";
 
           rawExames.forEach((orig: any, i: number) => {
             const row = normalizarObjetoChaves(orig);
-            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || `EX_${i + 1}`).toString().trim().toUpperCase();
-            const codLab = (row.codigo_labfacil || row.labfacil || row.cod_labfacil || row.codigo_softlab || row.softlab || row.cod_softlab || row.cod_lab || row.lab_code || "").toString().trim().toUpperCase();
+
+            let rawCodEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.mnemonico || row.codigo || row.code || row.cod || row.id || "").toString().trim().toUpperCase();
+            let rawCodLab = (row.codigo_labfacil || row.labfacil || row.cod_labfacil || row.codigo_softlab || row.softlab || row.cod_softlab || row.cod_lab || row.lab_code || row.mnemonico || "").toString().trim().toUpperCase();
+
+            // Detecta parâmetro de retorno ou de equipamento
+            const paramRet = (row.parametro_retorno || row.cod_retorno || row.codigo_retorno || row.retorno || "").toString().trim().toUpperCase();
+            const paramEq = (row.parametro_equipamento || row.codigo_parametro || row.parametro || row.canal || "").toString().trim().toUpperCase();
+
+            // Herança de mnemônico mesclado/em branco da linha anterior (quando há parâmetro de retorno)
+            if (!rawCodEq && (paramRet || paramEq) && lastCodEqExcel) {
+              rawCodEq = lastCodEqExcel;
+              rawCodLab = rawCodLab || lastCodLabExcel;
+            }
+
+            if (rawCodEq) {
+              lastCodEqExcel = rawCodEq;
+              lastCodLabExcel = rawCodLab || rawCodEq;
+            }
+
+            const codEq = rawCodEq || `EX_${i + 1}`;
+            const codLab = rawCodLab || codEq;
             const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
             const cat = row.categoria || row.category || row.setor || "Geral";
             const metodo = row.metodo_ou_principio || row.metodo || row.principio || "-";
@@ -588,6 +609,7 @@ export default function MidwayLabDashboard() {
             const tipo = row.tipo || row.tipo_resultado || "PDF";
 
             if (!mapaExames.has(codEq)) {
+              // Verifica se já temos linhas/calculados pré-carregados das abas opcionais
               const linhasIniciais = linhasPorExame.get(codEq) || normalizarLinhas(row.linhas_resultado || row.linhasresultado || row.linhas || row.resultados, codEq, desc, codLab);
               const calcsIniciais = calcsPorExame.get(codEq) || (codLab ? calcsPorExame.get(codLab) : null) || normalizarCalculados(row.calculados || row.exames_calculados || row.formulas, codLab);
 
@@ -620,16 +642,15 @@ export default function MidwayLabDashboard() {
             if (exame.unidade_padrao === "-" && unidade !== "-") exame.unidade_padrao = unidade;
 
             // Suporte a Linha de Resultado na mesma planilha (colunas planas da linha)
-            const paramEq = (row.parametro_equipamento || row.codigo_parametro || (row.parametro_retorno ? codEq : null) || "").toString().trim().toUpperCase();
-            const paramRet = (row.parametro_retorno || (paramEq ? (codLab || codEq) : "")).toString().trim().toUpperCase();
             if (paramEq || paramRet || row.mascara || row.fator_multiplicacao) {
-              const codLinha = paramEq || codEq;
-              const jaExisteLinha = exame.linhasResultado.some((l: ILinhaResultado) => l.codigoEquipamento === codLinha && l.parametroRetorno === paramRet);
+              const codLinha = paramEq || paramRet || codEq;
+              const retFinal = paramRet || codLinha;
+              const jaExisteLinha = exame.linhasResultado.some((l: ILinhaResultado) => l.codigoEquipamento === codLinha && l.parametroRetorno === retFinal);
               if (!jaExisteLinha) {
                 exame.linhasResultado.push({
                   codigoEquipamento: codLinha,
                   descricao: String(row.descricao_parametro || row.nome_parametro || desc || codLinha).trim(),
-                  parametroRetorno: paramRet || codLab || codLinha,
+                  parametroRetorno: retFinal,
                   enviaParaEquip: row.envia_para_equip !== undefined ? (String(row.envia_para_equip).toLowerCase() !== "false" && String(row.envia_para_equip).toLowerCase() !== "nao" && String(row.envia_para_equip) !== "0") : true,
                   mascara: String(row.mascara || row.mask || "").trim(),
                   fatorMultiplicacao: String(row.fator_multiplicacao || row.fator || row.multiplicador || "").trim()
@@ -815,6 +836,8 @@ export default function MidwayLabDashboard() {
           const header = lines[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''));
           
           const mapaExamesCsv = new Map<string, any>();
+          let lastCodEqCsv = "";
+          let lastCodLabCsv = "";
 
           lines.slice(1).forEach((line, i) => {
             const cols = line.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, ''));
@@ -822,8 +845,27 @@ export default function MidwayLabDashboard() {
             header.forEach((h, idx) => {
               row[h] = cols[idx] || "";
             });
-            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || `EX_${i + 1}`).toString().trim().toUpperCase();
-            const codLab = (row.codigo_labfacil || row.labfacil || row.codigo_softlab || row.softlab || row.cod_labfacil || row.cod_lab || row.lab_code || "").toString().trim().toUpperCase();
+
+            let rawCodEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.mnemonico || row.codigo || row.code || row.cod || row.id || "").toString().trim().toUpperCase();
+            let rawCodLab = (row.codigo_labfacil || row.labfacil || row.codigo_softlab || row.softlab || row.cod_labfacil || row.cod_lab || row.lab_code || row.mnemonico || "").toString().trim().toUpperCase();
+
+            // Detecta parâmetro de retorno ou de equipamento
+            const paramRet = (row.parametro_retorno || row.cod_retorno || row.codigo_retorno || row.retorno || "").toString().trim().toUpperCase();
+            const paramEq = (row.parametro_equipamento || row.codigo_parametro || row.parametro || row.canal || "").toString().trim().toUpperCase();
+
+            // Herança de mnemônico mesclado/em branco da linha anterior
+            if (!rawCodEq && (paramRet || paramEq) && lastCodEqCsv) {
+              rawCodEq = lastCodEqCsv;
+              rawCodLab = rawCodLab || lastCodLabCsv;
+            }
+
+            if (rawCodEq) {
+              lastCodEqCsv = rawCodEq;
+              lastCodLabCsv = rawCodLab || rawCodEq;
+            }
+
+            const codEq = rawCodEq || `EX_${i + 1}`;
+            const codLab = rawCodLab || codEq;
             const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
             const cat = row.categoria || row.category || row.setor || "Geral";
             const metodo = row.metodo_ou_principio || row.metodo || row.principio || "-";
@@ -862,16 +904,15 @@ export default function MidwayLabDashboard() {
             if (exame.unidade_padrao === "-" && unidade !== "-") exame.unidade_padrao = unidade;
 
             // Suporte a Linha de Resultado na mesma planilha
-            const paramEq = (row.parametro_equipamento || row.codigo_parametro || (row.parametro_retorno ? codEq : null) || "").toString().trim().toUpperCase();
-            const paramRet = (row.parametro_retorno || (paramEq ? (codLab || codEq) : "")).toString().trim().toUpperCase();
             if (paramEq || paramRet || row.mascara || row.fator_multiplicacao) {
-              const codLinha = paramEq || codEq;
-              const jaExisteLinha = exame.linhasResultado.some((l: ILinhaResultado) => l.codigoEquipamento === codLinha && l.parametroRetorno === paramRet);
+              const codLinha = paramEq || paramRet || codEq;
+              const retFinal = paramRet || codLinha;
+              const jaExisteLinha = exame.linhasResultado.some((l: ILinhaResultado) => l.codigoEquipamento === codLinha && l.parametroRetorno === retFinal);
               if (!jaExisteLinha) {
                 exame.linhasResultado.push({
                   codigoEquipamento: codLinha,
                   descricao: String(row.descricao_parametro || row.nome_parametro || desc || codLinha).trim(),
-                  parametroRetorno: paramRet || codLab || codLinha,
+                  parametroRetorno: retFinal,
                   enviaParaEquip: row.envia_para_equip !== undefined ? (String(row.envia_para_equip).toLowerCase() !== "false" && String(row.envia_para_equip).toLowerCase() !== "nao" && String(row.envia_para_equip) !== "0") : true,
                   mascara: String(row.mascara || row.mask || "").trim(),
                   fatorMultiplicacao: String(row.fator_multiplicacao || row.fator || row.multiplicador || "").trim()
