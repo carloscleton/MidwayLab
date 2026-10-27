@@ -18,6 +18,7 @@ import { SetupLocalRoboModal } from "../components/SetupLocalRoboModal";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
+import * as XLSX from "xlsx";
 import {
   Activity,
   Calculator,
@@ -425,17 +426,16 @@ export default function MidwayLabDashboard() {
   const [simulatorSimulatedRelease, setSimulatorSimulatedRelease] = useState<ISimulatedSampleRelease | null>(null);
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
 
-  // HANDLE FILE SELECTION & PARSING (XML / JSON / CSV)
+  // HANDLE FILE SELECTION & PARSING (XML / JSON / CSV / XLSX)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportFileName(file.name);
 
+    const isExcel = file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls");
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (!content) return;
 
+    reader.onload = (event) => {
       try {
         // FUNÇÕES AUXILIARES PARA NORMALIZAR LINHAS DE RESULTADO E CALCULADOS
         const normalizarLinhas = (raw: any, defaultCodEq: string, defaultDesc: string, defaultParam: string): ILinhaResultado[] => {
@@ -478,6 +478,137 @@ export default function MidwayLabDashboard() {
             calcularAutomaticamente: c.calcularAutomaticamente !== undefined ? Boolean(c.calcularAutomaticamente) : c.calcular_automaticamente !== undefined ? Boolean(c.calcular_automaticamente) : true
           })).filter(c => Boolean(c.codigo));
         };
+
+        // PARSER PLANILHA EXCEL (.XLSX / .XLS)
+        if (isExcel) {
+          const buffer = event.target?.result as ArrayBuffer;
+          if (!buffer) return;
+          const workbook = XLSX.read(buffer, { type: 'array' });
+
+          if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+            alert("A planilha Excel selecionada não possui abas ou está vazia.");
+            return;
+          }
+
+          // Normalizador de cabeçalhos de coluna: remove acentuação, espaços e pontuação
+          const normalizarObjetoChaves = (obj: any) => {
+            const normalizado: Record<string, any> = {};
+            for (const [k, v] of Object.entries(obj)) {
+              const key = k
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[̀-ͯ]/g, "")
+                .replace(/[^a-z0-9]+/g, "_")
+                .replace(/^_+|_+$/g, "");
+              normalizado[key] = v;
+            }
+            return normalizado;
+          };
+
+          // 1. Aba opcional de Linhas de Resultado
+          const linhasSheetName = workbook.SheetNames.find(n => {
+            const clean = n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+            return (clean.includes("linha") || clean.includes("resultado")) && !clean.includes("exame");
+          });
+          const linhasPorExame = new Map<string, ILinhaResultado[]>();
+          if (linhasSheetName) {
+            const rawLinhas: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[linhasSheetName], { defval: "" });
+            rawLinhas.forEach((orig: any) => {
+              const row = normalizarObjetoChaves(orig);
+              const codEx = (row.codigo_equipamento || row.codigo_aparelho || row.codigo_exame || row.exame || row.codigo || row.cod || "").toString().trim().toUpperCase();
+              if (!codEx) return;
+              const codLinha = (row.parametro_equipamento || row.codigo_parametro || row.parametro || row.codigo_equipamento || row.codigo || codEx).toString().trim().toUpperCase();
+              const itemLinha: ILinhaResultado = {
+                codigoEquipamento: codLinha,
+                descricao: String(row.descricao || row.nome || codLinha).trim(),
+                parametroRetorno: String(row.parametro_retorno || row.codigo_labfacil || row.labfacil || row.parametro || "").trim().toUpperCase(),
+                enviaParaEquip: row.envia_para_equip !== undefined ? (String(row.envia_para_equip).toLowerCase() !== "false" && String(row.envia_para_equip).toLowerCase() !== "nao" && String(row.envia_para_equip) !== "0") : true,
+                mascara: String(row.mascara || row.mask || "").trim(),
+                fatorMultiplicacao: String(row.fator_multiplicacao || row.fator || row.multiplicador || "").trim()
+              };
+              const arr = linhasPorExame.get(codEx) || [];
+              arr.push(itemLinha);
+              linhasPorExame.set(codEx, arr);
+            });
+          }
+
+          // 2. Aba opcional de Calculados
+          const calcsSheetName = workbook.SheetNames.find(n => {
+            const clean = n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+            return clean.includes("calcul") || clean.includes("formula");
+          });
+          const calcsPorExame = new Map<string, ICalculadoExame[]>();
+          if (calcsSheetName) {
+            const rawCalcs: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[calcsSheetName], { defval: "" });
+            rawCalcs.forEach((orig: any) => {
+              const row = normalizarObjetoChaves(orig);
+              const codEx = (row.codigo_equipamento || row.codigo_aparelho || row.codigo_exame || row.codigo_pai || row.exame || "").toString().trim().toUpperCase();
+              const codCalc = (row.codigo || row.codigo_calculado || row.cod || "").toString().trim().toUpperCase();
+              if (!codCalc) return;
+              const itemCalc: ICalculadoExame = {
+                codigo: codCalc,
+                descricao: String(row.descricao || row.nome || codCalc).trim(),
+                parametroRetorno: String(row.parametro_retorno || row.codigo_labfacil || row.labfacil || row.parametro || "").trim().toUpperCase(),
+                formula: String(row.formula || row.expressao || row.calculo || "").trim(),
+                global: String(row.global).toLowerCase() === "true" || String(row.global).toLowerCase() === "sim" || String(row.global) === "1",
+                mascara: String(row.mascara || row.mask || "").trim(),
+                calcularAutomaticamente: row.calcular_automaticamente !== undefined ? (String(row.calcular_automaticamente).toLowerCase() !== "false" && String(row.calcular_automaticamente).toLowerCase() !== "nao" && String(row.calcular_automaticamente) !== "0") : true
+              };
+              const chave = codEx || codCalc;
+              const arr = calcsPorExame.get(chave) || [];
+              arr.push(itemCalc);
+              calcsPorExame.set(chave, arr);
+            });
+          }
+
+          // 3. Aba Principal de Exames (ou primeira aba caso não tenha aba de exames específica)
+          const examesSheetName = workbook.SheetNames.find(n => {
+            const clean = n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+            return clean.includes("exame") || clean.includes("catalogo") || clean.includes("depara") || clean.includes("teste");
+          }) || workbook.SheetNames[0];
+
+          const rawExames: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[examesSheetName], { defval: "" });
+          if (rawExames.length === 0) {
+            alert(`A aba "${examesSheetName}" do arquivo Excel está vazia.`);
+            return;
+          }
+
+          const items = rawExames.map((orig: any, i: number) => {
+            const row = normalizarObjetoChaves(orig);
+            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || `EX_${i + 1}`).toString().trim();
+            const codLab = (row.codigo_labfacil || row.labfacil || row.cod_labfacil || row.codigo_softlab || row.softlab || row.cod_softlab || row.cod_lab || row.lab_code || "").toString().trim();
+            const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
+
+            const linhasDoExame = linhasPorExame.get(codEq.toUpperCase()) ||
+              normalizarLinhas(row.linhas_resultado || row.linhasresultado || row.linhas || row.resultados, codEq, desc, codLab);
+
+            const calcsDoExame = calcsPorExame.get(codEq.toUpperCase()) ||
+              (codLab ? calcsPorExame.get(codLab.toUpperCase()) : null) ||
+              normalizarCalculados(row.calculados || row.exames_calculados || row.formulas, codLab);
+
+            return {
+              ...orig,
+              codigo: codEq.toUpperCase() || codLab.toUpperCase(),
+              codigo_equipamento: codEq.toUpperCase(),
+              codigo_labfacil: codLab.toUpperCase(),
+              descricao: desc,
+              nome_exame: desc,
+              categoria: row.categoria || row.category || row.setor || "Geral",
+              metodo_ou_principio: row.metodo_ou_principio || row.metodo || row.principio || "-",
+              amostra_sugerida: row.amostra_sugerida || row.amostra || row.material || "Soro",
+              unidade_padrao: row.unidade_padrao || row.unidade || "-",
+              tipo: row.tipo || row.tipo_resultado || "PDF",
+              linhasResultado: linhasDoExame,
+              calculados: calcsDoExame
+            };
+          });
+
+          setParsedImportItems(items);
+          return;
+        }
+
+        const content = event.target?.result as string;
+        if (!content) return;
 
         if (file.name.toLowerCase().endsWith(".xml") || content.trim().startsWith("<?xml") || content.trim().startsWith("<")) {
           // PARSER XML NATIVO (LABFACIL / EXAMES / TABELAS / EQUIPAMENTOS)
@@ -672,7 +803,11 @@ export default function MidwayLabDashboard() {
       }
     };
 
-    reader.readAsText(file);
+    if (isExcel) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
 
   // CONFIRM IMPORT & SAVE TO SUPABASE
@@ -7801,9 +7936,9 @@ export default function MidwayLabDashboard() {
                     setIsImportModalOpen(true);
                   }}
                   className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
-                  title="Importar arquivo XML, JSON ou CSV para adicionar e fazer o mapeamento com os códigos do equipamento"
+                  title="Importar arquivo Excel (XLSX), XML, JSON ou CSV para adicionar e fazer o mapeamento com os códigos do equipamento"
                 >
-                  <Upload className="w-4 h-4 text-emerald-400" /> Importar (XML / JSON / CSV)
+                  <Upload className="w-4 h-4 text-emerald-400" /> Importar (XML / JSON / CSV / XLSX)
                 </button>
 
                 <button
@@ -9899,7 +10034,7 @@ P1`}
         );
       })()}
 
-      {/* MODAL 3: IMPORTADOR DE ARQUIVOS (CSV / JSON / XML) */}
+      {/* MODAL 3: IMPORTADOR DE ARQUIVOS (CSV / JSON / XML / XLSX) */}
       {isImportModalOpen && (
         <div className="fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
@@ -9909,11 +10044,11 @@ P1`}
                 {importTarget === "equipamento" ? (
                   <>Importar & Mapear Exames: <span className="text-teal-300">{viewDocEquipamentoModal?.nomeCompleto || activeEquipamentoForDoc?.nome || "Equipamento"}</span></>
                 ) : importTarget === "depara" ? (
-                  "Importar Planilha de DE-PARA em Lote (CSV / JSON / XML)"
+                  "Importar Planilha de DE-PARA em Lote (CSV / JSON / XML / XLSX)"
                 ) : importTarget === "labfacil" ? (
-                  "Importar Catálogo do Labfacil (CSV / JSON / XML)"
+                  "Importar Catálogo do Labfacil (CSV / JSON / XML / XLSX)"
                 ) : (
-                  "Importar Catálogo do Autolac (CSV / JSON / XML)"
+                  "Importar Catálogo do Autolac (CSV / JSON / XML / XLSX)"
                 )}
               </h3>
               <button
@@ -9928,10 +10063,10 @@ P1`}
             <div className="space-y-4 text-xs">
               <p className="text-slate-300">
                 {importTarget === "equipamento"
-                  ? "Selecione um arquivo XML, JSON ou CSV contendo a relação de exames e códigos para adicionar ao catálogo do aparelho e realizar o mapeamento DE-PARA com o Labfacil diretamente no banco Supabase."
+                  ? "Selecione um arquivo Excel (.xlsx, .xls), XML, JSON ou CSV contendo a relação de exames e códigos para adicionar ao catálogo do aparelho e realizar o mapeamento DE-PARA com o Labfacil diretamente no banco Supabase."
                   : importTarget === "depara"
-                  ? "Selecione um arquivo XML, JSON ou CSV contendo as colunas 'codigo_autolac' e 'codigo_labfacil' para importar o mapeamento em lote diretamente para o Supabase."
-                  : "Selecione um arquivo XML (tags <exame> ou <item>), JSON ou CSV para importar a relação de exames para a empresa selecionada."}
+                  ? "Selecione um arquivo Excel (.xlsx, .xls), XML, JSON ou CSV contendo as colunas 'codigo_autolac' e 'codigo_labfacil' para importar o mapeamento em lote diretamente para o Supabase."
+                  : "Selecione um arquivo Excel (.xlsx, .xls), XML (tags <exame> ou <item>), JSON ou CSV para importar a relação de exames para a empresa selecionada."}
               </p>
 
               {/* FILE SELECTOR DROPZONE */}
@@ -9939,12 +10074,12 @@ P1`}
                 <Upload className="w-10 h-10 text-teal-400 mx-auto" />
                 <div>
                   <label htmlFor="file-upload-input" className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-xl transition cursor-pointer inline-flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Selecionar Arquivo (XML, JSON ou CSV)
+                    <FileText className="w-4 h-4" /> Selecionar Arquivo (Excel, XML, JSON ou CSV)
                   </label>
                   <input
                     id="file-upload-input"
                     type="file"
-                    accept=".xml,.json,.csv,.txt"
+                    accept=".xlsx,.xls,.xml,.json,.csv,.txt"
                     onChange={handleFileSelect}
                     className="hidden"
                   />
@@ -9952,7 +10087,7 @@ P1`}
                 {importFileName ? (
                   <p className="font-mono text-teal-300 font-bold text-xs">📄 Arquivo Selecionado: {importFileName}</p>
                 ) : (
-                  <p className="text-[11px] text-slate-500">Aceita arquivos .xml (estrutura de exames), .json e .csv delimitados por vírgula ou ponto-e-vírgula</p>
+                  <p className="text-[11px] text-slate-500">Aceita arquivos Excel (.xlsx, .xls), .xml (estrutura de exames), .json e .csv delimitados por vírgula ou ponto-e-vírgula</p>
                 )}
               </div>
 
