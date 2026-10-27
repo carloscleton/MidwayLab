@@ -37,6 +37,7 @@ import {
   ChevronRight,
   ArrowUpRight,
   ArrowDownLeft,
+  ArrowDownToLine,
   X,
   Edit,
   Copy,
@@ -313,6 +314,9 @@ export default function MidwayLabDashboard() {
     ativo: true
   });
 
+  const [exameParaMoverModal, setExameParaMoverModal] = useState<IExameEquipamentoRecord | null>(null);
+  const [exameDestinoSelecionadoParaMover, setExameDestinoSelecionadoParaMover] = useState<string>("");
+
   // Grava a lista de exames do aparelho em public.depara_exames e preserva a ordenação do usuário
   const persistirExamesAparelho = async (
     lista: IExameEquipamentoRecord[],
@@ -386,6 +390,90 @@ export default function MidwayLabDashboard() {
       `💾 ${campo === 'codigoEquipamento' ? 'Código do aparelho' : 'Código Labfacil'} atualizado para ${val || '-'}`,
       false
     );
+  };
+
+  // Move um ou mais exames avulsos (itens verdes) para dentro das linhas de resultado de outro exame
+  const handleMoverExamesParaLinhasResultado = async (
+    examesOrigem: IExameEquipamentoRecord[],
+    exameDestino: IExameEquipamentoRecord
+  ) => {
+    if (!examesOrigem || examesOrigem.length === 0 || !exameDestino) return;
+
+    const confirmMsg = examesOrigem.length === 1
+      ? `Deseja mover o exame "${examesOrigem[0].codigoEquipamento}" para dentro das linhas de resultado de "${exameDestino.codigoEquipamento}"?\n\nEle deixará de ser um item principal no catálogo e passará a ser uma linha de resultado de ${exameDestino.codigoEquipamento}.`
+      : `Deseja mover os ${examesOrigem.length} exames selecionados (${examesOrigem.map(e => e.codigoEquipamento).join(', ')}) para dentro das linhas de resultado de "${exameDestino.codigoEquipamento}"?\n\nEles deixarão de ser itens principais no catálogo e passarão a ser linhas de resultado de ${exameDestino.codigoEquipamento}.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+    const tenantId = activeEquipamentoForDoc?.tenant_id || activeTenantObj?.id || tenants[0]?.id;
+    const equipsDoTenant = tenantId ? equipamentosList.filter(eq => eq.tenant_id === tenantId) : equipamentosList;
+    const equip = activeEquipamentoForDoc || (viewDocEquipamentoModal ? equipsDoTenant.find(e => e.modelo === viewDocEquipamentoModal.modelo) : null) || equipsDoTenant[0];
+    const equipId = equip?.id || activeEquipamentoForDoc?.id;
+    const modelo = equip?.modelo || viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.modelo || "CB350";
+
+    setIsSavingExamesAparelho(true);
+
+    try {
+      const novasLinhas: ILinhaResultado[] = [];
+      const novosCalculados: ICalculadoExame[] = [];
+
+      for (const exOrigem of examesOrigem) {
+        novasLinhas.push({
+          codigoEquipamento: exOrigem.codigoEquipamento,
+          descricao: exOrigem.nomeExame || exOrigem.codigoEquipamento,
+          parametroRetorno: exOrigem.codigoLabfacilSugerido || exOrigem.codigoEquipamento,
+          enviaParaEquip: true,
+          mascara: exOrigem.unidadePadrao && exOrigem.unidadePadrao !== "-" ? exOrigem.unidadePadrao : "",
+          fatorMultiplicacao: "1"
+        });
+
+        if (exOrigem.linhasResultado && exOrigem.linhasResultado.length > 0) {
+          novasLinhas.push(...exOrigem.linhasResultado);
+        }
+        if (exOrigem.calculados && exOrigem.calculados.length > 0) {
+          novosCalculados.push(...exOrigem.calculados);
+        }
+
+        // Remove do Supabase
+        await EquipamentoExamesService.excluirExame(exOrigem, equipId, tenantId);
+      }
+
+      const codigosRemovidos = new Set(examesOrigem.map(e => e.codigoEquipamento.toUpperCase()));
+      const idsRemovidos = new Set(examesOrigem.map(e => e.id).filter(Boolean));
+
+      const novaLista = equipamentoExamesList
+        .filter(item => {
+          if (item.id && idsRemovidos.has(item.id)) return false;
+          if (codigosRemovidos.has(item.codigoEquipamento.toUpperCase())) return false;
+          return true;
+        })
+        .map(item => {
+          const ehDestino = (item.id && exameDestino.id && item.id === exameDestino.id) ||
+                            (item.codigoEquipamento.toUpperCase() === exameDestino.codigoEquipamento.toUpperCase());
+          if (!ehDestino) return item;
+
+          return {
+            ...item,
+            linhasResultado: [...(item.linhasResultado || []), ...novasLinhas],
+            calculados: [...(item.calculados || []), ...novosCalculados]
+          };
+        });
+
+      // Mantém aberto o exame de destino
+      setExameExpandidoKey(exameDestino.id || exameDestino.codigoEquipamento);
+
+      await persistirExamesAparelho(
+        novaLista,
+        `📥 ${examesOrigem.length === 1 ? `Exame ${examesOrigem[0].codigoEquipamento}` : `${examesOrigem.length} exames`} movido(s) com sucesso para as linhas de resultado de ${exameDestino.codigoEquipamento}!`,
+        true
+      );
+    } catch (err: any) {
+      console.error("Erro ao mover exame para linhas de resultado:", err);
+      showNotification(`⚠️ Falha ao mover exame: ${err?.message || "erro inesperado"}`);
+    } finally {
+      setIsSavingExamesAparelho(false);
+    }
   };
 
   // EXPORTAR CATÁLOGO DE EXAMES DO EQUIPAMENTO (NO MESMO PADRÃO DE CAMPOS DO IMPORTADOR)
@@ -8564,6 +8652,17 @@ export default function MidwayLabDashboard() {
                             </button>
                             <button
                               type="button"
+                              onClick={() => {
+                                setExameParaMoverModal(ex);
+                                setExameDestinoSelecionadoParaMover("");
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer transition"
+                              title="Mover este item verde para dentro das linhas de resultado de outro exame (ex: SUMA)"
+                            >
+                              <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-400" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={async () => {
                                 if (confirm(`Deseja remover o exame ${ex.codigoEquipamento} (${ex.nomeExame})?`)) {
                                   const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
@@ -8619,6 +8718,7 @@ export default function MidwayLabDashboard() {
                                salvando={isSavingExamesAparelho}
                                onChange={(patch) => setEquipamentoExamesList(prev => prev.map(item => item === ex ? { ...item, ...patch } : item))}
                                onGravar={() => persistirExamesAparelho(equipamentoExamesList, `💾 Resultados e calculados de ${ex.codigoEquipamento} gravados no banco.`)}
+                               onMoverExamesParaCa={(itens) => handleMoverExamesParaLinhasResultado(itens, ex)}
                              />
                            </td>
                          </tr>
@@ -8820,6 +8920,93 @@ export default function MidwayLabDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: MOVER EXAME PARA DENTRO DAS LINHAS DE RESULTADO DE OUTRO EXAME */}
+      {exameParaMoverModal && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <ArrowDownToLine className="w-5 h-5 text-emerald-400" />
+                Mover para Linhas de Resultado
+              </h3>
+              <button
+                type="button"
+                onClick={() => setExameParaMoverModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[11px] text-slate-400">Exame que será movido:</span>
+                <div className="flex items-center gap-2">
+                  <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-xs font-bold font-mono">
+                    {exameParaMoverModal.codigoEquipamento}
+                  </span>
+                  <span className="font-semibold text-slate-200 text-xs">
+                    {exameParaMoverModal.nomeExame}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Cód. Labfacil: <strong className="text-cyan-300 font-mono">{exameParaMoverModal.codigoLabfacilSugerido || exameParaMoverModal.codigoEquipamento}</strong>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1.5">
+                  Selecione o Exame de Destino (Painel / Exame Pai):
+                </label>
+                <select
+                  value={exameDestinoSelecionadoParaMover}
+                  onChange={(e) => setExameDestinoSelecionadoParaMover(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">-- Selecione o exame de destino (ex: SUMA) --</option>
+                  {equipamentoExamesList
+                    .filter(e => (e.id && exameParaMoverModal.id ? e.id !== exameParaMoverModal.id : e.codigoEquipamento.toUpperCase() !== exameParaMoverModal.codigoEquipamento.toUpperCase()))
+                    .map(e => (
+                      <option key={e.id || e.codigoEquipamento} value={e.codigoEquipamento}>
+                        {e.codigoEquipamento} - {e.nomeExame || e.codigoEquipamento} {(e.linhasResultado?.length || 0) > 0 ? `(${e.linhasResultado?.length} linhas)` : ''}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  O item <strong className="text-emerald-400 font-mono">{exameParaMoverModal.codigoEquipamento}</strong> deixará de ser um exame avulso e será inserido nas linhas de resultado do exame selecionado.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setExameParaMoverModal(null)}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!exameDestinoSelecionadoParaMover}
+                  onClick={async () => {
+                    const destino = equipamentoExamesList.find(e => e.codigoEquipamento === exameDestinoSelecionadoParaMover);
+                    if (destino && exameParaMoverModal) {
+                      const origem = exameParaMoverModal;
+                      setExameParaMoverModal(null);
+                      await handleMoverExamesParaLinhasResultado([origem], destino);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white font-bold px-4 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-900/30"
+                >
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Confirmar e Mover
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
