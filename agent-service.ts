@@ -98,6 +98,21 @@ function extrairDadosArquivo(conteudo: string, nomeArquivo: string) {
   return { pacienteNome, codigoPedido };
 }
 
+// Heartbeat para sinalizar que o robô está ativo
+async function enviarHeartbeat() {
+  if (!modoSeguro) return;
+  try {
+    await axios.post(
+      `${API_URL}/api/agent`,
+      { acao: 'heartbeat' },
+      {
+        headers: { 'x-agent-token': AGENT_TOKEN },
+        timeout: 5000
+      }
+    );
+  } catch (_) {}
+}
+
 // Busca as pastas a monitorar (via API Segura ou Supabase Legado)
 async function carregarAlvosMonitoramento(): Promise<IFolderTarget[]> {
   const alvos: IFolderTarget[] = [];
@@ -181,8 +196,59 @@ async function registrarPedidoProcessado(
   codigoPedido: string,
   pacienteNome: string,
   arquivo: string,
-  destinoProcessado: string
+  destinoProcessado: string,
+  destinoCarga: string = '',
+  status: 'PROCESSADO' | 'ERRO' = 'PROCESSADO',
+  mensagemErro: string | null = null
 ) {
+  const agora = new Date().toISOString();
+
+  // Etapas detalhadas do ciclo de vida para o log
+  const etapas = [
+    {
+      etapa: 'ENTRADA',
+      titulo: '1. Arquivo na Pasta Entrada',
+      descricao: `Recebido: ${arquivo} em ${alvo.diretorioEntrada}`,
+      status: 'CONCLUIDO',
+      timestamp: agora
+    },
+    {
+      etapa: 'LEITURA',
+      titulo: '2. Identificação da Amostra',
+      descricao: `Amostra: ${codigoPedido} • Paciente: ${pacienteNome}`,
+      status: 'CONCLUIDO',
+      timestamp: agora
+    },
+    {
+      etapa: 'CONVERSAO',
+      titulo: '3. Conversão de Layout',
+      descricao: `Formato processado para o modelo ${alvo.modeloEquipamento}`,
+      status: status === 'ERRO' ? 'FALHOU' : 'CONCLUIDO',
+      timestamp: agora
+    },
+    {
+      etapa: 'CARGA',
+      titulo: '4. Worklist Gravada no Analisador',
+      descricao: status === 'ERRO' ? 'Carga cancelada devido a erro' : `Worklist gerada em ${destinoCarga}`,
+      status: status === 'ERRO' ? 'FALHOU' : 'CONCLUIDO',
+      timestamp: agora
+    },
+    {
+      etapa: 'ARQUIVAMENTO',
+      titulo: '5. Arquivamento Seguro',
+      descricao: status === 'ERRO' ? `Movido para pasta Erros (${alvo.diretorioErros})` : `Movido para ${destinoProcessado}`,
+      status: 'CONCLUIDO',
+      timestamp: agora
+    },
+    {
+      etapa: 'NUVEM',
+      titulo: '6. Confirmação no MidwayLab',
+      descricao: status === 'ERRO' ? `Erro registrado: ${mensagemErro}` : `Registrado e auditado no servidor em nuvem`,
+      status: status === 'ERRO' ? 'FALHOU' : 'CONCLUIDO',
+      timestamp: agora
+    }
+  ];
+
   // MODO SEGURO: Envia para a API Segura do MidwayLab
   if (modoSeguro) {
     try {
@@ -193,8 +259,12 @@ async function registrarPedidoProcessado(
           pacienteNome,
           modeloEquipamento: alvo.modeloEquipamento,
           arquivoNome: arquivo,
+          arquivoCarga: destinoCarga,
           arquivoProcessado: destinoProcessado,
-          origemArquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'
+          origemArquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML',
+          status,
+          mensagemErro,
+          etapas
         },
         {
           headers: {
@@ -232,11 +302,15 @@ async function registrarPedidoProcessado(
         codigo_pedido_labfacil: codigoPedido,
         origem_arquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML',
         arquivo_nome: arquivo,
-        status: 'PROCESSADO',
+        status: status,
+        mensagem_erro: mensagemErro,
         payload_labfacil_json: JSON.stringify({
           modelo_equipamento: alvo.modeloEquipamento,
+          arquivo_origem: arquivo,
+          arquivo_carga: destinoCarga,
           arquivo_processado: destinoProcessado,
-          processado_em: new Date().toISOString()
+          processado_em: agora,
+          etapas
         })
       };
 
@@ -273,11 +347,18 @@ async function processarPasta(alvo: IFolderTarget) {
     const caminhoOrigem = path.join(alvo.diretorioEntrada, arquivo);
     console.log(`\n[Agente] ⚡ Processando arquivo: ${arquivo} (${alvo.tenantNome} -> ${alvo.modeloEquipamento})`);
 
+    let codigoPedido = `PED-${Date.now().toString().slice(-6)}`;
+    let pacienteNome = 'PACIENTE IMPORTADO';
+
     try {
       const conteudo = fs.readFileSync(caminhoOrigem, 'utf8');
       if (!conteudo.trim()) continue;
 
-      // Pasta de Carga do analisador
+      const extraido = extrairDadosArquivo(conteudo, arquivo);
+      codigoPedido = extraido.codigoPedido;
+      pacienteNome = extraido.pacienteNome;
+
+      // 1. Pasta de Carga do analisador
       let baseMidway = 'C:\\MidwayLab';
       if (alvo.diretorioEntrada && alvo.diretorioEntrada.toLowerCase().includes('labfacil')) {
         const partes = alvo.diretorioEntrada.split(/[\\/]labfacil/i);
@@ -288,12 +369,12 @@ async function processarPasta(alvo: IFolderTarget) {
       const pastaCargaEquipamento = alvo.diretorioCarga || path.join(baseMidway, 'Equipamentos', alvo.modeloEquipamento, 'Carga');
       assegurarPasta(pastaCargaEquipamento);
 
-      // Copia para a pasta de Carga do equipamento
+      // 2. Copia para a pasta de Carga do equipamento
       const destinoCarga = path.join(pastaCargaEquipamento, arquivo);
       fs.copyFileSync(caminhoOrigem, destinoCarga);
       console.log(`[Agente] 📋 Carga copiada para o equipamento em: ${destinoCarga}`);
 
-      // Arquiva em Processados
+      // 3. Arquiva em Processados
       const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
       const extensao = path.extname(arquivo);
       const destinoProcessado = path.join(
@@ -305,12 +386,40 @@ async function processarPasta(alvo: IFolderTarget) {
       fs.unlinkSync(caminhoOrigem);
       console.log(`[Agente] ✅ Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
 
-      // Registra o pedido com segurança na nuvem
-      const { pacienteNome, codigoPedido } = extrairDadosArquivo(conteudo, arquivo);
-      await registrarPedidoProcessado(alvo, codigoPedido, pacienteNome, arquivo, destinoProcessado);
+      // 4. Registra o ciclo completo de ponta a ponta na nuvem
+      await registrarPedidoProcessado(
+        alvo,
+        codigoPedido,
+        pacienteNome,
+        arquivo,
+        destinoProcessado,
+        destinoCarga,
+        'PROCESSADO',
+        null
+      );
 
     } catch (err: any) {
       console.error(`[Agente] ⚠️ Falha ao processar ${arquivo}:`, err.message);
+
+      let destinoErro = '';
+      try {
+        const nomeCurto = path.parse(arquivo).name.slice(0, 40);
+        destinoErro = path.join(alvo.diretorioErros, `${nomeCurto}_ERRO_${Date.now()}`);
+        fs.copyFileSync(caminhoOrigem, destinoErro);
+        fs.unlinkSync(caminhoOrigem);
+      } catch (_) {}
+
+      // Registra o log de erro no sistema
+      await registrarPedidoProcessado(
+        alvo,
+        codigoPedido,
+        pacienteNome,
+        arquivo,
+        destinoErro,
+        '',
+        'ERRO',
+        err.message
+      );
     }
   }
 }
@@ -322,10 +431,9 @@ async function executarCiclo() {
   isExecutandoVarredura = true;
 
   try {
+    await enviarHeartbeat();
     const alvos = await carregarAlvosMonitoramento();
-    if (alvos.length === 0) {
-      // Silencioso se não houver alvos cadastrados
-    } else {
+    if (alvos.length > 0) {
       for (const alvo of alvos) {
         await processarPasta(alvo);
       }

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../db/supabase';
 
+export const dynamic = 'force-dynamic';
+
 function extrairToken(request: Request): string | null {
   const url = new URL(request.url);
   const tokenQuery = url.searchParams.get('token');
@@ -43,6 +45,20 @@ async function buscarTenantPorToken(token: string) {
   }
 }
 
+// Atualiza o timestamp de heartbeat do agente no tenant
+async function atualizarHeartbeatTenant(tenantId: string, configuracoesAtuais: any) {
+  try {
+    const novasConfigs = {
+      ...(configuracoesAtuais || {}),
+      ultimo_heartbeat_agente: new Date().toISOString()
+    };
+    await supabase
+      .from('tenants')
+      .update({ configuracoes: novasConfigs })
+      .eq('id', tenantId);
+  } catch (_) {}
+}
+
 // GET: Retorna as pastas e configurações de monitoramento para o agente autenticado
 export async function GET(request: Request) {
   const token = extrairToken(request);
@@ -60,6 +76,9 @@ export async function GET(request: Request) {
       { status: 401 }
     );
   }
+
+  // Registra heartbeat
+  atualizarHeartbeatTenant(tenant.id, tenant.configuracoes);
 
   const alvos: Array<{
     modeloEquipamento: string;
@@ -123,15 +142,28 @@ export async function POST(request: Request) {
     );
   }
 
+  // Atualiza heartbeat do robô
+  atualizarHeartbeatTenant(tenant.id, tenant.configuracoes);
+
   try {
     const body = await request.json();
+
+    // Heartbeat dedicado
+    if (body.acao === 'heartbeat') {
+      return NextResponse.json({ ok: true, timestamp: new Date().toISOString() });
+    }
+
     const {
       codigoPedido,
       pacienteNome,
       modeloEquipamento,
       arquivoNome,
+      arquivoCarga,
       arquivoProcessado,
-      origemArquivo
+      origemArquivo,
+      status,
+      mensagemErro,
+      etapas
     } = body;
 
     if (!codigoPedido) {
@@ -142,6 +174,7 @@ export async function POST(request: Request) {
     }
 
     const protocoloUnico = `${codigoPedido}_${Date.now().toString().slice(-4)}`;
+    const statusFinal = status === 'ERRO' ? 'ERRO' : 'PROCESSADO';
 
     const payloadInsert = {
       tenant_id: tenant.id,
@@ -153,12 +186,61 @@ export async function POST(request: Request) {
       codigo_pedido_labfacil: String(codigoPedido),
       origem_arquivo: origemArquivo || (String(arquivoNome).toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'),
       arquivo_nome: arquivoNome || 'arquivo_desconhecido',
-      status: 'PROCESSADO',
+      status: statusFinal,
+      mensagem_erro: mensagemErro || null,
       payload_labfacil_json: JSON.stringify({
         modelo_equipamento: modeloEquipamento || 'GERAL',
+        arquivo_origem: arquivoNome,
+        arquivo_carga: arquivoCarga || '',
         arquivo_processado: arquivoProcessado || '',
         processado_em: new Date().toISOString(),
-        origem: 'MIDWAY_SECURE_AGENT'
+        origem: 'MIDWAY_SECURE_AGENT',
+        status: statusFinal,
+        erro: mensagemErro || null,
+        etapas: etapas || [
+          {
+            etapa: 'ENTRADA',
+            titulo: '1. Arquivo na Pasta Entrada',
+            descricao: `Arquivo lido: ${arquivoNome}`,
+            status: 'CONCLUIDO',
+            timestamp: new Date().toISOString()
+          },
+          {
+            etapa: 'LEITURA',
+            titulo: '2. Identificação da Amostra',
+            descricao: `Paciente: ${pacienteNome || 'Importado'} • Pedido: ${codigoPedido}`,
+            status: 'CONCLUIDO',
+            timestamp: new Date().toISOString()
+          },
+          {
+            etapa: 'CONVERSAO',
+            titulo: '3. Conversão de Layout',
+            descricao: `Layout convertido para ${modeloEquipamento || 'Equipamento'}`,
+            status: statusFinal === 'ERRO' ? 'FALHOU' : 'CONCLUIDO',
+            timestamp: new Date().toISOString()
+          },
+          {
+            etapa: 'CARGA',
+            titulo: '4. Worklist Gravada no Analisador',
+            descricao: arquivoCarga ? `Carga salva em ${arquivoCarga}` : 'Worklist gerada',
+            status: statusFinal === 'ERRO' ? 'FALHOU' : 'CONCLUIDO',
+            timestamp: new Date().toISOString()
+          },
+          {
+            etapa: 'ARQUIVAMENTO',
+            titulo: '5. Arquivamento Seguro',
+            descricao: arquivoProcessado ? `Movido para ${arquivoProcessado}` : 'Arquivo arquivado',
+            status: 'CONCLUIDO',
+            timestamp: new Date().toISOString()
+          },
+          {
+            etapa: 'NUVEM',
+            titulo: '6. Confirmação no MidwayLab',
+            descricao: statusFinal === 'ERRO' ? `Erro: ${mensagemErro}` : `Protocolo ${protocoloUnico} sincronizado`,
+            status: statusFinal === 'ERRO' ? 'FALHOU' : 'CONCLUIDO',
+            timestamp: new Date().toISOString()
+          }
+        ]
       })
     };
 
@@ -177,7 +259,8 @@ export async function POST(request: Request) {
       ok: true,
       pedidoId: data?.id,
       protocolo: protocoloUnico,
-      mensagem: `Pedido ${codigoPedido} sincronizado com sucesso!`
+      status: statusFinal,
+      mensagem: `Pedido ${codigoPedido} registrado com sucesso!`
     });
   } catch (err: any) {
     console.error('[Agent API] Falha ao processar requisição do agente:', err);

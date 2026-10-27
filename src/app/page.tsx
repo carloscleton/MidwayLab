@@ -15,6 +15,7 @@ import ExameResultadosCalculados from "../components/ExameResultadosCalculados";
 import NovoModeloModal from "../components/NovoModeloModal";
 import GerenciarModelosModal from "../components/GerenciarModelosModal";
 import { SetupLocalRoboModal } from "../components/SetupLocalRoboModal";
+import { LogsComunicacaoModal } from "../components/LogsComunicacaoModal";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
@@ -253,6 +254,7 @@ export default function MidwayLabDashboard() {
   const [isNovoModeloModalOpen, setIsNovoModeloModalOpen] = useState(false);
   const [isGerenciarModelosModalOpen, setIsGerenciarModelosModalOpen] = useState(false);
   const [isSetupLocalModalOpen, setIsSetupLocalModalOpen] = useState(false);
+  const [isLogsComunicacaoOpen, setIsLogsComunicacaoOpen] = useState(false);
 
   const recarregarCatalogoModelos = async () => {
     try {
@@ -5323,6 +5325,14 @@ export default function MidwayLabDashboard() {
                   </button>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setIsLogsComunicacaoOpen(true)}
+                  className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 transition cursor-pointer shadow-lg shadow-indigo-600/25"
+                  title="Acompanhar o ciclo completo com os analisadores de ponta a ponta"
+                >
+                  <Activity className="w-3.5 h-3.5 text-cyan-300" /> 📡 Logs de Equipamentos
+                </button>
                 <button 
                   type="button"
                   onClick={handleRefreshLogs}
@@ -5497,6 +5507,14 @@ export default function MidwayLabDashboard() {
                   title="Assistente de Instalação Local: Criar pastas no disco C:\ e colocar o Robô 24h em produção"
                 >
                   <HardDrive className="w-4 h-4 text-slate-950" /> 🛠️ Instalação Local & Robô
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLogsComunicacaoOpen(true)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-xs shadow-lg shadow-indigo-600/25 cursor-pointer"
+                  title="Abrir Central de Logs & Rastreabilidade de Equipamentos (do início ao fim)"
+                >
+                  <Activity className="w-4 h-4 text-cyan-300" /> 📡 Logs de Comunicação (Ao Vivo)
                 </button>
                 <button
                   type="button"
@@ -8232,6 +8250,15 @@ export default function MidwayLabDashboard() {
             await loadWatcherConfigForTenant(activeT);
           }
         }}
+      />
+
+      {/* CENTRAL DE LOGS & RASTREABILIDADE DE EQUIPAMENTOS */}
+      <LogsComunicacaoModal
+        isOpen={isLogsComunicacaoOpen}
+        onClose={() => setIsLogsComunicacaoOpen(false)}
+        activeTenant={tenants.find(t => t.nome === selectedTenant) || null}
+        tenants={tenants}
+        showNotification={showNotification}
       />
 
       {/* MODAL: DOCUMENTAÇÃO TÉCNICA E CÓDIGOS DO EQUIPAMENTO COM CRUD NO BANCO */}
