@@ -478,13 +478,16 @@ export default function MidwayLabDashboard() {
 
   // EXPORTAR CATÁLOGO DE EXAMES DO EQUIPAMENTO (NO MESMO PADRÃO DE CAMPOS DO IMPORTADOR)
   const handleExportarExamesEquipamento = (formato: "xlsx" | "csv" = "xlsx") => {
-    if (equipamentoExamesList.length === 0) {
-      showNotification("⚠️ Não há exames no catálogo para exportar.");
+    // Exporta apenas os exames que estão ativos
+    const examesAtivos = equipamentoExamesList.filter(ex => ex.ativo);
+
+    if (examesAtivos.length === 0) {
+      showNotification("⚠️ Não há exames ativos no catálogo para exportar.");
       return;
     }
 
     const rows: any[] = [];
-    equipamentoExamesList.forEach(ex => {
+    examesAtivos.forEach(ex => {
       const base = {
         codigo_equipamento: ex.codigoEquipamento,
         codigo_labfacil: ex.codigoLabfacilSugerido || ex.codigoEquipamento,
@@ -568,7 +571,7 @@ export default function MidwayLabDashboard() {
       a.download = `catalogo_exames_${nomeModelo}_${dataHora}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      showNotification(`📥 Catálogo exportado em CSV com sucesso (${rows.length} registros no padrão oficial)!`);
+      showNotification(`📥 Catálogo exportado em CSV com sucesso (${examesAtivos.length} exames ativos, ${rows.length} registros no padrão oficial)!`);
     } else {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -592,7 +595,7 @@ export default function MidwayLabDashboard() {
       XLSX.utils.book_append_sheet(wb, ws, "Exames");
       const nomeArquivo = `catalogo_exames_${nomeModelo}_${dataHora}.xlsx`;
       XLSX.writeFile(wb, nomeArquivo);
-      showNotification(`📥 Catálogo exportado em Excel (.xlsx) com sucesso (${rows.length} registros no padrão oficial)!`);
+      showNotification(`📥 Catálogo exportado em Excel (.xlsx) com sucesso (${examesAtivos.length} exames ativos, ${rows.length} registros no padrão oficial)!`);
     }
   };
 
@@ -8296,9 +8299,9 @@ export default function MidwayLabDashboard() {
                   type="button"
                   onClick={() => handleExportarExamesEquipamento("xlsx")}
                   className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
-                  title="Exportar todos os exames, linhas de resultado e calculados no mesmo padrão de colunas para Excel (.xlsx)"
+                  title="Exportar exames ativos, linhas de resultado e calculados no mesmo padrão de colunas para Excel (.xlsx)"
                 >
-                  <Download className="w-4 h-4 text-cyan-400" /> Exportar (XLSX)
+                  <Download className="w-4 h-4 text-cyan-400" /> Exportar Ativos (XLSX)
                 </button>
 
                 <button
