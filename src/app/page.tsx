@@ -497,7 +497,7 @@ export default function MidwayLabDashboard() {
               const key = k
                 .toLowerCase()
                 .normalize("NFD")
-                .replace(/[̀-ͯ]/g, "")
+                .replace(/[\u0300-\u036f]/g, "")
                 .replace(/[^a-z0-9]+/g, "_")
                 .replace(/^_+|_+$/g, "");
               normalizado[key] = v;
@@ -507,7 +507,7 @@ export default function MidwayLabDashboard() {
 
           // 1. Aba opcional de Linhas de Resultado
           const linhasSheetName = workbook.SheetNames.find(n => {
-            const clean = n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+            const clean = n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             return (clean.includes("linha") || clean.includes("resultado")) && !clean.includes("exame");
           });
           const linhasPorExame = new Map<string, ILinhaResultado[]>();
@@ -534,7 +534,7 @@ export default function MidwayLabDashboard() {
 
           // 2. Aba opcional de Calculados
           const calcsSheetName = workbook.SheetNames.find(n => {
-            const clean = n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+            const clean = n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             return clean.includes("calcul") || clean.includes("formula");
           });
           const calcsPorExame = new Map<string, ICalculadoExame[]>();
@@ -563,7 +563,7 @@ export default function MidwayLabDashboard() {
 
           // 3. Aba Principal de Exames (ou primeira aba caso não tenha aba de exames específica)
           const examesSheetName = workbook.SheetNames.find(n => {
-            const clean = n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+            const clean = n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             return clean.includes("exame") || clean.includes("catalogo") || clean.includes("depara") || clean.includes("teste");
           }) || workbook.SheetNames[0];
 
@@ -573,37 +573,90 @@ export default function MidwayLabDashboard() {
             return;
           }
 
-          const items = rawExames.map((orig: any, i: number) => {
+          // Agrupa exames suportando tanto planilha de aba única quanto multi-abas
+          const mapaExames = new Map<string, any>();
+
+          rawExames.forEach((orig: any, i: number) => {
             const row = normalizarObjetoChaves(orig);
-            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || `EX_${i + 1}`).toString().trim();
-            const codLab = (row.codigo_labfacil || row.labfacil || row.cod_labfacil || row.codigo_softlab || row.softlab || row.cod_softlab || row.cod_lab || row.lab_code || "").toString().trim();
+            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || `EX_${i + 1}`).toString().trim().toUpperCase();
+            const codLab = (row.codigo_labfacil || row.labfacil || row.cod_labfacil || row.codigo_softlab || row.softlab || row.cod_softlab || row.cod_lab || row.lab_code || "").toString().trim().toUpperCase();
             const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
+            const cat = row.categoria || row.category || row.setor || "Geral";
+            const metodo = row.metodo_ou_principio || row.metodo || row.principio || "-";
+            const amostra = row.amostra_sugerida || row.amostra || row.material || "Soro";
+            const unidade = row.unidade_padrao || row.unidade || "-";
+            const tipo = row.tipo || row.tipo_resultado || "PDF";
 
-            const linhasDoExame = linhasPorExame.get(codEq.toUpperCase()) ||
-              normalizarLinhas(row.linhas_resultado || row.linhasresultado || row.linhas || row.resultados, codEq, desc, codLab);
+            if (!mapaExames.has(codEq)) {
+              const linhasIniciais = linhasPorExame.get(codEq) || normalizarLinhas(row.linhas_resultado || row.linhasresultado || row.linhas || row.resultados, codEq, desc, codLab);
+              const calcsIniciais = calcsPorExame.get(codEq) || (codLab ? calcsPorExame.get(codLab) : null) || normalizarCalculados(row.calculados || row.exames_calculados || row.formulas, codLab);
 
-            const calcsDoExame = calcsPorExame.get(codEq.toUpperCase()) ||
-              (codLab ? calcsPorExame.get(codLab.toUpperCase()) : null) ||
-              normalizarCalculados(row.calculados || row.exames_calculados || row.formulas, codLab);
+              mapaExames.set(codEq, {
+                ...orig,
+                codigo: codEq || codLab,
+                codigo_equipamento: codEq,
+                codigo_labfacil: codLab,
+                descricao: desc,
+                nome_exame: desc,
+                categoria: cat,
+                metodo_ou_principio: metodo,
+                amostra_sugerida: amostra,
+                unidade_padrao: unidade,
+                tipo: tipo,
+                linhasResultado: [...linhasIniciais],
+                calculados: [...calcsIniciais]
+              });
+            }
 
-            return {
-              ...orig,
-              codigo: codEq.toUpperCase() || codLab.toUpperCase(),
-              codigo_equipamento: codEq.toUpperCase(),
-              codigo_labfacil: codLab.toUpperCase(),
-              descricao: desc,
-              nome_exame: desc,
-              categoria: row.categoria || row.category || row.setor || "Geral",
-              metodo_ou_principio: row.metodo_ou_principio || row.metodo || row.principio || "-",
-              amostra_sugerida: row.amostra_sugerida || row.amostra || row.material || "Soro",
-              unidade_padrao: row.unidade_padrao || row.unidade || "-",
-              tipo: row.tipo || row.tipo_resultado || "PDF",
-              linhasResultado: linhasDoExame,
-              calculados: calcsDoExame
-            };
+            const exame = mapaExames.get(codEq);
+            if (!exame.codigo_labfacil && codLab) exame.codigo_labfacil = codLab;
+            if ((exame.nome_exame === codEq || exame.nome_exame === "Exame") && desc && desc !== codEq) {
+              exame.nome_exame = desc;
+              exame.descricao = desc;
+            }
+            if (exame.categoria === "Geral" && cat !== "Geral") exame.categoria = cat;
+            if (exame.metodo_ou_principio === "-" && metodo !== "-") exame.metodo_ou_principio = metodo;
+            if (exame.amostra_sugerida === "Soro" && amostra !== "Soro") exame.amostra_sugerida = amostra;
+            if (exame.unidade_padrao === "-" && unidade !== "-") exame.unidade_padrao = unidade;
+
+            // Suporte a Linha de Resultado na mesma planilha (colunas planas da linha)
+            const paramEq = (row.parametro_equipamento || row.codigo_parametro || (row.parametro_retorno ? codEq : null) || "").toString().trim().toUpperCase();
+            const paramRet = (row.parametro_retorno || (paramEq ? (codLab || codEq) : "")).toString().trim().toUpperCase();
+            if (paramEq || paramRet || row.mascara || row.fator_multiplicacao) {
+              const codLinha = paramEq || codEq;
+              const jaExisteLinha = exame.linhasResultado.some((l: ILinhaResultado) => l.codigoEquipamento === codLinha && l.parametroRetorno === paramRet);
+              if (!jaExisteLinha) {
+                exame.linhasResultado.push({
+                  codigoEquipamento: codLinha,
+                  descricao: String(row.descricao_parametro || row.nome_parametro || desc || codLinha).trim(),
+                  parametroRetorno: paramRet || codLab || codLinha,
+                  enviaParaEquip: row.envia_para_equip !== undefined ? (String(row.envia_para_equip).toLowerCase() !== "false" && String(row.envia_para_equip).toLowerCase() !== "nao" && String(row.envia_para_equip) !== "0") : true,
+                  mascara: String(row.mascara || row.mask || "").trim(),
+                  fatorMultiplicacao: String(row.fator_multiplicacao || row.fator || row.multiplicador || "").trim()
+                });
+              }
+            }
+
+            // Suporte a Calculado na mesma planilha (coluna formula)
+            const formula = (row.formula || row.expressao || row.calculo || "").toString().trim();
+            if (formula) {
+              const codCalc = (row.codigo_calculado || row.cod_calculado || row.parametro_retorno || codEq).toString().trim().toUpperCase();
+              const jaExisteCalc = exame.calculados.some((c: ICalculadoExame) => c.codigo === codCalc || c.formula === formula);
+              if (!jaExisteCalc) {
+                exame.calculados.push({
+                  codigo: codCalc,
+                  descricao: String(row.descricao_calculado || row.nome_calculado || (desc + " (Calculado)")).trim(),
+                  parametroRetorno: (row.parametro_retorno_calculado || row.parametro_retorno || codLab || codCalc).toString().trim().toUpperCase(),
+                  formula: formula,
+                  global: String(row.global).toLowerCase() === "true" || String(row.global).toLowerCase() === "sim" || String(row.global) === "1",
+                  mascara: String(row.mascara_calculado || row.mascara || row.mask || "").trim(),
+                  calcularAutomaticamente: row.calcular_automaticamente !== undefined ? (String(row.calcular_automaticamente).toLowerCase() !== "false" && String(row.calcular_automaticamente).toLowerCase() !== "nao" && String(row.calcular_automaticamente) !== "0") : true
+                });
+              }
+            }
           });
 
-          setParsedImportItems(items);
+          setParsedImportItems(Array.from(mapaExames.values()));
           return;
         }
 
@@ -752,51 +805,100 @@ export default function MidwayLabDashboard() {
           });
           setParsedImportItems(items);
         } else {
-          // CSV Parser
+          // CSV Parser com suporte a planilha única e agrupamento de parâmetros
           const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
           if (lines.length <= 1) {
             alert("O arquivo CSV selecionado está vazio ou contém apenas o cabeçalho!");
             return;
           }
           const delimiter = lines[0].includes(";") ? ";" : lines[0].includes("\t") ? "\t" : ",";
-          const header = lines[0].toLowerCase().split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, '').replace(/[\s.-]+/g, '_'));
+          const header = lines[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''));
           
-          const items = lines.slice(1).map(line => {
+          const mapaExamesCsv = new Map<string, any>();
+
+          lines.slice(1).forEach((line, i) => {
             const cols = line.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, ''));
             const row: any = {};
             header.forEach((h, idx) => {
               row[h] = cols[idx] || "";
             });
-            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || "").toString().trim();
-            const codLab = (row.codigo_labfacil || row.labfacil || row.codigo_softlab || row.softlab || row.cod_labfacil || row.cod_lab || row.lab_code || "").toString().trim();
+            const codEq = (row.codigo_equipamento || row.codigo_aparelho || row.aparelho || row.instrument_code || row.channel || row.codigo_autolac || row.autolac || row.codigo || row.code || row.cod || row.id || `EX_${i + 1}`).toString().trim().toUpperCase();
+            const codLab = (row.codigo_labfacil || row.labfacil || row.codigo_softlab || row.softlab || row.cod_labfacil || row.cod_lab || row.lab_code || "").toString().trim().toUpperCase();
             const desc = (row.nome_exame || row.nome || row.descricao || row.descricao_labfacil || row.descricao_autolac || row.test_name || codEq || codLab || "Exame").toString().trim();
-            const linhas = normalizarLinhas(
-              row.linhasResultado || row.linhas_resultado || row.linhas || row.resultados,
-              codEq,
-              desc,
-              codLab
-            );
-            const calcs = normalizarCalculados(
-              row.calculados || row.exames_calculados || row.formulas,
-              codLab
-            );
+            const cat = row.categoria || row.category || row.setor || "Geral";
+            const metodo = row.metodo_ou_principio || row.metodo || row.principio || "-";
+            const amostra = row.amostra_sugerida || row.amostra || row.material || "Soro";
+            const unidade = row.unidade_padrao || row.unidade || "-";
 
-            return {
-              ...row,
-              codigo: codEq.toUpperCase() || codLab.toUpperCase(),
-              codigo_equipamento: codEq.toUpperCase(),
-              codigo_labfacil: codLab.toUpperCase(),
-              descricao: desc,
-              nome_exame: desc,
-              categoria: row.categoria || row.category || "Geral",
-              metodo_ou_principio: row.metodo_ou_principio || row.metodo || row.principio || "-",
-              amostra_sugerida: row.amostra_sugerida || row.amostra || row.material || "Soro",
-              unidade_padrao: row.unidade_padrao || row.unidade || "-",
-              linhasResultado: linhas,
-              calculados: calcs
-            };
+            if (!mapaExamesCsv.has(codEq)) {
+              const linhasIniciais = normalizarLinhas(row.linhas_resultado || row.linhasresultado || row.linhas || row.resultados, codEq, desc, codLab);
+              const calcsIniciais = normalizarCalculados(row.calculados || row.exames_calculados || row.formulas, codLab);
+
+              mapaExamesCsv.set(codEq, {
+                ...row,
+                codigo: codEq || codLab,
+                codigo_equipamento: codEq,
+                codigo_labfacil: codLab,
+                descricao: desc,
+                nome_exame: desc,
+                categoria: cat,
+                metodo_ou_principio: metodo,
+                amostra_sugerida: amostra,
+                unidade_padrao: unidade,
+                linhasResultado: [...linhasIniciais],
+                calculados: [...calcsIniciais]
+              });
+            }
+
+            const exame = mapaExamesCsv.get(codEq);
+            if (!exame.codigo_labfacil && codLab) exame.codigo_labfacil = codLab;
+            if ((exame.nome_exame === codEq || exame.nome_exame === "Exame") && desc && desc !== codEq) {
+              exame.nome_exame = desc;
+              exame.descricao = desc;
+            }
+            if (exame.categoria === "Geral" && cat !== "Geral") exame.categoria = cat;
+            if (exame.metodo_ou_principio === "-" && metodo !== "-") exame.metodo_ou_principio = metodo;
+            if (exame.amostra_sugerida === "Soro" && amostra !== "Soro") exame.amostra_sugerida = amostra;
+            if (exame.unidade_padrao === "-" && unidade !== "-") exame.unidade_padrao = unidade;
+
+            // Suporte a Linha de Resultado na mesma planilha
+            const paramEq = (row.parametro_equipamento || row.codigo_parametro || (row.parametro_retorno ? codEq : null) || "").toString().trim().toUpperCase();
+            const paramRet = (row.parametro_retorno || (paramEq ? (codLab || codEq) : "")).toString().trim().toUpperCase();
+            if (paramEq || paramRet || row.mascara || row.fator_multiplicacao) {
+              const codLinha = paramEq || codEq;
+              const jaExisteLinha = exame.linhasResultado.some((l: ILinhaResultado) => l.codigoEquipamento === codLinha && l.parametroRetorno === paramRet);
+              if (!jaExisteLinha) {
+                exame.linhasResultado.push({
+                  codigoEquipamento: codLinha,
+                  descricao: String(row.descricao_parametro || row.nome_parametro || desc || codLinha).trim(),
+                  parametroRetorno: paramRet || codLab || codLinha,
+                  enviaParaEquip: row.envia_para_equip !== undefined ? (String(row.envia_para_equip).toLowerCase() !== "false" && String(row.envia_para_equip).toLowerCase() !== "nao" && String(row.envia_para_equip) !== "0") : true,
+                  mascara: String(row.mascara || row.mask || "").trim(),
+                  fatorMultiplicacao: String(row.fator_multiplicacao || row.fator || row.multiplicador || "").trim()
+                });
+              }
+            }
+
+            // Suporte a Calculado na mesma planilha
+            const formula = (row.formula || row.expressao || row.calculo || "").toString().trim();
+            if (formula) {
+              const codCalc = (row.codigo_calculado || row.cod_calculado || row.parametro_retorno || codEq).toString().trim().toUpperCase();
+              const jaExisteCalc = exame.calculados.some((c: ICalculadoExame) => c.codigo === codCalc || c.formula === formula);
+              if (!jaExisteCalc) {
+                exame.calculados.push({
+                  codigo: codCalc,
+                  descricao: String(row.descricao_calculado || row.nome_calculado || (desc + " (Calculado)")).trim(),
+                  parametroRetorno: (row.parametro_retorno_calculado || row.parametro_retorno || codLab || codCalc).toString().trim().toUpperCase(),
+                  formula: formula,
+                  global: String(row.global).toLowerCase() === "true" || String(row.global).toLowerCase() === "sim" || String(row.global) === "1",
+                  mascara: String(row.mascara_calculado || row.mascara || row.mask || "").trim(),
+                  calcularAutomaticamente: row.calcular_automaticamente !== undefined ? (String(row.calcular_automaticamente).toLowerCase() !== "false" && String(row.calcular_automaticamente).toLowerCase() !== "nao" && String(row.calcular_automaticamente) !== "0") : true
+                });
+              }
+            }
           });
-          setParsedImportItems(items);
+
+          setParsedImportItems(Array.from(mapaExamesCsv.values()));
         }
       } catch (err: any) {
         alert(`Erro ao ler o arquivo: ${err.message}`);
