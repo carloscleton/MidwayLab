@@ -388,6 +388,126 @@ export default function MidwayLabDashboard() {
     );
   };
 
+  // EXPORTAR CATÁLOGO DE EXAMES DO EQUIPAMENTO (NO MESMO PADRÃO DE CAMPOS DO IMPORTADOR)
+  const handleExportarExamesEquipamento = (formato: "xlsx" | "csv" = "xlsx") => {
+    if (equipamentoExamesList.length === 0) {
+      showNotification("⚠️ Não há exames no catálogo para exportar.");
+      return;
+    }
+
+    const rows: any[] = [];
+    equipamentoExamesList.forEach(ex => {
+      const base = {
+        codigo_equipamento: ex.codigoEquipamento,
+        codigo_labfacil: ex.codigoLabfacilSugerido || ex.codigoEquipamento,
+        nome_exame: ex.nomeExame || ex.codigoEquipamento,
+        categoria: ex.categoria || "Geral",
+        metodo_ou_principio: ex.metodoOuPrincipio || "-",
+        amostra_sugerida: ex.amostraSugerida || "Soro",
+        unidade_padrao: ex.unidadePadrao || "-"
+      };
+
+      const temLinhas = Array.isArray(ex.linhasResultado) && ex.linhasResultado.length > 0;
+      const temCalcs = Array.isArray(ex.calculados) && ex.calculados.length > 0;
+
+      if (!temLinhas && !temCalcs) {
+        rows.push({
+          ...base,
+          parametro_equipamento: ex.codigoEquipamento,
+          parametro_retorno: ex.codigoLabfacilSugerido || ex.codigoEquipamento,
+          mascara: "",
+          fator_multiplicacao: "",
+          formula: "",
+          codigo_calculado: ""
+        });
+      } else {
+        if (temLinhas) {
+          ex.linhasResultado!.forEach(ln => {
+            rows.push({
+              ...base,
+              parametro_equipamento: ln.codigoEquipamento || ex.codigoEquipamento,
+              parametro_retorno: ln.parametroRetorno || ex.codigoLabfacilSugerido || ex.codigoEquipamento,
+              mascara: ln.mascara || "",
+              fator_multiplicacao: ln.fatorMultiplicacao || "",
+              formula: "",
+              codigo_calculado: ""
+            });
+          });
+        }
+        if (temCalcs) {
+          ex.calculados!.forEach(c => {
+            rows.push({
+              ...base,
+              parametro_equipamento: "",
+              parametro_retorno: c.parametroRetorno || ex.codigoLabfacilSugerido || "",
+              mascara: c.mascara || "",
+              fator_multiplicacao: "",
+              formula: c.formula || "",
+              codigo_calculado: c.codigo || ""
+            });
+          });
+        }
+      }
+    });
+
+    const nomeModelo = (viewDocEquipamentoModal?.modelo || activeEquipamentoForDoc?.nome || "equipamento")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_");
+    const dataHora = new Date().toISOString().slice(0, 10);
+
+    if (formato === "csv") {
+      const csvHeader = "codigo_equipamento;codigo_labfacil;nome_exame;categoria;metodo_ou_principio;amostra_sugerida;unidade_padrao;parametro_equipamento;parametro_retorno;mascara;fator_multiplicacao;formula;codigo_calculado\n";
+      const csvBody = rows.map(r => [
+        r.codigo_equipamento,
+        r.codigo_labfacil,
+        `"${(r.nome_exame || '').replace(/"/g, '""')}"`,
+        `"${(r.categoria || '').replace(/"/g, '""')}"`,
+        `"${(r.metodo_ou_principio || '').replace(/"/g, '""')}"`,
+        `"${(r.amostra_sugerida || '').replace(/"/g, '""')}"`,
+        `"${(r.unidade_padrao || '').replace(/"/g, '""')}"`,
+        r.parametro_equipamento || '',
+        r.parametro_retorno || '',
+        r.mascara || '',
+        r.fator_multiplicacao || '',
+        `"${(r.formula || '').replace(/"/g, '""')}"`,
+        r.codigo_calculado || ''
+      ].join(';')).join('\n');
+
+      const blob = new Blob(["\uFEFF" + csvHeader + csvBody], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `catalogo_exames_${nomeModelo}_${dataHora}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showNotification(`📥 Catálogo exportado em CSV com sucesso (${rows.length} registros no padrão oficial)!`);
+    } else {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      ws['!cols'] = [
+        { wch: 20 }, // codigo_equipamento
+        { wch: 20 }, // codigo_labfacil
+        { wch: 32 }, // nome_exame
+        { wch: 18 }, // categoria
+        { wch: 26 }, // metodo_ou_principio
+        { wch: 18 }, // amostra_sugerida
+        { wch: 16 }, // unidade_padrao
+        { wch: 24 }, // parametro_equipamento
+        { wch: 22 }, // parametro_retorno
+        { wch: 14 }, // mascara
+        { wch: 18 }, // fator_multiplicacao
+        { wch: 22 }, // formula
+        { wch: 18 }, // codigo_calculado
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, "Exames");
+      const nomeArquivo = `catalogo_exames_${nomeModelo}_${dataHora}.xlsx`;
+      XLSX.writeFile(wb, nomeArquivo);
+      showNotification(`📥 Catálogo exportado em Excel (.xlsx) com sucesso (${rows.length} registros no padrão oficial)!`);
+    }
+  };
+
   // INGESTÃO DE ARQUIVOS LABFACIL (JSON / XML)
   // FOLDER WATCHER AUTOMÁTICO (MONITORAMENTO DE PASTAS)
   const [watcherConfig, setWatcherConfig] = useState({
@@ -8082,6 +8202,15 @@ export default function MidwayLabDashboard() {
                   title="Importar arquivo Excel (XLSX), XML, JSON ou CSV para adicionar e fazer o mapeamento com os códigos do equipamento"
                 >
                   <Upload className="w-4 h-4 text-emerald-400" /> Importar (XML / JSON / CSV / XLSX)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportarExamesEquipamento("xlsx")}
+                  className="bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
+                  title="Exportar todos os exames, linhas de resultado e calculados no mesmo padrão de colunas para Excel (.xlsx)"
+                >
+                  <Download className="w-4 h-4 text-cyan-400" /> Exportar (XLSX)
                 </button>
 
                 <button
