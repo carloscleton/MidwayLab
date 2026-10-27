@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Plus, Trash2, Save, ArrowDownToLine, CheckSquare, X, Search, Check } from "lucide-react";
+import { Plus, Trash2, Save, ArrowDownToLine, CheckSquare, X, Search, Check, GripVertical } from "lucide-react";
 import type { ICalculadoExame, ILinhaResultado, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
 import { validarFormula, calcularFormula, aplicarMascara } from "../lib/formula-calculados";
 
@@ -36,6 +36,16 @@ export default function ExameResultadosCalculados({
   const [buscaLote, setBuscaLote] = useState("");
   const [itensLoteSelecionados, setItensLoteSelecionados] = useState<Set<string>>(new Set());
   const [isDragOverLinhas, setIsDragOverLinhas] = useState(false);
+
+  // Estados para reordenar linhas de resultado via Drag and Drop
+  const [dragActiveLinhaIndex, setDragActiveLinhaIndex] = useState<number | null>(null);
+  const [draggedLinhaIndex, setDraggedLinhaIndex] = useState<number | null>(null);
+  const [dragOverLinhaIndex, setDragOverLinhaIndex] = useState<number | null>(null);
+
+  // Estados para reordenar calculados via Drag and Drop
+  const [dragActiveCalcIndex, setDragActiveCalcIndex] = useState<number | null>(null);
+  const [draggedCalcIndex, setDraggedCalcIndex] = useState<number | null>(null);
+  const [dragOverCalcIndex, setDragOverCalcIndex] = useState<number | null>(null);
 
   // Lista de outros exames do catálogo que podem ser movidos para cá
   const candidatosMover = useMemo(() => {
@@ -135,12 +145,18 @@ export default function ExameResultadosCalculados({
       {/* REALIZADOS NO EQUIPAMENTO (LINHAS DE RESULTADO) */}
       <div
         onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("text/linha-index") || e.dataTransfer.types.includes("text/calc-index")) {
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
           setIsDragOverLinhas(true);
         }}
         onDragLeave={() => setIsDragOverLinhas(false)}
         onDrop={(e) => {
+          if (e.dataTransfer.types.includes("text/linha-index") || e.dataTransfer.types.includes("text/calc-index")) {
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
           setIsDragOverLinhas(false);
@@ -168,6 +184,10 @@ export default function ExameResultadosCalculados({
             </span>
             <span className="bg-slate-800 text-slate-400 text-[10px] px-1.5 py-0.2 rounded font-mono font-bold">
               {linhas.length} {linhas.length === 1 ? 'linha' : 'linhas'}
+            </span>
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-teal-400 font-medium">
+              <GripVertical className="w-3 h-3 text-teal-400" />
+              Arraste as linhas para reordenar
             </span>
           </div>
 
@@ -241,7 +261,7 @@ export default function ExameResultadosCalculados({
         <table className="w-full">
           <thead>
             <tr>
-              <th className={th + " w-16 text-center"}>Nº / Ordem</th>
+              <th className={th + " w-20 text-center"}>Nº / Ordem</th>
               <th className={th}>Código no Equip.</th>
               <th className={th}>Descrição</th>
               <th className={th}>Parâmetro de Retorno</th>
@@ -257,48 +277,112 @@ export default function ExameResultadosCalculados({
                 Nenhuma linha de resultado. Clique em <strong>+ Incluir Linha</strong>, selecione no <strong>Mover do catálogo</strong> ou arraste um exame para cá.
               </td></tr>
             )}
-            {linhas.map((l, i) => (
-              <tr key={i} className="border-b border-slate-800/60 hover:bg-slate-900/40 transition">
-                <td className="p-1 text-center whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="text-[10px] font-mono text-slate-400 font-bold tabular-nums w-4 text-right">
-                      {i + 1}
-                    </span>
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        disabled={i === 0}
-                        onClick={() => moverLinha(i, i - 1)}
-                        className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
-                        title="Mover para cima"
+            {linhas.map((l, i) => {
+              const isDragging = draggedLinhaIndex === i;
+              const isDragOver = dragOverLinhaIndex === i && draggedLinhaIndex !== i;
+              return (
+                <tr
+                  key={i}
+                  draggable={dragActiveLinhaIndex === i}
+                  onDragStart={(e) => {
+                    setDraggedLinhaIndex(i);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/linha-index", String(i));
+                  }}
+                  onDragOver={(e) => {
+                    if (e.dataTransfer.types.includes("text/linha-index")) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverLinhaIndex !== i) {
+                        setDragOverLinhaIndex(i);
+                      }
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverLinhaIndex === i) {
+                      setDragOverLinhaIndex(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    const fromStr = e.dataTransfer.getData("text/linha-index");
+                    if (fromStr !== "") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const fromIdx = parseInt(fromStr, 10);
+                      if (!isNaN(fromIdx) && fromIdx !== i) {
+                        moverLinha(fromIdx, i);
+                      }
+                    }
+                    setDraggedLinhaIndex(null);
+                    setDragOverLinhaIndex(null);
+                    setDragActiveLinhaIndex(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedLinhaIndex(null);
+                    setDragOverLinhaIndex(null);
+                    setDragActiveLinhaIndex(null);
+                  }}
+                  className={`border-b border-slate-800/60 transition ${
+                    isDragging
+                      ? "opacity-30 bg-teal-500/20 scale-[0.99] border-y-2 border-teal-400"
+                      : isDragOver
+                      ? "bg-cyan-500/25 border-t-2 border-t-cyan-400"
+                      : "hover:bg-slate-900/40"
+                  }`}
+                >
+                  <td
+                    className="p-1 text-center whitespace-nowrap cursor-grab active:cursor-grabbing hover:bg-cyan-500/10 select-none transition group/handle"
+                    title="Clique e arraste para reordenar esta linha de resultado"
+                    onMouseDown={() => setDragActiveLinhaIndex(i)}
+                    onMouseUp={() => setDragActiveLinhaIndex(null)}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span
+                        className="text-slate-500 group-hover/handle:text-cyan-300 cursor-grab active:cursor-grabbing p-0.5 transition"
+                        title="Clique e arraste para reordenar"
                       >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        disabled={i === linhas.length - 1}
-                        onClick={() => moverLinha(i, i + 1)}
-                        className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
-                        title="Mover para baixo"
-                      >
-                        ▼
-                      </button>
+                        <GripVertical className="w-3.5 h-3.5 text-slate-400 group-hover/handle:text-cyan-300" />
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400 font-bold tabular-nums w-4 text-right">
+                        {i + 1}
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          disabled={i === 0}
+                          onClick={() => moverLinha(i, i - 1)}
+                          className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
+                          title="Mover para cima"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          disabled={i === linhas.length - 1}
+                          onClick={() => moverLinha(i, i + 1)}
+                          className="p-1 rounded text-slate-400 hover:text-teal-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 disabled:hover:bg-transparent cursor-pointer disabled:cursor-default transition text-[10px] font-bold leading-none"
+                          title="Mover para baixo"
+                        >
+                          ▼
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="p-1"><input className={inputCls} value={l.codigoEquipamento} onChange={e => setLinha(i, { codigoEquipamento: e.target.value.toUpperCase() })} /></td>
-                <td className="p-1"><input className={inputCls} value={l.descricao} onChange={e => setLinha(i, { descricao: e.target.value })} /></td>
-                <td className="p-1"><input className={inputCls} value={l.parametroRetorno} onChange={e => setLinha(i, { parametroRetorno: e.target.value.toUpperCase() })} /></td>
-                <td className="p-1 text-center"><input type="checkbox" checked={l.enviaParaEquip} onChange={e => setLinha(i, { enviaParaEquip: e.target.checked })} /></td>
-                <td className="p-1"><input className={inputCls} placeholder="0.00" value={l.mascara} onChange={e => setLinha(i, { mascara: e.target.value })} /></td>
-                <td className="p-1"><input className={inputCls} placeholder="1" value={l.fatorMultiplicacao} onChange={e => setLinha(i, { fatorMultiplicacao: e.target.value })} /></td>
-                <td className="p-1 text-right">
-                  <button type="button" title="Excluir linha" onClick={() => onChange({ linhasResultado: linhas.filter((_, idx) => idx !== i) })} className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="p-1"><input className={inputCls} value={l.codigoEquipamento} onChange={e => setLinha(i, { codigoEquipamento: e.target.value.toUpperCase() })} /></td>
+                  <td className="p-1"><input className={inputCls} value={l.descricao} onChange={e => setLinha(i, { descricao: e.target.value })} /></td>
+                  <td className="p-1"><input className={inputCls} value={l.parametroRetorno} onChange={e => setLinha(i, { parametroRetorno: e.target.value.toUpperCase() })} /></td>
+                  <td className="p-1 text-center"><input type="checkbox" checked={l.enviaParaEquip} onChange={e => setLinha(i, { enviaParaEquip: e.target.checked })} /></td>
+                  <td className="p-1"><input className={inputCls} placeholder="0.00" value={l.mascara} onChange={e => setLinha(i, { mascara: e.target.value })} /></td>
+                  <td className="p-1"><input className={inputCls} placeholder="1" value={l.fatorMultiplicacao} onChange={e => setLinha(i, { fatorMultiplicacao: e.target.value })} /></td>
+                  <td className="p-1 text-right">
+                    <button type="button" title="Excluir linha" onClick={() => onChange({ linhasResultado: linhas.filter((_, idx) => idx !== i) })} className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -453,7 +537,13 @@ export default function ExameResultadosCalculados({
       {/* CALCULADOS */}
       <div className="border border-slate-800 rounded-lg p-2 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-200">Calculados</span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-200">Calculados</span>
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-teal-400 font-medium">
+              <GripVertical className="w-3 h-3 text-teal-400" />
+              Arraste para reordenar
+            </span>
+          </div>
           <button type="button" onClick={addCalc} className="text-teal-300 hover:text-teal-200 flex items-center gap-1 cursor-pointer font-semibold">
             <Plus className="w-3.5 h-3.5" /> Incluir
           </button>
@@ -464,7 +554,7 @@ export default function ExameResultadosCalculados({
         <table className="w-full">
           <thead>
             <tr>
-              <th className={th + " w-16 text-center"}>Nº / Ordem</th>
+              <th className={th + " w-20 text-center"}>Nº / Ordem</th>
               <th className={th}>Código</th>
               <th className={th}>Descrição</th>
               <th className={th}>Parâmetro de Retorno</th>
@@ -481,11 +571,72 @@ export default function ExameResultadosCalculados({
             )}
             {calculados.map((c, i) => {
               const erro = c.formula ? validarFormula(c.formula, codigosDisponiveis) : null;
+              const isDragging = draggedCalcIndex === i;
+              const isDragOver = dragOverCalcIndex === i && draggedCalcIndex !== i;
               return (
                 <React.Fragment key={i}>
-                  <tr className="border-b border-slate-800/60 hover:bg-slate-900/40 transition">
-                    <td className="p-1 text-center whitespace-nowrap">
+                  <tr
+                    draggable={dragActiveCalcIndex === i}
+                    onDragStart={(e) => {
+                      setDraggedCalcIndex(i);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/calc-index", String(i));
+                    }}
+                    onDragOver={(e) => {
+                      if (e.dataTransfer.types.includes("text/calc-index")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = "move";
+                        if (dragOverCalcIndex !== i) {
+                          setDragOverCalcIndex(i);
+                        }
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverCalcIndex === i) {
+                        setDragOverCalcIndex(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      const fromStr = e.dataTransfer.getData("text/calc-index");
+                      if (fromStr !== "") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const fromIdx = parseInt(fromStr, 10);
+                        if (!isNaN(fromIdx) && fromIdx !== i) {
+                          moverCalc(fromIdx, i);
+                        }
+                      }
+                      setDraggedCalcIndex(null);
+                      setDragOverCalcIndex(null);
+                      setDragActiveCalcIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedCalcIndex(null);
+                      setDragOverCalcIndex(null);
+                      setDragActiveCalcIndex(null);
+                    }}
+                    className={`border-b border-slate-800/60 transition ${
+                      isDragging
+                        ? "opacity-30 bg-teal-500/20 scale-[0.99] border-y-2 border-teal-400"
+                        : isDragOver
+                        ? "bg-cyan-500/25 border-t-2 border-t-cyan-400"
+                        : "hover:bg-slate-900/40"
+                    }`}
+                  >
+                    <td
+                      className="p-1 text-center whitespace-nowrap cursor-grab active:cursor-grabbing hover:bg-cyan-500/10 select-none transition group/handle"
+                      title="Clique e arraste para reordenar este cálculo"
+                      onMouseDown={() => setDragActiveCalcIndex(i)}
+                      onMouseUp={() => setDragActiveCalcIndex(null)}
+                    >
                       <div className="flex items-center justify-center gap-1">
+                        <span
+                          className="text-slate-500 group-hover/handle:text-cyan-300 cursor-grab active:cursor-grabbing p-0.5 transition"
+                          title="Clique e arraste para reordenar"
+                        >
+                          <GripVertical className="w-3.5 h-3.5 text-slate-400 group-hover/handle:text-cyan-300" />
+                        </span>
                         <span className="text-[10px] font-mono text-slate-400 font-bold tabular-nums w-4 text-right">
                           {i + 1}
                         </span>
