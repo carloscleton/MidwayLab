@@ -61,6 +61,7 @@ export function SetupLocalRoboModal({
   const [scriptWindowsGerado, setScriptWindowsGerado] = useState<string | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
   const [copiedStartupCmd, setCopiedStartupCmd] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
   const [scriptInfo, setScriptInfo] = useState<{
     batPath: string;
     batContent: string;
@@ -406,13 +407,120 @@ export function SetupLocalRoboModal({
           </div>
         )}
 
-        {/* PASSO 2: COLOCAR ROBÔ EM PRODUÇÃO (24 HORAS) */}
+        {/* PASSO 2: CREDENCIAIS SEGURAS DA EMPRESA (INSTALAÇÃO NO CLIENTE) */}
+        <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Passo 2: Credenciais Seguras do Cliente (Token de API)
+            </span>
+            <span className="text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+              ✓ Zero Credenciais do Banco no Cliente
+            </span>
+          </div>
+
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            Para garantir <strong>100% de segurança</strong> contra acessos indevidos e invasões, a máquina do cliente 
+            <strong> NÃO possui senha do banco de dados (Supabase)</strong> nem chaves mestras. O robô local se comunica com a 
+            nuvem MidwayLab utilizando exclusivamente o Token de API deste laboratório.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* SERVIDOR URL */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
+              <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">
+                URL da API MidwayLab (Servidor):
+              </span>
+              <div className="flex items-center justify-between gap-2">
+                <code className="text-xs font-mono text-cyan-300 truncate font-bold">
+                  {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+                    navigator.clipboard.writeText(url);
+                    showNotification('📋 URL da API copiada!');
+                  }}
+                  className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 cursor-pointer"
+                  title="Copiar URL"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* TOKEN DO CLIENTE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">
+                  Token Exclusivo do Laboratório:
+                </span>
+                <span className="text-[10px] text-emerald-400 font-mono">Ativo ✓</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <code className="text-xs font-mono text-emerald-300 truncate font-bold select-all">
+                  {activeTenant?.configuracoes?.api_token || 'Token não gerado (salve a empresa)'}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const token = activeTenant?.configuracoes?.api_token || '';
+                    if (token) {
+                      navigator.clipboard.writeText(token);
+                      setCopiedToken(true);
+                      setTimeout(() => setCopiedToken(false), 2000);
+                      showNotification('📋 Token de API copiado!');
+                    }
+                  }}
+                  className="text-slate-400 hover:text-emerald-400 p-1 rounded hover:bg-slate-800 cursor-pointer"
+                  title="Copiar Token"
+                >
+                  {copiedToken ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* BOTÕES DE DOWNLOAD .ENV E INSTRUÇÕES */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
+            <span className="text-[11px] text-slate-400">
+              Arquivo de configuração pronto para colocar na pasta do robô:
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const url = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+                  const token = activeTenant?.configuracoes?.api_token || '';
+                  const envContent = [
+                    '# =====================================================================',
+                    '# MIDWAYLAB - CONFIGURACAO SEGURA DO AGENTE LOCAL',
+                    `# Laboratorio: ${activeTenant?.nome || 'Cliente'}`,
+                    '# NENHUMA chave do banco Supabase fica nesta maquina.',
+                    '# =====================================================================',
+                    `MIDWAY_API_URL=${url}`,
+                    `MIDWAY_AGENT_TOKEN=${token}`,
+                    ''
+                  ].join('\r\n');
+                  downloadArquivo(envContent, '.env');
+                  showNotification('📥 Arquivo .env seguro baixado com sucesso!');
+                }}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-600/20"
+              >
+                <Download className="w-3.5 h-3.5" /> Baixar .env do Cliente
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* PASSO 3: COLOCAR ROBÔ EM PRODUÇÃO (24 HORAS) */}
         <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Zap className="w-4 h-4 text-indigo-400" />
-                Passo 2: Ativação do Robô em Produção 24 Horas
+                Passo 3: Ativação do Robô em Produção 24 Horas
               </span>
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono flex items-center gap-1 ${

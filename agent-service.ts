@@ -1,11 +1,16 @@
 /**
  * MIDWAY AGENT - Robô de Fundo / Serviço Windows
- * Executa 24/7 sem necessidade de navegador aberto.
+ * Executa 24/7 de forma 100% autônoma e segura.
+ *
+ * MODO SEGURO:
+ *   Utiliza apenas MIDWAY_API_URL e MIDWAY_AGENT_TOKEN.
+ *   Nenhuma chave mestra do banco Supabase precisa ficar na máquina do cliente!
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 
@@ -13,15 +18,32 @@ import { XMLParser } from 'fast-xml-parser';
 const rootDir = __dirname.includes('dist-agent') ? path.join(__dirname, '..') : __dirname;
 dotenv.config({ path: path.join(rootDir, '.env') });
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iibwbufbshqiaeorwoja.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpYndidWZic2hxaWFlb3J3b2phIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDA4ODkyOSwiZXhwIjoyMTA1NjY0OTI5fQ.ATJTk9yL22oU2953OB0I956RlxUu2AtW5tdotehyhj0';
+const API_URL = (process.env.MIDWAY_API_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+const AGENT_TOKEN = (process.env.MIDWAY_AGENT_TOKEN || '').trim();
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Fallback legado caso o cliente ainda não tenha configurado o MIDWAY_AGENT_TOKEN
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+const modoSeguro = Boolean(AGENT_TOKEN && AGENT_TOKEN.length > 8);
+let supabaseLegado: any = null;
+
+if (!modoSeguro && SUPABASE_URL && SUPABASE_KEY) {
+  supabaseLegado = createClient(SUPABASE_URL, SUPABASE_KEY);
+}
 
 console.log('====================================================');
 console.log('🤖 MIDWAY AGENT - SERVIÇO DE MONITORAMENTO 24/7');
+if (modoSeguro) {
+  console.log('🛡️  MODO SEGURO ATIVADO: Autenticação via API Token');
+  console.log(`🌐 Servidor MidwayLab: ${API_URL}`);
+  console.log(`🔑 Token do Laboratório: ${AGENT_TOKEN.slice(0, 10)}...`);
+} else {
+  console.warn('⚠️  MODO LEGADO: Conexão direta ao banco Supabase.');
+  console.warn('💡 Recomendado: Configure MIDWAY_AGENT_TOKEN no .env para segurança total.');
+}
 console.log('Iniciando rotinas em segundo plano no Windows...');
-console.log('====================================================');
+console.log('====================================================\n');
 
 interface IFolderTarget {
   tenantNome: string;
@@ -30,7 +52,8 @@ interface IFolderTarget {
   diretorioEntrada: string;
   diretorioProcessados: string;
   diretorioErros: string;
-  formato: string;
+  diretorioCarga?: string;
+  formato?: string;
 }
 
 // Garante criação da pasta no Windows
@@ -52,11 +75,10 @@ const xmlParser = new XMLParser({
   trimValues: true,
 });
 
-// Extrai dados básicos do arquivo para registrar no Supabase
+// Extrai dados básicos do arquivo para registrar no sistema
 function extrairDadosArquivo(conteudo: string, nomeArquivo: string) {
   let pacienteNome = 'PACIENTE IMPORTADO';
   let codigoPedido = `PED-${Date.now().toString().slice(-6)}`;
-  let examesList: string[] = [];
 
   try {
     if (nomeArquivo.toLowerCase().endsWith('.xml') || conteudo.trim().startsWith('<')) {
@@ -76,43 +98,158 @@ function extrairDadosArquivo(conteudo: string, nomeArquivo: string) {
   return { pacienteNome, codigoPedido };
 }
 
-// Busca dinamicamente todas as pastas cadastradas para todas as empresas ativas
+// Busca as pastas a monitorar (via API Segura ou Supabase Legado)
 async function carregarAlvosMonitoramento(): Promise<IFolderTarget[]> {
   const alvos: IFolderTarget[] = [];
 
-  try {
-    const { data: tenants, error } = await supabase
-      .from('tenants')
-      .select('id, nome, configuracoes, ativo')
-      .eq('ativo', true);
+  // MODO SEGURO: Chama /api/agent com o token do laboratório
+  if (modoSeguro) {
+    try {
+      const res = await axios.get(`${API_URL}/api/agent`, {
+        headers: {
+          'x-agent-token': AGENT_TOKEN
+        },
+        timeout: 10000
+      });
 
-    if (error || !tenants) {
-      console.warn('[Agente] Aviso ao buscar tenants:', error?.message);
-      return alvos;
-    }
+      if (res.data?.ok && Array.isArray(res.data.alvos)) {
+        const tenantNome = res.data.tenant?.nome || 'LABORATÓRIO';
+        const tenantId = res.data.tenant?.id || 'CLIENTE';
 
-    for (const t of tenants) {
-      const equipPastas = t.configuracoes?.equipamentos_pastas || {};
-
-      for (const [modelo, cfg] of Object.entries<any>(equipPastas)) {
-        if (cfg.diretorio_entrada && cfg.monitor_ativo !== false) {
+        for (const a of res.data.alvos) {
           alvos.push({
-            tenantNome: t.nome,
-            tenantId: t.id,
-            modeloEquipamento: modelo,
-            diretorioEntrada: cfg.diretorio_entrada,
-            diretorioProcessados: cfg.diretorio_processados || path.join(cfg.diretorio_entrada, 'Processados'),
-            diretorioErros: cfg.diretorio_erros || 'C:\\Labfacil\\Erros',
-            formato: cfg.formato || 'AUTO'
+            tenantNome,
+            tenantId,
+            modeloEquipamento: a.modeloEquipamento,
+            diretorioEntrada: a.diretorioEntrada,
+            diretorioProcessados: a.diretorioProcessados,
+            diretorioErros: a.diretorioErros,
+            diretorioCarga: a.diretorioCarga
           });
         }
+      } else {
+        console.warn('[Agente] Resposta inesperada da API:', res.data);
       }
+    } catch (e: any) {
+      const msg = e.response?.data?.erro || e.message;
+      console.error(`[Agente] ⚠️ Falha ao consultar API (${API_URL}/api/agent):`, msg);
     }
-  } catch (e: any) {
-    console.error('[Agente] Erro ao sincronizar configs com Supabase:', e.message);
+    return alvos;
+  }
+
+  // MODO LEGADO (apenas se não houver MIDWAY_AGENT_TOKEN)
+  if (supabaseLegado) {
+    try {
+      const { data: tenants, error } = await supabaseLegado
+        .from('tenants')
+        .select('id, nome, configuracoes, ativo')
+        .eq('ativo', true);
+
+      if (error || !tenants) {
+        console.warn('[Agente] Aviso ao buscar tenants:', error?.message);
+        return alvos;
+      }
+
+      for (const t of tenants) {
+        const equipPastas = t.configuracoes?.equipamentos_pastas || {};
+
+        for (const [modelo, cfg] of Object.entries<any>(equipPastas)) {
+          if (cfg.diretorio_entrada && cfg.monitor_ativo !== false) {
+            alvos.push({
+              tenantNome: t.nome,
+              tenantId: t.id,
+              modeloEquipamento: modelo,
+              diretorioEntrada: cfg.diretorio_entrada,
+              diretorioProcessados: cfg.diretorio_processados || path.join(cfg.diretorio_entrada, 'Processados'),
+              diretorioErros: cfg.diretorio_erros || 'C:\\Labfacil\\Erros',
+              diretorioCarga: cfg.diretorio_carga
+            });
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('[Agente] Erro ao sincronizar configs com Supabase:', e.message);
+    }
   }
 
   return alvos;
+}
+
+// Sincroniza o pedido processado com a nuvem (via API Segura ou Supabase Legado)
+async function registrarPedidoProcessado(
+  alvo: IFolderTarget,
+  codigoPedido: string,
+  pacienteNome: string,
+  arquivo: string,
+  destinoProcessado: string
+) {
+  // MODO SEGURO: Envia para a API Segura do MidwayLab
+  if (modoSeguro) {
+    try {
+      const res = await axios.post(
+        `${API_URL}/api/agent`,
+        {
+          codigoPedido,
+          pacienteNome,
+          modeloEquipamento: alvo.modeloEquipamento,
+          arquivoNome: arquivo,
+          arquivoProcessado: destinoProcessado,
+          origemArquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'
+        },
+        {
+          headers: {
+            'x-agent-token': AGENT_TOKEN
+          },
+          timeout: 10000
+        }
+      );
+
+      if (res.data?.ok) {
+        console.log(`[Agente] 🌐 Pedido '${codigoPedido}' sincronizado com sucesso na nuvem via API Segura!`);
+      } else {
+        console.warn(`[Agente] ⚠️ Aviso da API ao salvar pedido:`, res.data?.erro);
+      }
+      return;
+    } catch (err: any) {
+      const msg = err.response?.data?.erro || err.message;
+      console.error(`[Agente] ❌ Erro ao enviar pedido para a API (${API_URL}/api/agent):`, msg);
+      return;
+    }
+  }
+
+  // MODO LEGADO (Direto no Supabase)
+  if (supabaseLegado) {
+    try {
+      const protocoloUnico = `${codigoPedido}_${Date.now().toString().slice(-4)}`;
+
+      const payloadInsert = {
+        tenant_id: alvo.tenantId,
+        local_autolac: 'LABFACIL',
+        codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
+        protocolo_autolac: protocoloUnico,
+        numero_solicitacao: codigoPedido,
+        paciente_nome: pacienteNome,
+        codigo_pedido_labfacil: codigoPedido,
+        origem_arquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML',
+        arquivo_nome: arquivo,
+        status: 'PROCESSADO',
+        payload_labfacil_json: JSON.stringify({
+          modelo_equipamento: alvo.modeloEquipamento,
+          arquivo_processado: destinoProcessado,
+          processado_em: new Date().toISOString()
+        })
+      };
+
+      const { error: insErr } = await supabaseLegado.from('pedidos').insert([payloadInsert]);
+      if (insErr) {
+        console.error(`[Agente] ❌ Erro ao salvar pedido no Supabase: ${insErr.message}`);
+      } else {
+        console.log(`[Agente] 🌐 Pedido '${codigoPedido}' gravado com sucesso no Supabase!`);
+      }
+    } catch (dbErr: any) {
+      console.error('[Agente] ⚠️ Falha na chamada Supabase:', dbErr.message);
+    }
+  }
 }
 
 // Varre e processa uma pasta específica
@@ -140,7 +277,7 @@ async function processarPasta(alvo: IFolderTarget) {
       const conteudo = fs.readFileSync(caminhoOrigem, 'utf8');
       if (!conteudo.trim()) continue;
 
-      // A pasta oficial de Carga onde o analisador busca a worklist é SEMPRE em Equipamentos/<MODELO>/Carga
+      // Pasta de Carga do analisador
       let baseMidway = 'C:\\MidwayLab';
       if (alvo.diretorioEntrada && alvo.diretorioEntrada.toLowerCase().includes('labfacil')) {
         const partes = alvo.diretorioEntrada.split(/[\\/]labfacil/i);
@@ -148,26 +285,15 @@ async function processarPasta(alvo: IFolderTarget) {
           baseMidway = partes[0].trim();
         }
       }
-      const pastaCargaEquipamento = path.join(baseMidway, 'Equipamentos', alvo.modeloEquipamento, 'Carga');
+      const pastaCargaEquipamento = alvo.diretorioCarga || path.join(baseMidway, 'Equipamentos', alvo.modeloEquipamento, 'Carga');
       assegurarPasta(pastaCargaEquipamento);
 
-      // Limpa e remove qualquer pasta indevida 'Cargas_...' que tenha sido criada dentro de Processados
-      try {
-        const pastaIndevida = path.join(alvo.diretorioProcessados, `Cargas_${alvo.modeloEquipamento}`);
-        if (fs.existsSync(pastaIndevida)) {
-          const itens = fs.readdirSync(pastaIndevida);
-          for (const it of itens) {
-            const orig = path.join(pastaIndevida, it);
-            const dest = path.join(pastaCargaEquipamento, it);
-            if (!fs.existsSync(dest)) fs.copyFileSync(orig, dest);
-            fs.unlinkSync(orig);
-          }
-          fs.rmdirSync(pastaIndevida);
-          console.log(`[Agente] 🧹 Subpasta indevida removida de Processados: ${pastaIndevida}`);
-        }
-      } catch (_) {}
+      // Copia para a pasta de Carga do equipamento
+      const destinoCarga = path.join(pastaCargaEquipamento, arquivo);
+      fs.copyFileSync(caminhoOrigem, destinoCarga);
+      console.log(`[Agente] 📋 Carga copiada para o equipamento em: ${destinoCarga}`);
 
-      // Limita o nome do arquivo para evitar erro MAX_PATH do Windows (> 260 caracteres)
+      // Arquiva em Processados
       const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
       const extensao = path.extname(arquivo);
       const destinoProcessado = path.join(
@@ -175,75 +301,42 @@ async function processarPasta(alvo: IFolderTarget) {
         `${nomeBaseLimpo}_${Date.now()}${extensao}`
       );
 
-      // No Windows, fs.copyFileSync + fs.unlinkSync é muito mais resiliente que rename direto entre pastas/locks
       fs.copyFileSync(caminhoOrigem, destinoProcessado);
       fs.unlinkSync(caminhoOrigem);
       console.log(`[Agente] ✅ Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
 
-      // 3. REGISTRA O PEDIDO NO BANCO SUPABASE (PARA APARECER NA INTERFACE WEB EM TEMPO REAL)
-      try {
-        const { pacienteNome, codigoPedido } = extrairDadosArquivo(conteudo, arquivo);
-        
-        // Garante protocolo único para satisfazer constraint uq_pedido_protocolo (tenant_id, local_autolac, protocolo_autolac)
-        const protocoloUnico = `${codigoPedido}_${Date.now().toString().slice(-4)}`;
-
-        const payloadInsert = {
-          tenant_id: alvo.tenantId,
-          local_autolac: 'LABFACIL',
-          codigo_lote_autolac: `LOTE-${alvo.modeloEquipamento}`,
-          protocolo_autolac: protocoloUnico,
-          numero_solicitacao: codigoPedido,
-          paciente_nome: pacienteNome,
-          codigo_pedido_labfacil: codigoPedido,
-          origem_arquivo: path.extname(arquivo).toLowerCase().includes('json') ? 'LABFACIL_JSON' : 'LABFACIL_XML',
-          arquivo_nome: arquivo,
-          status: 'PROCESSADO',
-          // A coluna payload_labfacil_json na tabela pedidos é do tipo TEXT (necessário JSON.stringify)
-          payload_labfacil_json: JSON.stringify({
-            modelo_equipamento: alvo.modeloEquipamento,
-            arquivo_processado: destinoProcessado,
-            processado_em: new Date().toISOString()
-          })
-        };
-
-        const { error: insErr } = await supabase.from('pedidos').insert([payloadInsert]);
-        if (insErr) {
-          console.error(`[Agente] ❌ Erro ao salvar pedido no Supabase: ${insErr.message} (Código: ${insErr.code})`);
-        } else {
-          console.log(`[Agente] 🌐 Pedido '${codigoPedido}' gravado com sucesso no Supabase!`);
-        }
-      } catch (dbErr: any) {
-        console.error('[Agente] ⚠️ Falha na chamada Supabase:', dbErr.message);
-      }
+      // Registra o pedido com segurança na nuvem
+      const { pacienteNome, codigoPedido } = extrairDadosArquivo(conteudo, arquivo);
+      await registrarPedidoProcessado(alvo, codigoPedido, pacienteNome, arquivo, destinoProcessado);
 
     } catch (err: any) {
       console.error(`[Agente] ⚠️ Falha ao processar ${arquivo}:`, err.message);
-      try {
-        const nomeCurto = path.parse(arquivo).name.slice(0, 40);
-        const destinoErro = path.join(alvo.diretorioErros, `${nomeCurto}_ERRO_${Date.now()}`);
-        fs.copyFileSync(caminhoOrigem, destinoErro);
-        fs.unlinkSync(caminhoOrigem);
-      } catch (_) {}
     }
   }
 }
 
-// Loop Principal do Robô (executa a cada 5 segundos)
-async function loopRobo() {
-  let alvos = await carregarAlvosMonitoramento();
-  console.log(`[Agente] 🟢 Monitorando ${alvos.length} pasta(s) de equipamentos ativas no momento.`);
+// Loop contínuo de monitoramento
+let isExecutandoVarredura = false;
+async function executarCiclo() {
+  if (isExecutandoVarredura) return;
+  isExecutandoVarredura = true;
 
-  // Recarrega alvos a cada 60 segundos
-  setInterval(async () => {
-    alvos = await carregarAlvosMonitoramento();
-  }, 60000);
-
-  // Varredura de pastas a cada 5 segundos
-  setInterval(async () => {
-    for (const alvo of alvos) {
-      await processarPasta(alvo);
+  try {
+    const alvos = await carregarAlvosMonitoramento();
+    if (alvos.length === 0) {
+      // Silencioso se não houver alvos cadastrados
+    } else {
+      for (const alvo of alvos) {
+        await processarPasta(alvo);
+      }
     }
-  }, 5000);
+  } catch (err: any) {
+    console.error('[Agente] Erro no ciclo de varredura:', err.message);
+  } finally {
+    isExecutandoVarredura = false;
+  }
 }
 
-loopRobo();
+// Inicia imediatamente e roda a cada 4 segundos
+executarCiclo();
+setInterval(executarCiclo, 4000);

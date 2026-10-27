@@ -48,7 +48,8 @@ export class TenantService {
   static async salvarTenant(tenant: Partial<ITenantRecord>): Promise<ITenantRecord | null> {
     const isCustomCatalog = tenant.usar_catalogo_proprio !== undefined ? Boolean(tenant.usar_catalogo_proprio) : false;
     const existingConfigs = tenant.configuracoes || {};
-
+    const apiToken = existingConfigs?.api_token || `mw_agt_${(tenant.identificacao_entidade || "agt").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10)}_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 6)}`;
+    
     const baseUrl = tenant.labfacil_base_url || tenant.softlab_base_url || existingConfigs?.labfacil?.base_url || existingConfigs?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
     const login = tenant.labfacil_login || tenant.softlab_login || existingConfigs?.labfacil?.login || existingConfigs?.softlab?.login || '';
     const senha = tenant.labfacil_senha || tenant.softlab_senha || existingConfigs?.labfacil?.senha || existingConfigs?.softlab?.senha || '';
@@ -59,6 +60,7 @@ export class TenantService {
       identificacao_entidade: tenant.identificacao_entidade,
       configuracoes: {
         ...existingConfigs,
+        api_token: apiToken,
         autolac: {
           ws_url: (tenant as any).ws_url || (tenant as any).wsUrl || existingConfigs?.autolac?.ws_url || 'http://homolog.app.lifesys.com.br:5030',
           identificacao_entidade: tenant.identificacao_entidade,
