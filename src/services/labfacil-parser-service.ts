@@ -29,6 +29,24 @@ export interface ILabfacilPedidoParsed {
   rawContent: string;
 }
 
+export interface ILabfacilLinhaResultadoDoc {
+  codigoEquipamento: string;
+  descricao: string;
+  parametroRetorno: string;
+  enviaParaEquip: boolean;
+  mascara: string;
+  fatorMultiplicacao: string;
+}
+
+export interface IExameDetalheConversao {
+  codigoLabfacil: string;
+  codigoEquipamento: string;
+  nomeExame?: string;
+  mapeado: boolean;
+  linhasResultado?: ILabfacilLinhaResultadoDoc[];
+  calculados?: any[];
+}
+
 export class LabfacilParserService {
   private static xmlParser = new XMLParser({
     ignoreAttributes: false,
@@ -179,17 +197,28 @@ export class LabfacilParserService {
     pedido: ILabfacilPedidoParsed,
     modeloEquipamento: 'CB350' | 'YUMIZEN' | string,
     mapeamentos: Map<string, string>, // codigoLabfacil -> codigoEquipamento
-    formatoForcado?: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV'
+    formatoForcado?: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV',
+    linhasResultadoMap?: Map<string, { nomeExame?: string; linhas?: ILabfacilLinhaResultadoDoc[]; calculados?: any[] }>,
+    transmitirLinhasFilhasASTM: boolean = false
   ): {
     conteudoArquivo: string;
     formato: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV';
     nomeArquivoSugerido: string;
     examesMapeadosCount: number;
     examesNaoMapeadosCount: number;
-    examesDetalhes: Array<{ codigoLabfacil: string; codigoEquipamento: string; mapeado: boolean }>;
+    examesDetalhes: IExameDetalheConversao[];
   } {
     const modeloUpper = modeloEquipamento.toUpperCase();
-    const examesEquipamento: Array<{ codigoLabfacil: string; codigoEquipamento: string; amostra?: string; material?: string; mapeado: boolean }> = [];
+    const examesEquipamento: Array<{
+      codigoLabfacil: string;
+      codigoEquipamento: string;
+      nomeExame: string;
+      amostra?: string;
+      material?: string;
+      mapeado: boolean;
+      linhasResultado: ILabfacilLinhaResultadoDoc[];
+      calculados: any[];
+    }> = [];
     let naoMapeados = 0;
 
     for (const ex of pedido.exames) {
@@ -198,19 +227,30 @@ export class LabfacilParserService {
       if (!temMapeamento) {
         naoMapeados++;
       }
+
+      const matchMeta = linhasResultadoMap?.get(ex.codigo.toUpperCase()) ||
+                        linhasResultadoMap?.get(codEq.toUpperCase()) ||
+                        null;
+
       examesEquipamento.push({
         codigoLabfacil: ex.codigo,
         codigoEquipamento: codEq,
+        nomeExame: matchMeta?.nomeExame || ex.descricao || codEq,
         amostra: ex.amostra,
         material: ex.material,
-        mapeado: temMapeamento
+        mapeado: temMapeamento,
+        linhasResultado: matchMeta?.linhas || [],
+        calculados: matchMeta?.calculados || []
       });
     }
 
-    const examesDetalhes = examesEquipamento.map(e => ({
+    const examesDetalhes: IExameDetalheConversao[] = examesEquipamento.map(e => ({
       codigoLabfacil: e.codigoLabfacil,
       codigoEquipamento: e.codigoEquipamento,
-      mapeado: e.mapeado
+      nomeExame: e.nomeExame,
+      mapeado: e.mapeado,
+      linhasResultado: e.linhasResultado,
+      calculados: e.calculados
     }));
 
     const dateFormatted = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
@@ -236,7 +276,19 @@ export class LabfacilParserService {
 
     if (isAstm) {
       // ASTM E1394 Padrão Internacional (Sysmex UF, Horiba Yumizen, Beckman Access)
-      const testCodesAstm = examesEquipamento.map(e => `^^^${e.codigoEquipamento}`).join('\\');
+      const testCodesAstmArray: string[] = [];
+      examesEquipamento.forEach(e => {
+        const filhasParaEnviar = (e.linhasResultado || []).filter(l => l.enviaParaEquip);
+        if (transmitirLinhasFilhasASTM && filhasParaEnviar.length > 0) {
+          filhasParaEnviar.forEach(l => {
+            testCodesAstmArray.push(`^^^${l.codigoEquipamento}`);
+          });
+        } else {
+          testCodesAstmArray.push(`^^^${e.codigoEquipamento}`);
+        }
+      });
+
+      const testCodesAstm = testCodesAstmArray.join('\\');
       const astmLines = [
         `H|\\^&|||${modeloEquipamento}|||||||P|1|${dateFormatted}`,
         `P|1|||${pedido.cliente.codPac || pedido.numeroPedido}||${patientNameAstm}|||${pedido.cliente.sexo || 'U'}|||||||||||||||`,
@@ -254,7 +306,17 @@ export class LabfacilParserService {
       };
     } else if (isHl7) {
       // HL7 v2.3.1 Padrão Internacional (Mindray BS-240 / BC-5380)
-      const testCodesHl7 = examesEquipamento.map(e => e.codigoEquipamento).join('~');
+      const testCodesHl7Array: string[] = [];
+      examesEquipamento.forEach(e => {
+        const filhasParaEnviar = (e.linhasResultado || []).filter(l => l.enviaParaEquip);
+        if (transmitirLinhasFilhasASTM && filhasParaEnviar.length > 0) {
+          filhasParaEnviar.forEach(l => testCodesHl7Array.push(l.codigoEquipamento));
+        } else {
+          testCodesHl7Array.push(e.codigoEquipamento);
+        }
+      });
+
+      const testCodesHl7 = testCodesHl7Array.join('~');
       const hl7Lines = [
         `MSH|^~\\&|MIDWAYLAB|LAB|${modeloEquipamento}|EQUIP|${dateFormatted}||ORM^O01|MSG${Date.now()}|P|2.3.1`,
         `PID|1||${pedido.cliente.codPac || pedido.numeroPedido}||${patientNameAstm}|||${pedido.cliente.sexo || 'U'}`,
@@ -350,3 +412,4 @@ ${examesXml}
     }
   }
 }
+

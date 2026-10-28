@@ -725,8 +725,17 @@ export default function MidwayLabDashboard() {
     nomeArquivoSugerido: string;
     examesMapeadosCount: number;
     examesNaoMapeadosCount: number;
-    examesDetalhes: Array<{ codigoLabfacil: string; codigoEquipamento: string; mapeado: boolean }>;
+    examesDetalhes: Array<{
+      codigoLabfacil: string;
+      codigoEquipamento: string;
+      nomeExame?: string;
+      mapeado: boolean;
+      linhasResultado?: any[];
+      calculados?: any[];
+    }>;
   } | null>(null);
+  const [expandedExamesInConversion, setExpandedExamesInConversion] = useState<Record<string, boolean>>({});
+  const [transmitirLinhasFilhasASTM, setTransmitirLinhasFilhasASTM] = useState<boolean>(false);
   const [isTransmittingConverted, setIsTransmittingConverted] = useState<boolean>(false);
   const [convertedTransmissionFeedback, setConvertedTransmissionFeedback] = useState<string | null>(null);
   const labfacilFileInputRef = useRef<HTMLInputElement>(null);
@@ -815,7 +824,7 @@ export default function MidwayLabDashboard() {
   };
 
   // EXECUTA CONVERSÃO DO ARQUIVO DO LABFACIL PARA O EQUIPAMENTO
-  const handleConverterArquivoLabfacil = () => {
+  const handleConverterArquivoLabfacil = async (opcaoTransmitirFilhas?: boolean | unknown) => {
     if (!labfacilRawInput.trim()) {
       showNotification("⚠️ Forneça o arquivo JSON ou XML do Labfacil.");
       return;
@@ -830,11 +839,54 @@ export default function MidwayLabDashboard() {
 
       const pedido = pedidos[0];
 
+      // Busca os exames e as linhas de resultado reais gravadas no catálogo do aparelho (Imagem 2)
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      const tenantId = equipamentoConfiguradoReal?.tenant_id || activeTenantObj?.id;
+      const equipId = equipamentoConfiguradoReal?.id;
+
+      let examesDoAparelho: IExameEquipamentoRecord[] = [];
+      try {
+        const respExames = await EquipamentoExamesService.obterExamesDoAparelho(
+          simulatorSelectedEquipamento,
+          equipId,
+          tenantId
+        );
+        examesDoAparelho = respExames.exames || [];
+      } catch (e) {
+        console.warn("Erro ao buscar exames com linhas de resultado do aparelho:", e);
+      }
+
+      // Mapa de linhas de resultado por código de exame
+      const linhasResultadoMap = new Map<string, { nomeExame?: string; linhas?: any[]; calculados?: any[] }>();
+      examesDoAparelho.forEach(ex => {
+        const codEq = (ex.codigoEquipamento || "").trim().toUpperCase();
+        const codLab = (ex.codigoLabfacilSugerido || "").trim().toUpperCase();
+        const info = {
+          nomeExame: ex.nomeExame || codEq,
+          linhas: Array.isArray(ex.linhasResultado) ? ex.linhasResultado : [],
+          calculados: Array.isArray(ex.calculados) ? ex.calculados : []
+        };
+        if (codEq) linhasResultadoMap.set(codEq, info);
+        if (codLab) linhasResultadoMap.set(codLab, info);
+      });
+
       // Mapeamentos DE-PARA disponíveis
       const mapMapeamentos = new Map<string, string>();
       labfacilExames.forEach((item) => {
         if (item.codigo && item.autolacMapped) {
           mapMapeamentos.set(item.codigo.toUpperCase().trim(), item.autolacMapped.toUpperCase().trim());
+        }
+      });
+
+      // Mapeia também os exames do catálogo do aparelho
+      examesDoAparelho.forEach((item) => {
+        if (item.codigoLabfacilSugerido && item.codigoEquipamento) {
+          mapMapeamentos.set(item.codigoLabfacilSugerido.toUpperCase().trim(), item.codigoEquipamento.toUpperCase().trim());
+        }
+        if (item.codigoEquipamento) {
+          if (!mapMapeamentos.has(item.codigoEquipamento.toUpperCase().trim())) {
+            mapMapeamentos.set(item.codigoEquipamento.toUpperCase().trim(), item.codigoEquipamento.toUpperCase().trim());
+          }
         }
       });
 
@@ -864,6 +916,8 @@ export default function MidwayLabDashboard() {
         VITD: "VITD",
         URINA: "SEDIMENTO_URINA",
         SEDIMENTO_URINA: "SEDIMENTO_URINA",
+        SUMA: "SUMA",
+        SUMA2: "SUMA2",
         RBC: "RBC",
         WBC: "WBC",
         BACT: "BACT",
@@ -882,12 +936,25 @@ export default function MidwayLabDashboard() {
         ? (equipamentoConfiguradoReal?.formato_arquivo as any || undefined)
         : simulatorSelectedFormato;
 
+      const usarFilhas = typeof opcaoTransmitirFilhas === "boolean" ? opcaoTransmitirFilhas : transmitirLinhasFilhasASTM;
+
       const resultadoConversao = LabfacilParserService.gerarCargaEquipamento(
         pedido,
         simulatorSelectedEquipamento,
         mapMapeamentos,
-        formatoAlvo
+        formatoAlvo,
+        linhasResultadoMap,
+        usarFilhas
       );
+
+      // Auto-expande exames que possuem linhas de resultado para visualização imediata
+      const novosExpandidos: Record<string, boolean> = {};
+      resultadoConversao.examesDetalhes.forEach(d => {
+        if (d.linhasResultado && d.linhasResultado.length > 0) {
+          novosExpandidos[d.codigoLabfacil] = true;
+        }
+      });
+      setExpandedExamesInConversion(novosExpandidos);
 
       setLabfacilConvertedResult({
         pedidoParsed: pedido,
@@ -7544,35 +7611,140 @@ export default function MidwayLabDashboard() {
                             </span>
                           </div>
 
-                          <div className="overflow-x-auto rounded-lg border border-slate-800/80 max-h-64 overflow-y-auto custom-scrollbar">
+                          <div className="overflow-x-auto rounded-lg border border-slate-800/80 max-h-[520px] overflow-y-auto custom-scrollbar">
                             <table className="w-full text-left text-xs font-mono">
-                              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
+                              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 sticky top-0 z-10">
                                 <tr>
-                                  <th className="py-2 px-3">#</th>
-                                  <th className="py-2 px-3">Cód. Labfacil</th>
-                                  <th className="py-2 px-3">➔ Cód. Aparelho</th>
-                                  <th className="py-2 px-3 text-right">Status</th>
+                                  <th className="py-2.5 px-3 w-10">#</th>
+                                  <th className="py-2.5 px-3">Cód. Labfacil</th>
+                                  <th className="py-2.5 px-3">➔ Cód. Aparelho</th>
+                                  <th className="py-2.5 px-3 text-right">Status</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                                {labfacilConvertedResult.examesDetalhes.map((ex, idx) => (
-                                  <tr key={idx} className="hover:bg-slate-800/40 transition">
-                                    <td className="py-2 px-3 text-slate-500">{idx + 1}</td>
-                                    <td className="py-2 px-3 text-purple-300 font-bold">{ex.codigoLabfacil}</td>
-                                    <td className="py-2 px-3 text-teal-300 font-bold">{ex.codigoEquipamento}</td>
-                                    <td className="py-2 px-3 text-right">
-                                      {ex.mapeado ? (
-                                        <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
-                                          ✓ MAPEADO
-                                        </span>
-                                      ) : (
-                                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-bold" title="Usando mnemônico direto como fallback">
-                                          ⚠️ DIRETO
-                                        </span>
+                                {labfacilConvertedResult.examesDetalhes.map((ex, idx) => {
+                                  const temLinhas = Boolean(ex.linhasResultado && ex.linhasResultado.length > 0);
+                                  const isExpanded = Boolean(expandedExamesInConversion[ex.codigoLabfacil]);
+
+                                  return (
+                                    <React.Fragment key={idx}>
+                                      <tr className={`hover:bg-slate-800/40 transition ${isExpanded ? "bg-slate-850/60" : ""}`}>
+                                        <td className="py-2.5 px-3 text-slate-500">{idx + 1}</td>
+                                        <td className="py-2.5 px-3">
+                                          <span className="text-purple-300 font-bold">{ex.codigoLabfacil}</span>
+                                          {ex.nomeExame && ex.nomeExame !== ex.codigoLabfacil && (
+                                            <span className="block text-[11px] text-slate-300 font-sans font-medium truncate max-w-[150px]" title={ex.nomeExame}>
+                                              {ex.nomeExame}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 px-3">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-teal-300 font-bold">{ex.codigoEquipamento}</span>
+                                            {temLinhas && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setExpandedExamesInConversion(prev => ({
+                                                  ...prev,
+                                                  [ex.codigoLabfacil]: !prev[ex.codigoLabfacil]
+                                                }))}
+                                                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer flex items-center gap-1 ${
+                                                  isExpanded
+                                                    ? "bg-teal-500 text-slate-950 border-teal-400 shadow-sm"
+                                                    : "bg-teal-500/15 text-teal-300 border-teal-500/30 hover:bg-teal-500/25"
+                                                }`}
+                                                title="Mostrar as linhas de resultado homologadas para este aparelho"
+                                              >
+                                                <span>Resultados ({ex.linhasResultado!.length} linhas)</span>
+                                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                              </button>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right">
+                                          {ex.mapeado ? (
+                                            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                              ✓ MAPEADO
+                                            </span>
+                                          ) : (
+                                            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-bold" title="Usando mnemônico direto como fallback">
+                                              ⚠️ DIRETO
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+
+                                      {/* SUB-TABELA: LINHAS DE RESULTADO HOMOLOGADAS NO APARELHO (ESTRUTURA DA IMAGEM 2) */}
+                                      {temLinhas && isExpanded && (
+                                        <tr className="bg-slate-950/90">
+                                          <td colSpan={4} className="p-3 border-t border-b border-teal-500/30">
+                                            <div className="bg-slate-900/90 border border-teal-500/40 rounded-xl p-3.5 space-y-2.5 shadow-2xl animate-fadeIn">
+                                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-teal-300">
+                                                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                                                  <span>● Realizados no Equipamento (linhas de resultado)</span>
+                                                  <span className="bg-teal-500/20 text-teal-200 border border-teal-500/40 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
+                                                    {ex.linhasResultado!.length} linhas
+                                                  </span>
+                                                </div>
+                                                <span className="text-[10px] text-slate-400 font-mono">
+                                                  Vinculadas ao código: <strong className="text-teal-300">{ex.codigoEquipamento}</strong> ({simulatorSelectedEquipamento})
+                                                </span>
+                                              </div>
+
+                                              <div className="overflow-x-auto rounded-lg border border-slate-800">
+                                                <table className="w-full text-left text-[11px] font-mono">
+                                                  <thead className="bg-slate-950 text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-800">
+                                                    <tr>
+                                                      <th className="py-2 px-2.5 w-12 text-center">Nº / Ordem</th>
+                                                      <th className="py-2 px-3">Código no Equip.</th>
+                                                      <th className="py-2 px-3 font-sans">Descrição</th>
+                                                      <th className="py-2 px-3">Parâmetro de Retorno</th>
+                                                      <th className="py-2 px-3 text-center">Envia p/ Equip.</th>
+                                                      <th className="py-2 px-3">Máscara</th>
+                                                      <th className="py-2 px-3">Fator de Multiplicação</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                                                    {ex.linhasResultado!.map((ln: any, lnIdx: number) => (
+                                                      <tr key={lnIdx} className="hover:bg-slate-900/60 transition">
+                                                        <td className="py-1.5 px-2.5 text-center text-slate-500">{lnIdx + 1}</td>
+                                                        <td className="py-1.5 px-3 font-bold text-teal-300">
+                                                          {ln.codigoEquipamento}
+                                                        </td>
+                                                        <td className="py-1.5 px-3 text-slate-200 font-sans font-medium">
+                                                          {ln.descricao || "-"}
+                                                        </td>
+                                                        <td className="py-1.5 px-3">
+                                                          <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                            {ln.parametroRetorno || "-"}
+                                                          </span>
+                                                        </td>
+                                                        <td className="py-1.5 px-3 text-center">
+                                                          {ln.enviaParaEquip ? (
+                                                            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                              ✓ SIM
+                                                            </span>
+                                                          ) : (
+                                                            <span className="bg-slate-800 text-slate-500 px-2 py-0.5 rounded text-[10px]">
+                                                              NÃO
+                                                            </span>
+                                                          )}
+                                                        </td>
+                                                        <td className="py-1.5 px-3 text-slate-400">{ln.mascara || "0.00"}</td>
+                                                        <td className="py-1.5 px-3 text-slate-400">{ln.fatorMultiplicacao || "1"}</td>
+                                                      </tr>
+                                                    ))}
+                                                  </tbody>
+                                                </table>
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
                                       )}
-                                    </td>
-                                  </tr>
-                                ))}
+                                    </React.Fragment>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -7580,7 +7752,7 @@ export default function MidwayLabDashboard() {
 
                         {/* COLUNA 2: ARQUIVO CONVERTIDO PRONTO PARA O APARELHO */}
                         <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
-                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <Terminal className="w-4 h-4 text-emerald-400 shrink-0" />
                               <span className="text-xs font-bold text-slate-200 truncate" title={labfacilConvertedResult.nomeArquivoSugerido}>
@@ -7589,6 +7761,21 @@ export default function MidwayLabDashboard() {
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0">
+                              {labfacilConvertedResult.examesDetalhes.some(e => e.linhasResultado && e.linhasResultado.length > 0) && (
+                                <label className="flex items-center gap-1.5 text-[11px] font-mono text-slate-300 hover:text-teal-300 transition cursor-pointer bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                                  <input
+                                    type="checkbox"
+                                    checked={transmitirLinhasFilhasASTM}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      setTransmitirLinhasFilhasASTM(checked);
+                                      handleConverterArquivoLabfacil(checked);
+                                    }}
+                                    className="rounded border-slate-700 text-teal-500 focus:ring-0 cursor-pointer"
+                                  />
+                                  <span>Sub-linhas no protocolo</span>
+                                </label>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => {
