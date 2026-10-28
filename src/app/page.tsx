@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, startTransition } from "react";
+import React, { useState, useEffect, useRef, useMemo, startTransition } from "react";
 import { supabaseBrowser } from "../lib/supabase-client";
 import { UserService } from "../services/user-service";
 import { TenantService } from "../services/tenant-service";
@@ -637,7 +637,92 @@ export default function MidwayLabDashboard() {
   const [simulatorExamesInput, setSimulatorExamesInput] = useState<string>("GLI, URE, CRE, COL, TRI");
   const [simulatorSimularAlterados, setSimulatorSimularAlterados] = useState<boolean>(false);
   const [simulatorSimulatedRelease, setSimulatorSimulatedRelease] = useState<ISimulatedSampleRelease | null>(null);
+  const [isTransmitindoReal, setIsTransmitindoReal] = useState<boolean>(false);
+  const [respostaTransmissaoReal, setRespostaTransmissaoReal] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
+
+  // Equipamento real de produção vinculado ao modelo selecionado no Simulador (Imagem 2 -> Imagem 1)
+  const equipamentoConfiguradoReal = useMemo(() => {
+    if (!simulatorSelectedEquipamento) return null;
+    const modNorm = simulatorSelectedEquipamento.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return equipamentosList.find(eq => {
+      const eqModNorm = (eq.modelo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const eqNomeNorm = (eq.nome || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return eqModNorm === modNorm || eqNomeNorm.includes(modNorm) || modNorm.includes(eqModNorm) || (eq.codigo_identificador || "").toUpperCase().includes(modNorm);
+    }) || null;
+  }, [equipamentosList, simulatorSelectedEquipamento]);
+
+  const handleTransmitirCargaReal = async () => {
+    if (!equipamentoConfiguradoReal) {
+      showNotification("⚠️ Nenhum equipamento cadastrado na empresa ativa com as configurações de IP ou Pasta Carga.");
+      return;
+    }
+
+    const examesArray = simulatorExamesInput
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((c) => ({ codigoEquipamento: c, nomeExame: c }));
+
+    if (examesArray.length === 0) {
+      showNotification("⚠️ Informe ao menos um código de exame para transmitir.");
+      return;
+    }
+
+    setIsTransmitindoReal(true);
+    setRespostaTransmissaoReal(null);
+
+    try {
+      const resultados = EquipamentoSimulatorService.gerarResultadosSimulados(
+        examesArray,
+        simulatorSelectedEquipamento,
+        simulatorSimularAlterados
+      );
+
+      const formatoFinal = simulatorSelectedFormato === "AUTO"
+        ? (equipamentoConfiguradoReal.formato_arquivo || "ASTM")
+        : simulatorSelectedFormato;
+
+      const releasePayload = EquipamentoSimulatorService.construirPayloadRetorno(
+        simulatorPedidoNumero,
+        simulatorPacienteNome,
+        simulatorSelectedEquipamento,
+        resultados,
+        formatoFinal as any
+      );
+
+      setSimulatorSimulatedRelease(releasePayload);
+
+      const res = await fetch("/api/test-equipment-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipoComunicacao: equipamentoConfiguradoReal.tipo_comunicacao || "TCP_IP",
+          ipHost: equipamentoConfiguradoReal.ip_host,
+          porta: equipamentoConfiguradoReal.porta,
+          diretorioCarga: equipamentoConfiguradoReal.diretorio_carga,
+          diretorioResultados: equipamentoConfiguradoReal.diretorio_resultados,
+          enviarCarga: true,
+          mensagem: releasePayload.rawOutputPayload,
+          nomeArquivo: `WORKLIST_${simulatorSelectedEquipamento}_${simulatorPedidoNumero}.${formatoFinal.toLowerCase()}`
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setRespostaTransmissaoReal(data.detalhesTecnicos || data.message);
+        showNotification(`🚀 [TRANSMISSÃO REAL] ${data.message}`);
+      } else {
+        setRespostaTransmissaoReal(`FALHA NA TRANSMISSÃO: ${data.message}`);
+        showNotification(`⚠️ [TRANSMISSÃO] ${data.message}`);
+      }
+    } catch (err: any) {
+      setRespostaTransmissaoReal(`ERRO AO CONECTAR: ${err.message}`);
+      showNotification(`❌ Erro ao conectar com analisador: ${err.message}`);
+    } finally {
+      setIsTransmitindoReal(false);
+    }
+  };
 
   // HANDLE FILE SELECTION & PARSING (XML / JSON / CSV / XLSX)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -6921,7 +7006,23 @@ export default function MidwayLabDashboard() {
                       const mod = e.target.value;
                       setSimulatorSelectedEquipamento(mod);
                       const modObj = catalogoModelos.find(m => m.codigo_modelo === mod);
-                      if (modObj && modObj.exames && modObj.exames.length > 0) {
+                      
+                      // Auto-configura formato de transmissão a partir do cadastro do equipamento
+                      const modNorm = mod.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                      const eqConfig = equipamentosList.find(eq => {
+                        const eqModNorm = (eq.modelo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                        const eqNomeNorm = (eq.nome || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                        return eqModNorm === modNorm || eqNomeNorm.includes(modNorm) || modNorm.includes(eqModNorm);
+                      });
+
+                      if (eqConfig && eqConfig.formato_arquivo) {
+                        setSimulatorSelectedFormato(eqConfig.formato_arquivo as any);
+                      }
+
+                      if (mod === "SYSMEX_UF_1500" || mod.includes("UF") || mod.includes("SYSMEX")) {
+                        setSimulatorExamesInput("RBC, WBC, EC, CAST, BACT, XTAL");
+                        setSimulatorSelectedFormato("ASTM");
+                      } else if (modObj && modObj.exames && modObj.exames.length > 0) {
                         setSimulatorExamesInput(modObj.exames.slice(0, 6).map(x => x.codigoEquipamento).join(", "));
                       } else if (mod === "ACCESS") {
                         setSimulatorExamesInput("VITDACCESS, TSH, T4L, PSA");
@@ -6931,6 +7032,7 @@ export default function MidwayLabDashboard() {
                         setSimulatorExamesInput("GLI, URE, CRE, COL, TRI, AST, ALT");
                       }
                       setSimulatorSimulatedRelease(null);
+                      setRespostaTransmissaoReal(null);
                     }}
                     className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none cursor-pointer"
                   >
@@ -7013,6 +7115,72 @@ export default function MidwayLabDashboard() {
                   <span className="text-[10px] text-slate-400 font-sans block">Separados por vírgula</span>
                 </div>
               </div>
+
+              {/* CARD DE CONEXÃO REAL DE PRODUÇÃO VINCULADO À IMAGEM 2 */}
+              {equipamentoConfiguradoReal ? (
+                <div className="bg-gradient-to-r from-slate-950 via-teal-950/30 to-slate-950 border border-teal-500/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-lg shadow-teal-500/10">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="font-bold text-slate-100 flex items-center gap-1.5">
+                        🎯 Alvo de Produção Vinculado: <strong className="text-teal-300 font-mono text-sm">{equipamentoConfiguradoReal.nome}</strong>
+                      </span>
+                      <span className="bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                        {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? 'Modo Rede TCP/IP' : 'Modo Pasta Carga'}
+                      </span>
+                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                        Formato: {equipamentoConfiguradoReal.formato_arquivo || 'ASTM E1394'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-slate-400 font-mono pt-1">
+                      {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? (
+                        <div>🌐 IP & Porta: <strong className="text-slate-200">{equipamentoConfiguradoReal.ip_host}:{equipamentoConfiguradoReal.porta}</strong></div>
+                      ) : (
+                        <div>📁 Pasta Carga: <strong className="text-slate-200">{equipamentoConfiguradoReal.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\Carga'}</strong></div>
+                      )}
+                      <div>📊 Pasta Resultados: <strong className="text-slate-200">{equipamentoConfiguradoReal.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\Resultados'}</strong></div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isTransmitindoReal}
+                    onClick={handleTransmitirCargaReal}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-50 shrink-0"
+                    title="Conecta no IP/Porta ou Pasta Carga reais configurados no analisador e transmite a carga"
+                  >
+                    <Zap className={`w-4 h-4 fill-current ${isTransmitindoReal ? 'animate-bounce' : ''}`} />
+                    {isTransmitindoReal ? 'Transmitindo ao Equipamento...' : '🚀 Transmitir para o Equipamento Real'}
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-xs text-slate-400 flex items-center justify-between">
+                  <span>💡 Analisador operando em <strong>Modo Sandbox Simulado</strong>. As configurações reais deste equipamento serão carregadas quando ele estiver cadastrado na empresa ativa.</span>
+                </div>
+              )}
+
+              {/* CONSOLE DE RETORNO DA TRANSMISSÃO REAL */}
+              {respostaTransmissaoReal && (
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/40 text-xs font-mono space-y-1 animate-fadeIn">
+                  <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-slate-800 pb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <Terminal className="w-4 h-4 text-cyan-400" />
+                      Console de Resposta da Comunicação com o Equipamento
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRespostaTransmissaoReal(null)}
+                      className="text-slate-400 hover:text-slate-200 cursor-pointer text-[10px]"
+                    >
+                      Fechar console ✕
+                    </button>
+                  </div>
+                  <pre className="text-slate-200 whitespace-pre-wrap leading-relaxed select-all max-h-32 overflow-y-auto custom-scrollbar pt-1">
+                    {respostaTransmissaoReal}
+                  </pre>
+                </div>
+              )}
 
               {/* BOTÕES DE AÇÃO: DISPARAR SIMULAÇÃO */}
               <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800">

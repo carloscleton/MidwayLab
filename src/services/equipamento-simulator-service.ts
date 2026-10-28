@@ -73,7 +73,15 @@ export class EquipamentoSimulatorService {
     PSA: { valMin: 0.4, valMax: 2.1, unidade: 'ng/mL', ref: '< 4.00 ng/mL' },
     BHCG: { valMin: 1.0, valMax: 4.0, unidade: 'mUI/mL', ref: 'Homens e Não Grávidas < 5.0' },
     VITD: { valMin: 25.0, valMax: 50.0, unidade: 'ng/mL', ref: '20.0 a 60.0 ng/mL' },
-    VITDACCESS: { valMin: 25.0, valMax: 50.0, unidade: 'ng/mL', ref: '20.0 a 60.0 ng/mL' }
+    VITDACCESS: { valMin: 25.0, valMax: 50.0, unidade: 'ng/mL', ref: '20.0 a 60.0 ng/mL' },
+
+    // Urinálise Automatizada (Sysmex UF-1500 / UF-5000)
+    EC: { valMin: 5, valMax: 35, unidade: 'U', ref: 'Padronizado' },
+    CAST: { valMin: 0.5, valMax: 15, unidade: 'U', ref: 'Padronizado' },
+    BACT: { valMin: 10, valMax: 90, unidade: 'U', ref: 'Padronizado' },
+    XTAL: { valMin: 2, valMax: 40, unidade: 'U', ref: 'Padronizado' },
+    SRC: { valMin: 0.2, valMax: 6, unidade: 'U', ref: 'Padronizado' },
+    YLC: { valMin: 0.1, valMax: 3, unidade: 'U', ref: 'Padronizado' }
   };
 
   /**
@@ -155,7 +163,7 @@ ${examesXml}
     </Resultado>
   </Paciente>
 </Principal>`;
-    } else if (formatoForcado === 'ASTM' || ((!formatoForcado) && (modeloUpper.includes('YUMIZEN') || modeloUpper.includes('ACCESS')))) {
+    } else if (formatoForcado === 'ASTM' || ((!formatoForcado) && (modeloUpper.includes('YUMIZEN') || modeloUpper.includes('ACCESS') || modeloUpper.includes('SYSMEX') || modeloUpper.includes('UF')))) {
       // Padrão ASTM E1394
       formato = 'ASTM';
       const lines = [
