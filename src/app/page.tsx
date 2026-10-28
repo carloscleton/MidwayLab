@@ -5670,103 +5670,125 @@ export default function MidwayLabDashboard() {
               }
 
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredEquips.map((eq) => (
-                <div key={eq.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 hover:border-teal-500/40 transition">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <h3 className="font-bold text-slate-100 text-sm">{eq.nome}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+                  {filteredEquips.map((eq) => {
+                    const pastaCarga = (eq.diretorio_carga || "Não definida").replace(/[/\\]+/g, "\\");
+                    const pastaResultados = (eq.diretorio_resultados || "Não definida").replace(/[/\\]+/g, "\\");
+
+                    return (
+                      <div
+                        key={eq.id}
+                        className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-teal-500/40 transition flex flex-col justify-between h-full space-y-4 shadow-lg shadow-black/20"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                              <h3 className="font-bold text-slate-100 text-sm truncate" title={eq.nome}>
+                                {eq.nome}
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+                              <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase whitespace-nowrap">
+                                {eq.formato_arquivo || "ASTM"}
+                              </span>
+                              <span className="bg-slate-950 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase whitespace-nowrap">
+                                {eq.tipo_comunicacao || "TCP_IP"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div
+                            className="text-[11px] text-teal-400 font-mono truncate"
+                            title={`Modelo: ${eq.modelo} (${eq.fabricante || "Fabricante Padrão"})`}
+                          >
+                            Modelo: <strong className="text-teal-300 font-semibold">{eq.modelo}</strong> ({eq.fabricante || "Fabricante Padrão"})
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5 bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono">
+                          <div className="flex items-baseline gap-1.5 min-w-0">
+                            <span className="text-slate-400 shrink-0">Pasta Carga:</span>
+                            <span className="text-slate-200 font-medium truncate select-all" title={pastaCarga}>
+                              {pastaCarga}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline gap-1.5 min-w-0">
+                            <span className="text-slate-400 shrink-0">Pasta Resultados:</span>
+                            <span className="text-slate-200 font-medium truncate select-all" title={pastaResultados}>
+                              {pastaResultados}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-800/60 mt-auto">
+                          <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                            Status: <strong className="text-emerald-400">ONLINE</strong>
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const foundModelo = catalogoModelos.find(m => m.codigo_modelo === eq.modelo);
+                                const docInfo: IEquipamentoCatalogDoc = foundModelo ? {
+                                  modelo: foundModelo.codigo_modelo,
+                                  nomeCompleto: foundModelo.nome_completo,
+                                  fabricante: foundModelo.fabricante,
+                                  tipoAnalise: foundModelo.tipo_analise,
+                                  protocoloComunicacao: foundModelo.protocolo_comunicacao,
+                                  descricaoDoc: foundModelo.descricao || '',
+                                  exames: foundModelo.exames || []
+                                } : (CATALOGO_EQUIPAMENTOS_DOC[eq.modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350);
+                                setActiveEquipamentoForDoc(eq);
+                                setViewDocEquipamentoModal(docInfo);
+                                setDocSearchTerm("");
+                                showNotification(`🔍 Consultando banco de dados para ${eq.nome}...`);
+                                const res = await EquipamentoExamesService.obterExamesDoAparelho(eq.modelo, eq.id, eq.tenant_id);
+                                setEquipamentoExamesList(res.exames);
+                                setOrigemExamesAparelho(res.origem);
+                                if (res.origem === 'BANCO') {
+                                  showNotification(`💾 ${res.exames.length} Exames carregados do Banco de Dados para ${eq.nome}`);
+                                } else {
+                                  showNotification(`⚙️ Exames carregados da documentação técnica nativa do aparelho (${eq.modelo})`);
+                                }
+                              }}
+                              className="text-xs text-cyan-300 hover:text-cyan-200 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 transition cursor-pointer flex items-center gap-1 font-semibold"
+                              title="Ver e gerenciar códigos de exames do aparelho com gravação no banco de dados"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> Códigos do Aparelho
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingEquipamento(eq);
+                                setEquipamentoForm({ ...eq });
+                                setModalExameSearch("");
+                                setEquipFoldersCreatedFeedback(null);
+                                carregarExamesParaModalEquipamento(eq.modelo, eq.id, eq.tenant_id);
+                                setIsEquipamentoModalOpen(true);
+                              }}
+                              className="text-xs text-slate-300 hover:text-teal-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm(`Deseja realmente remover o equipamento ${eq.nome}?`)) {
+                                  if (eq.id) await EquipamentoService.removerEquipamento(eq.id);
+                                  setEquipamentosList(prev => prev.filter(item => item.id !== eq.id));
+                                  showNotification(`Equipamento ${eq.nome} removido.`);
+                                }
+                              }}
+                              className="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 transition cursor-pointer"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[11px] text-teal-400 font-mono font-bold mt-0.5 block">
-                        Modelo: {eq.modelo} ({eq.fabricante || "Fabricante Padrão"})
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                      <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
-                        {eq.formato_arquivo || "JSON"}
-                      </span>
-                      <span className="bg-slate-950 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
-                        {eq.tipo_comunicacao}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono">
-                    <div className="text-slate-400">
-                      Pasta de Carga: <span className="text-slate-200">{eq.diretorio_carga || "Não definida"}</span>
-                    </div>
-                    <div className="text-slate-400">
-                      Pasta Resultados: <span className="text-slate-200">{eq.diretorio_resultados || "Não definida"}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
-                    <span className="text-[11px] text-slate-500">Status: <strong className="text-emerald-400">ONLINE</strong></span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const foundModelo = catalogoModelos.find(m => m.codigo_modelo === eq.modelo);
-                          const docInfo: IEquipamentoCatalogDoc = foundModelo ? {
-                            modelo: foundModelo.codigo_modelo,
-                            nomeCompleto: foundModelo.nome_completo,
-                            fabricante: foundModelo.fabricante,
-                            tipoAnalise: foundModelo.tipo_analise,
-                            protocoloComunicacao: foundModelo.protocolo_comunicacao,
-                            descricaoDoc: foundModelo.descricao || '',
-                            exames: foundModelo.exames || []
-                          } : (CATALOGO_EQUIPAMENTOS_DOC[eq.modelo] || CATALOGO_EQUIPAMENTOS_DOC.CB350);
-                          setActiveEquipamentoForDoc(eq);
-                          setViewDocEquipamentoModal(docInfo);
-                          setDocSearchTerm("");
-                          showNotification(`🔍 Consultando banco de dados para ${eq.nome}...`);
-                          const res = await EquipamentoExamesService.obterExamesDoAparelho(eq.modelo, eq.id, eq.tenant_id);
-                          setEquipamentoExamesList(res.exames);
-                          setOrigemExamesAparelho(res.origem);
-                          if (res.origem === 'BANCO') {
-                            showNotification(`💾 ${res.exames.length} Exames carregados do Banco de Dados para ${eq.nome}`);
-                          } else {
-                            showNotification(`⚙️ Exames carregados da documentação técnica nativa do aparelho (${eq.modelo})`);
-                          }
-                        }}
-                        className="text-xs text-cyan-300 hover:text-cyan-200 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 transition cursor-pointer flex items-center gap-1 font-semibold"
-                        title="Ver e gerenciar códigos de exames do aparelho com gravação no banco de dados"
-                      >
-                        <FileText className="w-3.5 h-3.5" /> Códigos do Aparelho
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingEquipamento(eq);
-                          setEquipamentoForm({ ...eq });
-                          setModalExameSearch("");
-                          setEquipFoldersCreatedFeedback(null);
-                          carregarExamesParaModalEquipamento(eq.modelo, eq.id, eq.tenant_id);
-                          setIsEquipamentoModalOpen(true);
-                        }}
-                        className="text-xs text-slate-400 hover:text-teal-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition cursor-pointer"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (confirm(`Deseja realmente remover o equipamento ${eq.nome}?`)) {
-                            if (eq.id) await EquipamentoService.removerEquipamento(eq.id);
-                            setEquipamentosList(prev => prev.filter(item => item.id !== eq.id));
-                            showNotification(`Equipamento ${eq.nome} removido.`);
-                          }
-                        }}
-                        className="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 transition cursor-pointer"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}
