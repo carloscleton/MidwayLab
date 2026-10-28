@@ -627,7 +627,7 @@ export default function MidwayLabDashboard() {
   const [savedWorklistsToDisk, setSavedWorklistsToDisk] = useState<Record<string, string>>({});
   const [isSavingDirectWorklist, setIsSavingDirectWorklist] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "endpoints" | "logs" | "security" | "printers" | "equipamentos" | "ingestao" | "simulador">("equipamentos");
+  const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "logs" | "security" | "printers" | "equipamentos" | "ingestao" | "simulador">("equipamentos");
 
   // SIMULADOR DE EQUIPAMENTOS (MOCK DE IDA & RETORNO)
   const [simulatorSelectedEquipamento, setSimulatorSelectedEquipamento] = useState<string>("CB350");
@@ -2132,7 +2132,6 @@ export default function MidwayLabDashboard() {
   const [isNewTenantModalOpen, setIsNewTenantModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<any | null>(null);
   const [mappingExamModal, setMappingExamModal] = useState<any | null>(null);
-  const [activeEndpointModal, setActiveEndpointModal] = useState<any | null>(null);
   const [activeWorkflowModal, setActiveWorkflowModal] = useState<string | null>(null);
   const [selectedLabelData, setSelectedLabelData] = useState<{
     protocolo: string;
@@ -2566,26 +2565,6 @@ export default function MidwayLabDashboard() {
     { id: "REC-103", protocolo: "PROTO-8825", paciente: "GABRIEL LIMA", exame: "GLI_JEJ", motivo: "Jejum Inadequado", dataSolicitacao: "22/09/2026 12:20", status: "PENDENTE" }
   ]);
 
-  // LABFACIL ENDPOINTS SPECIFICATION LIST
-  const labfacilEndpointsList = [
-    {
-      group: "Autenticação",
-      method: "POST",
-      path: "/api/Autenticacao/autenticar",
-      summary: "Realiza a autenticação, obtendo um token Bearer JWT de acesso.",
-      params: "login, senha",
-      exampleResponse: `{\n  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",\n  "minutosAteExpirar": 60,\n  "tipoDeToken": "bearer"\n}`
-    },
-    {
-      group: "Pedidos",
-      method: "POST",
-      path: "/api/Pedido",
-      summary: "Criar novo Pedido vindo do Autolac com atendimento, paciente e exames.",
-      params: "codigoLis, atendimento, paciente, exames",
-      exampleResponse: `{\n  "codigoLis": "1_PROTO-8842",\n  "situacao": "S",\n  "mensagem": "Pedido registrado com sucesso"\n}`
-    }
-  ];
-
   // Client tenants list with localStorage persistence
   // Client tenants list loaded strictly from Supabase Database
   const [tenants, setTenants] = useState<any[]>([]);
@@ -2696,7 +2675,6 @@ export default function MidwayLabDashboard() {
 
   const [isRefreshingLogs, setIsRefreshingLogs] = useState(false);
   const [logFilterDirection, setLogFilterDirection] = useState<"TODOS" | "IDA" | "VOLTA">("TODOS");
-  const [apiConsoleResponse, setApiConsoleResponse] = useState<string | null>(null);
 
   // RESOLVE A PASTA DE CARGA FÍSICA DO EQUIPAMENTO ATUAL
   const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
@@ -3593,12 +3571,6 @@ export default function MidwayLabDashboard() {
     a.download = `depara_exames_midwaylab_${Date.now()}.csv`;
     a.click();
     showNotification("Arquivo CSV do mapeamento DE-PARA exportado com sucesso!");
-  };
-
-  // ACTION: Test Labfacil Endpoint Live
-  const handleTestEndpoint = (ep: any) => {
-    setActiveEndpointModal(ep);
-    setApiConsoleResponse(`[MidwayLab Client] Executando ${ep.method} ${ep.path}...\nStatus: 200 OK (Simulação Conectada com Sucesso)\nResposta:\n${ep.exampleResponse}`);
   };
 
   // ACTION 1: Refresh Logs Button
@@ -4689,18 +4661,6 @@ export default function MidwayLabDashboard() {
 
               <button
                 type="button"
-                onClick={() => setActiveTab("endpoints")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-                  activeTab === "endpoints"
-                    ? "bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                }`}
-              >
-                <Code2 className="w-4 h-4 text-indigo-400" /> Endpoints Labfacil API ({labfacilEndpointsList.length})
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setActiveTab("security")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
                   activeTab === "security"
@@ -5279,59 +5239,6 @@ export default function MidwayLabDashboard() {
         )}
 
 
-
-        {/* TAB ENDPOINTS */}
-        {activeTab === "endpoints" && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <Code2 className="w-5 h-5 text-teal-400" /> Catálogo Completo de Endpoints da API do Labfacil Apoio
-                </h2>
-                <p className="text-xs text-slate-400">Todos os 24 métodos REST extraídos da documentação Swagger (http://apoio.labfacilsolucoes.com.br/swagger)</p>
-              </div>
-
-              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-teal-300 font-mono font-bold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 100% dos Endpoints Cobertos no MidwayLab
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {labfacilEndpointsList.map((ep, idx) => (
-                <div key={idx} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3 hover:border-teal-500/40 transition">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
-                        ep.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                        ep.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
-                        ep.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                        "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                      }`}>
-                        {ep.method}
-                      </span>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">{ep.group}</span>
-                    </div>
-
-                    <button 
-                      type="button"
-                      onClick={() => handleTestEndpoint(ep)}
-                      className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Play className="w-3 h-3 fill-current" /> Testar Método
-                    </button>
-                  </div>
-
-                  <h3 className="font-mono text-sm font-bold text-slate-100">{ep.path}</h3>
-                  <p className="text-xs text-slate-400">{ep.summary}</p>
-
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                    <span>Parâmetros: <strong className="text-slate-300">{ep.params}</strong></span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* TAB LOGS */}
         {activeTab === "logs" && (
@@ -9689,56 +9596,6 @@ export default function MidwayLabDashboard() {
                   {isSavingCatalogToDb ? "Gravando..." : "Confirmar & Gravar para a Empresa"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: TEST LABFACIL ENDPOINT MODAL */}
-      {activeEndpointModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg ${
-                  activeEndpointModal.method === "GET" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                  activeEndpointModal.method === "POST" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20" :
-                  activeEndpointModal.method === "PUT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                  "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                }`}>
-                  {activeEndpointModal.method}
-                </span>
-                <h3 className="text-base font-bold font-mono text-slate-100">{activeEndpointModal.path}</h3>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setActiveEndpointModal(null)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300">{activeEndpointModal.summary}</p>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-                <span className="flex items-center gap-1.5"><Terminal className="w-4 h-4 text-teal-400" /> Console de Execução MidwayLab API Client</span>
-                <span className="text-emerald-400 font-bold">200 OK</span>
-              </div>
-              <pre className="text-xs text-emerald-400 font-mono bg-slate-900/90 p-4 rounded-lg overflow-x-auto max-h-60 whitespace-pre-wrap border border-slate-800">
-                {apiConsoleResponse}
-              </pre>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setActiveEndpointModal(null)}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition text-xs shadow-lg shadow-teal-500/20 cursor-pointer"
-              >
-                Fechar Console
-              </button>
             </div>
           </div>
         </div>
