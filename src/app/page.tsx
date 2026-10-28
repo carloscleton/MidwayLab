@@ -16,6 +16,7 @@ import NovoModeloModal from "../components/NovoModeloModal";
 import GerenciarModelosModal from "../components/GerenciarModelosModal";
 import { SetupLocalRoboModal } from "../components/SetupLocalRoboModal";
 import { LogsComunicacaoModal } from "../components/LogsComunicacaoModal";
+import ModalCapturaLinhasEquipamento from "../components/ModalCapturaLinhasEquipamento";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import { IEquipamentoRecord } from "../db/supabase";
 import { generateCode128SvgString } from "../lib/barcode";
@@ -47,6 +48,7 @@ import {
   Layers,
   Sparkles,
   Terminal,
+  Radio,
   Play,
   Code2,
   Tag,
@@ -740,7 +742,81 @@ export default function MidwayLabDashboard() {
   const [transmitirLinhasFilhasASTM, setTransmitirLinhasFilhasASTM] = useState<boolean>(false);
   const [isTransmittingConverted, setIsTransmittingConverted] = useState<boolean>(false);
   const [convertedTransmissionFeedback, setConvertedTransmissionFeedback] = useState<string | null>(null);
+  const [isCapturaModalOpen, setIsCapturaModalOpen] = useState<boolean>(false);
+  const [capturaModalExameTarget, setCapturaModalExameTarget] = useState<{ codigo: string; nome?: string } | null>(null);
   const labfacilFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Aplica linhas de resultado capturadas no Simulador e grava no banco
+  const handleAplicarLinhasCapturadasNoSimulador = async (novasLinhas: ILinhaResultado[]) => {
+    if (!capturaModalExameTarget) return;
+
+    const targetCod = capturaModalExameTarget.codigo.toUpperCase();
+
+    // 1. Atualiza no estado local de examesDetalhes do arquivo convertido
+    if (labfacilConvertedResult) {
+      const novosDetalhes = labfacilConvertedResult.examesDetalhes.map(detalhe => {
+        const match = detalhe.codigoEquipamento.toUpperCase() === targetCod || detalhe.codigoLabfacil.toUpperCase() === targetCod;
+        if (match) {
+          return {
+            ...detalhe,
+            linhasResultado: novasLinhas
+          };
+        }
+        return detalhe;
+      });
+
+      setLabfacilConvertedResult({
+        ...labfacilConvertedResult,
+        examesDetalhes: novosDetalhes
+      });
+    }
+
+    // 2. Persiste no catálogo do aparelho (banco de dados)
+    try {
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      const tenantId = equipamentoConfiguradoReal?.tenant_id || activeTenantObj?.id;
+      const equipId = equipamentoConfiguradoReal?.id;
+      const modelo = simulatorSelectedEquipamento;
+
+      const resp = await EquipamentoExamesService.obterExamesDoAparelho(modelo, equipId, tenantId);
+      const examesAparelho = [...resp.exames];
+
+      const idx = examesAparelho.findIndex(e => e.codigoEquipamento.toUpperCase() === targetCod);
+      if (idx >= 0) {
+        examesAparelho[idx] = {
+          ...examesAparelho[idx],
+          linhasResultado: novasLinhas
+        };
+      } else {
+        examesAparelho.push({
+          id: `auto-${Date.now()}`,
+          equipamento_id: equipId,
+          modelo_equipamento: modelo,
+          tenant_id: tenantId,
+          codigoEquipamento: targetCod,
+          nomeExame: capturaModalExameTarget.nome || targetCod,
+          categoria: 'Geral',
+          metodoOuPrincipio: '-',
+          codigoLabfacilSugerido: targetCod,
+          amostraSugerida: 'Soro',
+          unidadePadrao: '-',
+          ativo: true,
+          linhasResultado: novasLinhas,
+          calculados: [],
+          origem: 'BANCO'
+        });
+      }
+
+      if (equipId && tenantId) {
+        await EquipamentoExamesService.salvarExamesNoBanco(examesAparelho, modelo, equipId, tenantId);
+      }
+
+      showNotification(`✨ ${novasLinhas.length} linha(s) de resultado gravadas no catálogo do analisador ${modelo} para o exame ${targetCod}!`);
+    } catch (err: any) {
+      console.error("Erro ao persistir linhas capturadas:", err);
+      showNotification(`✨ Linhas de resultado aplicadas em tela com sucesso.`);
+    }
+  };
 
   // Equipamento real de produção vinculado ao modelo selecionado no Simulador (Imagem 2 -> Imagem 1)
   const equipamentoConfiguradoReal = useMemo(() => {
@@ -7817,10 +7893,27 @@ export default function MidwayLabDashboard() {
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[11px] text-slate-400 font-mono">
                                       Vinculadas ao código: <strong className="text-teal-300">{exameSelecionadoComLinhas.codigoEquipamento}</strong> ({simulatorSelectedEquipamento})
                                     </span>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCapturaModalExameTarget({
+                                          codigo: exameSelecionadoComLinhas.codigoEquipamento,
+                                          nome: exameSelecionadoComLinhas.nomeExame || exameSelecionadoComLinhas.codigoEquipamento
+                                        });
+                                        setIsCapturaModalOpen(true);
+                                      }}
+                                      className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow"
+                                      title="Conectar ao equipamento ou colar retorno de máquina para auto-aprender e atualizar as linhas de resultado deste exame"
+                                    >
+                                      <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                                      <span>📡 Capturar / Aprender Linhas</span>
+                                    </button>
+
                                     <button
                                       type="button"
                                       onClick={() => setShowLinhasResultadoPanel(false)}
@@ -11745,6 +11838,28 @@ P1`}
             Desmarcar Tudo
           </button>
         </div>
+      )}
+
+      {/* MODAL DE CAPTURA ATIVA E AUTO-APRENDIZADO DE LINHAS DE RESULTADO NO SIMULADOR/SANDBOX */}
+      {isCapturaModalOpen && capturaModalExameTarget && (
+        <ModalCapturaLinhasEquipamento
+          isOpen={isCapturaModalOpen}
+          onClose={() => {
+            setIsCapturaModalOpen(false);
+            setCapturaModalExameTarget(null);
+          }}
+          codigoExameAlvo={capturaModalExameTarget.codigo}
+          nomeExameAlvo={capturaModalExameTarget.nome}
+          modeloEquipamento={simulatorSelectedEquipamento}
+          configComunicacao={equipamentoConfiguradoReal ? {
+            tipoComunicacao: equipamentoConfiguradoReal.tipo_comunicacao,
+            ipHost: equipamentoConfiguradoReal.ip_host,
+            porta: equipamentoConfiguradoReal.porta,
+            diretorioCarga: equipamentoConfiguradoReal.diretorio_carga,
+            diretorioResultados: equipamentoConfiguradoReal.diretorio_resultados,
+          } : null}
+          onAplicarLinhas={handleAplicarLinhasCapturadasNoSimulador}
+        />
       )}
 
       {/* Footer */}

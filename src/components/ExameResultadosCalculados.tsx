@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Plus, Trash2, Save, ArrowDownToLine, CheckSquare, X, Search, Check, GripVertical } from "lucide-react";
+import { Plus, Trash2, Save, ArrowDownToLine, CheckSquare, X, Search, Check, GripVertical, Radio } from "lucide-react";
 import type { ICalculadoExame, ILinhaResultado, IExameEquipamentoRecord } from "../services/equipamento-exames-service";
 import { validarFormula, calcularFormula, aplicarMascara } from "../lib/formula-calculados";
+import ModalCapturaLinhasEquipamento from "./ModalCapturaLinhasEquipamento";
 
 interface Props {
   exame: IExameEquipamentoRecord;
@@ -36,6 +37,7 @@ export default function ExameResultadosCalculados({
   const [buscaLote, setBuscaLote] = useState("");
   const [itensLoteSelecionados, setItensLoteSelecionados] = useState<Set<string>>(new Set());
   const [isDragOverLinhas, setIsDragOverLinhas] = useState(false);
+  const [isCapturaModalOpen, setIsCapturaModalOpen] = useState(false);
 
   // Estados para reordenar linhas de resultado via Drag and Drop
   const [dragActiveLinhaIndex, setDragActiveLinhaIndex] = useState<number | null>(null);
@@ -112,6 +114,19 @@ export default function ExameResultadosCalculados({
         }
       ]
     });
+
+  const handleAplicarLinhasCapturadas = (novasLinhas: ILinhaResultado[]) => {
+    const existentes = [...linhas];
+    novasLinhas.forEach(nova => {
+      const idx = existentes.findIndex(l => l.codigoEquipamento.toUpperCase() === nova.codigoEquipamento.toUpperCase());
+      if (idx >= 0) {
+        existentes[idx] = { ...existentes[idx], ...nova };
+      } else {
+        existentes.push(nova);
+      }
+    });
+    onChange({ linhasResultado: existentes });
+  };
 
   const addCalc = () =>
     onChange({
@@ -241,6 +256,16 @@ export default function ExameResultadosCalculados({
                 </button>
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={() => setIsCapturaModalOpen(true)}
+              className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg px-2.5 py-1 flex items-center gap-1.5 cursor-pointer font-bold text-[11px] transition shadow-sm"
+              title="Conectar ao equipamento ou colar retorno bruto (ASTM/HL7) para extrair as linhas automaticamente"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <span>Capturar do Equipamento</span>
+            </button>
 
             <button
               type="button"
@@ -717,6 +742,16 @@ export default function ExameResultadosCalculados({
           <Save className="w-3.5 h-3.5" /> {salvando ? "Gravando..." : "Gravar"}
         </button>
       </div>
+
+      {/* MODAL DE CAPTURA ATIVA E AUTO-APRENDIZADO DE LINHAS DO EQUIPAMENTO */}
+      <ModalCapturaLinhasEquipamento
+        isOpen={isCapturaModalOpen}
+        onClose={() => setIsCapturaModalOpen(false)}
+        codigoExameAlvo={exame.codigoEquipamento}
+        nomeExameAlvo={exame.nomeExame}
+        modeloEquipamento={exame.modelo_equipamento || "EQUIPAMENTO"}
+        onAplicarLinhas={handleAplicarLinhasCapturadas}
+      />
     </div>
   );
 }

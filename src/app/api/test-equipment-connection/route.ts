@@ -16,7 +16,9 @@ export async function POST(request: Request) {
       diretorioResultados,
       enviarCarga,
       mensagem,
-      nomeArquivo
+      nomeArquivo,
+      escutarResultados,
+      lerUltimoResultado
     } = body;
 
     // 1. MODO REDE TCP/IP
@@ -90,6 +92,24 @@ export async function POST(request: Request) {
                 detalhesTecnicos: `Destino: ${ipHost}:${portNumber}\nBytes transmitidos: ${bytesEnviados}\nResposta do equipamento: ${respostaRecebida || 'ACK de recepção OK'}`
               });
             }, 2000);
+          } else if (escutarResultados) {
+            // Modo Escuta / Captura ativa de retorno do analisador
+            // Envia um caractere ENQ (0x05) padrão para solicitar se o analisador tem mensagens pendentes no buffer
+            try {
+              socket.write(Buffer.from([0x05]));
+            } catch (_) {}
+
+            setTimeout(() => {
+              socket.end();
+              resolve({
+                success: true,
+                respostaRecebida: respostaRecebida.trim(),
+                message: respostaRecebida
+                  ? `✓ Pacote de retorno recebido do analisador! (${respostaRecebida.length} caracteres capturados)`
+                  : `✓ Conexão com ${ipHost}:${portNumber} ativa e pronta para receber resultados. (Dispare o envio no painel da máquina)`,
+                detalhesTecnicos: respostaRecebida || 'Nenhum dado pendente no buffer do equipamento.'
+              });
+            }, 3000);
           } else {
             // Apenas handshake de teste
             socket.destroy();
@@ -155,6 +175,41 @@ export async function POST(request: Request) {
       }
 
       try {
+        // Se solicitado ler o último resultado gravado pelo analisador no disco
+        if (lerUltimoResultado && diretorioResultados && fs.existsSync(diretorioResultados)) {
+          try {
+            const files = fs.readdirSync(diretorioResultados)
+              .map(name => ({
+                name,
+                fullPath: path.join(diretorioResultados, name),
+                mtime: fs.statSync(path.join(diretorioResultados, name)).mtime
+              }))
+              .filter(f => !fs.statSync(f.fullPath).isDirectory())
+              .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+            if (files.length > 0) {
+              const ultimo = files[0];
+              const conteudo = fs.readFileSync(ultimo.fullPath, 'utf8');
+              return NextResponse.json({
+                success: true,
+                ultimoArquivoNome: ultimo.name,
+                ultimoResultadoConteudo: conteudo,
+                message: `✓ Último arquivo capturado com sucesso: ${ultimo.name} (${conteudo.length} caracteres)`
+              });
+            } else {
+              return NextResponse.json({
+                success: false,
+                message: `Nenhum arquivo de resultado encontrado na pasta: ${diretorioResultados}`
+              });
+            }
+          } catch (readErr: any) {
+            return NextResponse.json({
+              success: false,
+              message: `Erro ao inspecionar pasta de resultados: ${readErr.message}`
+            });
+          }
+        }
+
         if (!fs.existsSync(diretorioCarga)) {
           fs.mkdirSync(diretorioCarga, { recursive: true });
         }
