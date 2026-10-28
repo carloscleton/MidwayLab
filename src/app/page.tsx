@@ -641,6 +641,95 @@ export default function MidwayLabDashboard() {
   const [respostaTransmissaoReal, setRespostaTransmissaoReal] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState("LAB. ARES - LABFACIL (San Mathews)");
 
+  // AMBIENTE DE TESTE: IMPORTAÇÃO E CONVERSÃO DE ARQUIVO REAL LABFACIL
+  const [simulatorModo, setSimulatorModo] = useState<"conversao_labfacil" | "gerador_rapido">("conversao_labfacil");
+  
+  const EXEMPLO_LABFACIL_JSON = `{
+  "numeroPedido": "0142215202",
+  "dataSolicitacao": "2026-10-28T09:30:00",
+  "cliente": {
+    "codPac": "PAC-94821",
+    "nome": "MARIA HELENA SANTOS",
+    "idade": 34,
+    "sexo": "F",
+    "cpf": "123.456.789-00",
+    "convenio": "UNIMED"
+  },
+  "exames": [
+    { "codigo": "GLICOSE", "descricao": "GLICOSE JEJUM", "amostra": "0142215202", "material": "SORO" },
+    { "codigo": "UREIA", "descricao": "UREIA SÉRICA", "amostra": "0142215202", "material": "SORO" },
+    { "codigo": "CREATININA", "descricao": "CREATININA", "amostra": "0142215202", "material": "SORO" },
+    { "codigo": "COLESTEROL_TOTAL", "descricao": "COLESTEROL TOTAL", "amostra": "0142215202", "material": "SORO" },
+    { "codigo": "TRIGLICERIDEOS", "descricao": "TRIGLICERÍDEOS", "amostra": "0142215202", "material": "SORO" }
+  ]
+}`;
+
+  const EXEMPLO_LABFACIL_XML = `<?xml version="1.0" encoding="utf-8"?>
+<Principal>
+  <Paciente>
+    <CodigoLis>0142215202</CodigoLis>
+    <CodPac>PAC-94821</CodPac>
+    <Nome>MARIA HELENA SANTOS</Nome>
+    <Idade>34</Idade>
+    <Sexo>F</Sexo>
+    <Exames>
+      <Exame>
+        <Codigo>GLICOSE</Codigo>
+        <Descricao>GLICOSE JEJUM</Descricao>
+        <Amostra>0142215202</Amostra>
+      </Exame>
+      <Exame>
+        <Codigo>UREIA</Codigo>
+        <Descricao>UREIA SÉRICA</Descricao>
+        <Amostra>0142215202</Amostra>
+      </Exame>
+      <Exame>
+        <Codigo>CREATININA</Codigo>
+        <Descricao>CREATININA</Descricao>
+        <Amostra>0142215202</Amostra>
+      </Exame>
+      <Exame>
+        <Codigo>COLESTEROL_TOTAL</Codigo>
+        <Descricao>COLESTEROL TOTAL</Descricao>
+        <Amostra>0142215202</Amostra>
+      </Exame>
+    </Exames>
+  </Paciente>
+</Principal>`;
+
+  const EXEMPLO_LABFACIL_SYSMEX = `{
+  "numeroPedido": "0142215305",
+  "dataSolicitacao": "2026-10-28T09:45:00",
+  "cliente": {
+    "codPac": "PAC-94830",
+    "nome": "CARLOS EDUARDO SILVA",
+    "idade": 42,
+    "sexo": "M"
+  },
+  "exames": [
+    { "codigo": "SEDIMENTO_URINA", "descricao": "SEDIMENTOSCOPIA AUTOMATIZADA", "amostra": "0142215305", "material": "URINA" },
+    { "codigo": "RBC", "descricao": "HEMÁCIAS", "amostra": "0142215305", "material": "URINA" },
+    { "codigo": "WBC", "descricao": "LEUCÓCITOS", "amostra": "0142215305", "material": "URINA" },
+    { "codigo": "BACT", "descricao": "BACTÉRIAS", "amostra": "0142215305", "material": "URINA" },
+    { "codigo": "EC", "descricao": "CÉLULAS EPITELIAIS", "amostra": "0142215305", "material": "URINA" }
+  ]
+}`;
+
+  const [labfacilRawInput, setLabfacilRawInput] = useState<string>(EXEMPLO_LABFACIL_JSON);
+  const [labfacilFileName, setLabfacilFileName] = useState<string>("pedido_labfacil_0142215202.json");
+  const [labfacilConvertedResult, setLabfacilConvertedResult] = useState<{
+    pedidoParsed: ILabfacilPedidoParsed;
+    conteudoArquivo: string;
+    formato: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV';
+    nomeArquivoSugerido: string;
+    examesMapeadosCount: number;
+    examesNaoMapeadosCount: number;
+    examesDetalhes: Array<{ codigoLabfacil: string; codigoEquipamento: string; mapeado: boolean }>;
+  } | null>(null);
+  const [isTransmittingConverted, setIsTransmittingConverted] = useState<boolean>(false);
+  const [convertedTransmissionFeedback, setConvertedTransmissionFeedback] = useState<string | null>(null);
+  const labfacilFileInputRef = useRef<HTMLInputElement>(null);
+
   // Equipamento real de produção vinculado ao modelo selecionado no Simulador (Imagem 2 -> Imagem 1)
   const equipamentoConfiguradoReal = useMemo(() => {
     if (!simulatorSelectedEquipamento) return null;
@@ -722,6 +811,172 @@ export default function MidwayLabDashboard() {
     } finally {
       setIsTransmitindoReal(false);
     }
+  };
+
+  // EXECUTA CONVERSÃO DO ARQUIVO DO LABFACIL PARA O EQUIPAMENTO
+  const handleConverterArquivoLabfacil = () => {
+    if (!labfacilRawInput.trim()) {
+      showNotification("⚠️ Forneça o arquivo JSON ou XML do Labfacil.");
+      return;
+    }
+
+    try {
+      const pedidos = LabfacilParserService.parseFile(labfacilRawInput, labfacilFileName);
+      if (!pedidos || pedidos.length === 0) {
+        showNotification("⚠️ Nenhum pedido válido encontrado no arquivo fornecido.");
+        return;
+      }
+
+      const pedido = pedidos[0];
+
+      // Mapeamentos DE-PARA disponíveis
+      const mapMapeamentos = new Map<string, string>();
+      labfacilExames.forEach((item) => {
+        if (item.codigo && item.autolacMapped) {
+          mapMapeamentos.set(item.codigo.toUpperCase().trim(), item.autolacMapped.toUpperCase().trim());
+        }
+      });
+
+      // Mapeamentos padrão de fallback por mnemônico comum
+      const FALLBACK_DEPARA: Record<string, string> = {
+        GLICOSE: "GLI",
+        GLI: "GLI",
+        GLICEMIA: "GLI",
+        UREIA: "URE",
+        URE: "URE",
+        CREATININA: "CRE",
+        CRE: "CRE",
+        COLESTEROL: "COL",
+        COLESTEROL_TOTAL: "COL",
+        COL: "COL",
+        TRIGLICERIDEOS: "TRI",
+        TRIGLICERIDES: "TRI",
+        TRI: "TRI",
+        HEMOGRAMA: "HEMO_FULL",
+        HEMOGRAMA_COMPLETO: "HEMO_FULL",
+        TSH: "TSH",
+        T4_LIVRE: "T4L",
+        T4L: "T4L",
+        PSA: "PSA",
+        PSA_TOTAL: "PSA",
+        VITAMINA_D: "VITD",
+        VITD: "VITD",
+        URINA: "SEDIMENTO_URINA",
+        SEDIMENTO_URINA: "SEDIMENTO_URINA",
+        RBC: "RBC",
+        WBC: "WBC",
+        BACT: "BACT",
+        EC: "EC",
+        CAST: "CAST",
+        XTAL: "XTAL"
+      };
+
+      Object.entries(FALLBACK_DEPARA).forEach(([k, v]) => {
+        if (!mapMapeamentos.has(k)) {
+          mapMapeamentos.set(k, v);
+        }
+      });
+
+      const formatoAlvo = simulatorSelectedFormato === "AUTO"
+        ? (equipamentoConfiguradoReal?.formato_arquivo as any || undefined)
+        : simulatorSelectedFormato;
+
+      const resultadoConversao = LabfacilParserService.gerarCargaEquipamento(
+        pedido,
+        simulatorSelectedEquipamento,
+        mapMapeamentos,
+        formatoAlvo
+      );
+
+      setLabfacilConvertedResult({
+        pedidoParsed: pedido,
+        ...resultadoConversao
+      });
+      setConvertedTransmissionFeedback(null);
+
+      showNotification(`✨ Pedido ${pedido.numeroPedido} convertido para o analisador '${simulatorSelectedEquipamento}' no formato ${resultadoConversao.formato}!`);
+    } catch (err: any) {
+      console.error("[Conversão Labfacil] Erro:", err);
+      showNotification(`❌ Falha ao processar arquivo: ${err.message}`);
+    }
+  };
+
+  // TRANSMITE A CARGA CONVERTIDA PARA O EQUIPAMENTO REAL DE PRODUÇÃO
+  const handleTransmitirCargaConvertidaReal = async () => {
+    if (!labfacilConvertedResult) {
+      showNotification("⚠️ Converta o arquivo do Labfacil antes de transmitir.");
+      return;
+    }
+    if (!equipamentoConfiguradoReal) {
+      showNotification("⚠️ Equipamento não cadastrado na empresa ativa com as configurações de IP ou Pasta Carga.");
+      return;
+    }
+
+    setIsTransmittingConverted(true);
+    setConvertedTransmissionFeedback(null);
+
+    try {
+      const res = await fetch("/api/test-equipment-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipoComunicacao: equipamentoConfiguradoReal.tipo_comunicacao || "TCP_IP",
+          ipHost: equipamentoConfiguradoReal.ip_host,
+          porta: equipamentoConfiguradoReal.porta,
+          diretorioCarga: equipamentoConfiguradoReal.diretorio_carga,
+          diretorioResultados: equipamentoConfiguradoReal.diretorio_resultados,
+          enviarCarga: true,
+          mensagem: labfacilConvertedResult.conteudoArquivo,
+          nomeArquivo: labfacilConvertedResult.nomeArquivoSugerido
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setConvertedTransmissionFeedback(data.detalhesTecnicos || data.message);
+        showNotification(`🚀 [CARGA TRANSMITIDA] ${data.message}`);
+      } else {
+        setConvertedTransmissionFeedback(`FALHA NA TRANSMISSÃO: ${data.message}`);
+        showNotification(`⚠️ [TRANSMISSÃO] ${data.message}`);
+      }
+    } catch (err: any) {
+      setConvertedTransmissionFeedback(`ERRO AO CONECTAR: ${err.message}`);
+      showNotification(`❌ Erro ao enviar para analisador: ${err.message}`);
+    } finally {
+      setIsTransmittingConverted(false);
+    }
+  };
+
+  // DOWNLOAD DO ARQUIVO CONVERTIDO
+  const handleBaixarArquivoConvertido = () => {
+    if (!labfacilConvertedResult) return;
+    const blob = new Blob([labfacilConvertedResult.conteudoArquivo], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = labfacilConvertedResult.nomeArquivoSugerido;
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotification(`💾 Download de ${labfacilConvertedResult.nomeArquivoSugerido} iniciado!`);
+  };
+
+  // UPLOAD DE ARQUIVO DO LABFACIL
+  const handleUploadArquivoLabfacil = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLabfacilFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setLabfacilRawInput(text);
+        setLabfacilConvertedResult(null);
+        setConvertedTransmissionFeedback(null);
+        showNotification(`📁 Arquivo '${file.name}' carregado (${text.length} caracteres). Pronto para converter!`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   // HANDLE FILE SELECTION & PARSING (XML / JSON / CSV / XLSX)
@@ -6906,358 +7161,773 @@ export default function MidwayLabDashboard() {
         {/* TAB: SIMULADOR DE EQUIPAMENTOS (MOCK DE IDA & RETORNO) */}
         {activeTab === "simulador" && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-slate-900/90 border border-purple-500/40 p-6 rounded-2xl space-y-4 shadow-xl">
+            <div className="bg-slate-900/90 border border-purple-500/40 p-6 rounded-2xl space-y-5 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                     <Cpu className="w-5 h-5 text-purple-400" />
-                    Simulador Interativo de Analisadores Laboratoriais (Sandbox de Teste)
+                    Simulador & Conversor Interativo de Analisadores (Sandbox de Teste)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Ambiente seguro para simular a <strong>IDA</strong> (recebimento do pedido/amostra pelo equipamento) e o <strong>RETORNO</strong> (liberação automática de resultados no protocolo oficial HL7, ASTM ou JSON).
+                    Ambiente seguro para testar a <strong>conversão de arquivos reais do Labfacil</strong> para o protocolo do analisador e simular a <strong>comunicação física</strong> (TCP/IP ou Pasta Carga).
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40 px-3 py-1 rounded-full font-bold flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> Modo Simulação Ativo
+                    <Sparkles className="w-3.5 h-3.5" /> Modo Sandbox Ativo
                   </span>
                 </div>
               </div>
 
-              {/* CONTROLES DO SIMULADOR */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-xs font-mono">
-                {/* 1. ESCOLHA DO ANALISADOR A SER SIMULADO */}
-                <div className="space-y-1.5">
-                  <label className="text-slate-300 font-bold font-sans">1. Analisador Simulado:</label>
-                                    <select
-                    value={simulatorSelectedEquipamento}
-                    onChange={(e) => {
-                      const mod = e.target.value;
-                      setSimulatorSelectedEquipamento(mod);
-                      const modObj = catalogoModelos.find(m => m.codigo_modelo === mod);
-                      
-                      // Auto-configura formato de transmissão a partir do cadastro do equipamento
-                      const modNorm = mod.toUpperCase().replace(/[^A-Z0-9]/g, "");
-                      const eqConfig = equipamentosList.find(eq => {
-                        const eqModNorm = (eq.modelo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-                        const eqNomeNorm = (eq.nome || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-                        return eqModNorm === modNorm || eqNomeNorm.includes(modNorm) || modNorm.includes(eqModNorm);
-                      });
-
-                      if (eqConfig && eqConfig.formato_arquivo) {
-                        setSimulatorSelectedFormato(eqConfig.formato_arquivo as any);
-                      }
-
-                      if (mod === "SYSMEX_UF_1500" || mod.includes("UF") || mod.includes("SYSMEX")) {
-                        setSimulatorExamesInput("RBC, WBC, EC, CAST, BACT, XTAL");
-                        setSimulatorSelectedFormato("ASTM");
-                      } else if (modObj && modObj.exames && modObj.exames.length > 0) {
-                        setSimulatorExamesInput(modObj.exames.slice(0, 6).map(x => x.codigoEquipamento).join(", "));
-                      } else if (mod === "ACCESS") {
-                        setSimulatorExamesInput("VITDACCESS, TSH, T4L, PSA");
-                      } else if (mod === "BC_3000" || mod === "BC_5380" || mod === "YUMIZEN") {
-                        setSimulatorExamesInput("WBC, RBC, HGB, HCT, PLT, NEU%, LYM%");
-                      } else {
-                        setSimulatorExamesInput("GLI, URE, CRE, COL, TRI, AST, ALT");
-                      }
-                      setSimulatorSimulatedRelease(null);
-                      setRespostaTransmissaoReal(null);
-                    }}
-                    className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none cursor-pointer"
-                  >
-                    {catalogoModelos.filter(m => m.ativo !== false).map(m => (
-                      <option key={m.codigo_modelo} value={m.codigo_modelo}>
-                        {m.nome_completo}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-[10px] text-slate-400 font-sans block">
-                    Protocolo Padrão: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
-                  </span>
-                </div>
-
-                {/* 2. FORMATO DA MENSAGEM DE RETORNO */}
-                <div className="space-y-1.5">
-                  <label className="text-slate-300 font-bold font-sans">2. Formato de Transmissão:</label>
-                  <select
-                    value={simulatorSelectedFormato}
-                    onChange={(e) => setSimulatorSelectedFormato(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none"
-                  >
-                    <option value="AUTO">Automático (Padrão do Aparelho)</option>
-                    <option value="XML">XML Estruturado (&lt;Principal&gt;&lt;Paciente&gt;...)</option>
-                    <option value="JSON">JSON (Carga Web/API Midway)</option>
-                    <option value="ASTM">ASTM E1394 (Porta Serial / Arquivo)</option>
-                    <option value="HL7">HL7 v2.3.1 (ORU^R01)</option>
-                  </select>
-                  <span className="text-[10px] text-slate-400 font-sans block">Estrutura transmitida ao Midway</span>
-                </div>
-
-                {/* 3. DADOS DO PEDIDO DE TESTE */}
-                <div className="space-y-1.5">
-                  <label className="text-slate-300 font-bold font-sans">3. Número Pedido / Tubo:</label>
-                  <input
-                    type="text"
-                    value={simulatorPedidoNumero}
-                    onChange={(e) => setSimulatorPedidoNumero(e.target.value.toUpperCase())}
-                    placeholder="Ex: 0142215202"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500"
-                  />
-                  <span className="text-[10px] text-slate-400 font-sans block">Código de barras / Amostra</span>
-                </div>
-
-                {/* 4. PACIENTE */}
-                <div className="space-y-1.5">
-                  <label className="text-slate-300 font-bold font-sans">4. Nome do Paciente:</label>
-                  <input
-                    type="text"
-                    value={simulatorPacienteNome}
-                    onChange={(e) => setSimulatorPacienteNome(e.target.value)}
-                    placeholder="Ex: Maria Helena Santos"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500 font-sans"
-                  />
-                  <span className="text-[10px] text-slate-400 font-sans block">Identificação do paciente</span>
-                </div>
-
-                {/* 5. EXAMES REQUISITADOS */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-slate-300 font-bold font-sans">5. Códigos dos Exames:</label>
-                    <button
-                      type="button"
-                      onClick={() => setSimulatorSimularAlterados(!simulatorSimularAlterados)}
-                      className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition font-bold font-sans ${
-                        simulatorSimularAlterados ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-slate-800 text-slate-400"
-                      }`}
-                      title="Alternar entre gerar todos normais ou alguns alterados"
-                    >
-                      {simulatorSimularAlterados ? "⚠️ Alterados" : "✅ Normais"}
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={simulatorExamesInput}
-                    onChange={(e) => setSimulatorExamesInput(e.target.value.toUpperCase())}
-                    placeholder="VITDACCESS, GLI, URE"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-bold focus:outline-none focus:border-purple-500"
-                  />
-                  <span className="text-[10px] text-slate-400 font-sans block">Separados por vírgula</span>
-                </div>
-              </div>
-
-              {/* CARD DE CONEXÃO REAL DE PRODUÇÃO VINCULADO À IMAGEM 2 */}
-              {equipamentoConfiguradoReal ? (
-                <div className="bg-gradient-to-r from-slate-950 via-teal-950/30 to-slate-950 border border-teal-500/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-lg shadow-teal-500/10">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                      <span className="font-bold text-slate-100 flex items-center gap-1.5">
-                        🎯 Alvo de Produção Vinculado: <strong className="text-teal-300 font-mono text-sm">{equipamentoConfiguradoReal.nome}</strong>
-                      </span>
-                      <span className="bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold">
-                        {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? 'Modo Rede TCP/IP' : 'Modo Pasta Carga'}
-                      </span>
-                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold">
-                        Formato: {equipamentoConfiguradoReal.formato_arquivo || 'ASTM E1394'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-slate-400 font-mono pt-1">
-                      {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? (
-                        <div>🌐 IP & Porta: <strong className="text-slate-200">{equipamentoConfiguradoReal.ip_host}:{equipamentoConfiguradoReal.porta}</strong></div>
-                      ) : (
-                        <div>📁 Pasta Carga: <strong className="text-slate-200">{equipamentoConfiguradoReal.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\Carga'}</strong></div>
-                      )}
-                      <div>📊 Pasta Resultados: <strong className="text-slate-200">{equipamentoConfiguradoReal.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\Resultados'}</strong></div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isTransmitindoReal}
-                    onClick={handleTransmitirCargaReal}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-50 shrink-0"
-                    title="Conecta no IP/Porta ou Pasta Carga reais configurados no analisador e transmite a carga"
-                  >
-                    <Zap className={`w-4 h-4 fill-current ${isTransmitindoReal ? 'animate-bounce' : ''}`} />
-                    {isTransmitindoReal ? 'Transmitindo ao Equipamento...' : '🚀 Transmitir para o Equipamento Real'}
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-xs text-slate-400 flex items-center justify-between">
-                  <span>💡 Analisador operando em <strong>Modo Sandbox Simulado</strong>. As configurações reais deste equipamento serão carregadas quando ele estiver cadastrado na empresa ativa.</span>
-                </div>
-              )}
-
-              {/* CONSOLE DE RETORNO DA TRANSMISSÃO REAL */}
-              {respostaTransmissaoReal && (
-                <div className="p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/40 text-xs font-mono space-y-1 animate-fadeIn">
-                  <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-slate-800 pb-1.5">
-                    <span className="flex items-center gap-1.5">
-                      <Terminal className="w-4 h-4 text-cyan-400" />
-                      Console de Resposta da Comunicação com o Equipamento
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setRespostaTransmissaoReal(null)}
-                      className="text-slate-400 hover:text-slate-200 cursor-pointer text-[10px]"
-                    >
-                      Fechar console ✕
-                    </button>
-                  </div>
-                  <pre className="text-slate-200 whitespace-pre-wrap leading-relaxed select-all max-h-32 overflow-y-auto custom-scrollbar pt-1">
-                    {respostaTransmissaoReal}
-                  </pre>
-                </div>
-              )}
-
-              {/* BOTÕES DE AÇÃO: DISPARAR SIMULAÇÃO */}
-              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800">
+              {/* SELETOR DE MODALIDADE DE TESTE */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    const examesArray = simulatorExamesInput
-                      .split(",")
-                      .map((c) => c.trim())
-                      .filter(Boolean)
-                      .map((c) => ({ codigoEquipamento: c, nomeExame: c }));
-
-                    if (examesArray.length === 0) {
-                      showNotification("⚠️ Informe ao menos um código de exame para simular.");
-                      return;
-                    }
-
-                    const resultados = EquipamentoSimulatorService.gerarResultadosSimulados(
-                      examesArray,
-                      simulatorSelectedEquipamento,
-                      simulatorSimularAlterados
-                    );
-
-                    const formatoFinal = simulatorSelectedFormato === "AUTO" ? undefined : simulatorSelectedFormato;
-                    const releasePayload = EquipamentoSimulatorService.construirPayloadRetorno(
-                      simulatorPedidoNumero,
-                      simulatorPacienteNome,
-                      simulatorSelectedEquipamento,
-                      resultados,
-                      formatoFinal
-                    );
-
-                    setSimulatorSimulatedRelease(releasePayload);
-                    showNotification(`🧪 [SIMULADOR] Equipamento '${simulatorSelectedEquipamento}' executou a análise do pedido '${simulatorPedidoNumero}' e liberou ${resultados.length} resultados em formato ${releasePayload.formato}!`);
-                  }}
-                  className="bg-purple-600 hover:bg-purple-500 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-purple-600/30"
+                  onClick={() => setSimulatorModo("conversao_labfacil")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    simulatorModo === "conversao_labfacil"
+                      ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 border border-purple-500/50"
+                      : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+                  }`}
                 >
-                  <Play className="w-4 h-4 fill-current" /> ▶️ Simular Ida & Execução do Aparelho
+                  <ArrowLeftRight className="w-4 h-4 text-purple-300" />
+                  📥 Importar Arquivo Labfacil & Converter para o Aparelho (Teste Completo)
                 </button>
-
-                {simulatorSimulatedRelease && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      showNotification(`📥 [RETORNO] Resultados do pedido '${simulatorSimulatedRelease.numeroPedido}' recebidos com sucesso no Midway via protocolo ${simulatorSimulatedRelease.formato}!`);
-                    }}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/20"
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> 📥 Confirmar Entrada de Retorno no Midway
-                  </button>
-                )}
-
                 <button
                   type="button"
-                  onClick={() => {
-                    setSimulatorSimulatedRelease(null);
-                    showNotification("🧹 Painel de simulação limpo.");
-                  }}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                  onClick={() => setSimulatorModo("gerador_rapido")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    simulatorModo === "gerador_rapido"
+                      ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 border border-purple-500/50"
+                      : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+                  }`}
                 >
-                  Limpar
+                  <Play className="w-3.5 h-3.5 text-purple-300" />
+                  🧪 Simulação Rápida / Mock de Resultados (Manual)
                 </button>
               </div>
 
-              {/* PAINEL DE RESULTADOS SIMULADOS (RETORNO DO ANALISADOR) */}
-              {simulatorSimulatedRelease && (
-                <div className="mt-4 p-5 rounded-2xl bg-slate-950 border border-purple-500/50 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                        <Activity className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                          Pacote de Retorno Gerado pelo Aparelho: <span className="text-purple-300 font-mono">{simulatorSimulatedRelease.equipamentoModelo}</span>
-                        </h4>
-                        <p className="text-xs text-slate-400">
-                          Pedido: <strong className="text-teal-300 font-mono">{simulatorSimulatedRelease.numeroPedido}</strong> | Paciente: <strong className="text-slate-200">{simulatorSimulatedRelease.pacienteNome}</strong> | Formato: <strong className="text-amber-400 font-mono">{simulatorSimulatedRelease.formato}</strong>
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-400">
-                      Liberado em: {new Date(simulatorSimulatedRelease.dataHoraLiberacao).toLocaleTimeString()}
-                    </span>
-                  </div>
+              {/* ======================================================== */}
+              {/* MODO 1: IMPORTAÇÃO E CONVERSÃO DE ARQUIVO REAL LABFACIL  */}
+              {/* ======================================================== */}
+              {simulatorModo === "conversao_labfacil" && (
+                <div className="space-y-5 animate-fadeIn">
+                  {/* SELEÇÃO DO EQUIPAMENTO DESTINO */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-slate-300 font-bold font-sans flex items-center justify-between">
+                        <span>1. Analisador Alvo (Equipamento que receberá o arquivo):</span>
+                        <span className="text-[11px] text-teal-400 font-mono">
+                          Protocolo Nativo: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
+                        </span>
+                      </label>
+                      <select
+                        value={simulatorSelectedEquipamento}
+                        onChange={(e) => {
+                          const mod = e.target.value;
+                          setSimulatorSelectedEquipamento(mod);
+                          const modNorm = mod.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                          const eqConfig = equipamentosList.find(eq => {
+                            const eqModNorm = (eq.modelo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            const eqNomeNorm = (eq.nome || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            return eqModNorm === modNorm || eqNomeNorm.includes(modNorm) || modNorm.includes(eqModNorm);
+                          });
 
-                  {/* TABELA DE RESULTADOS CLÍNICOS LIBERADOS */}
-                  <div className="overflow-x-auto rounded-xl border border-slate-800">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
-                        <tr>
-                          <th className="py-2 px-3">Status</th>
-                          <th className="py-2 px-3">Cód. Aparelho</th>
-                          <th className="py-2 px-3">Exame</th>
-                          <th className="py-2 px-3 text-right">Resultado</th>
-                          <th className="py-2 px-3">Unidade</th>
-                          <th className="py-2 px-3">Valores de Referência</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/80 bg-slate-950/60">
-                        {simulatorSimulatedRelease.resultados.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-slate-900/40 transition">
-                            <td className="py-2 px-3">
-                              {item.status === "NORMAL" ? (
-                                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
-                                  NORMAL
-                                </span>
-                              ) : (
-                                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
-                                  ALTERADO
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3">
-                              <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-xs font-bold">
-                                {item.codigoEquipamento}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-slate-200 font-sans font-medium">
-                              {item.nomeExame}
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <span className={`text-sm font-black font-mono ${item.status === "NORMAL" ? "text-emerald-400" : "text-rose-400 font-extrabold"}`}>
-                                {item.valor}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-slate-400 text-xs">
-                              {item.unidade}
-                            </td>
-                            <td className="py-2 px-3 text-slate-400 text-xs">
-                              {item.valoresReferencia}
-                            </td>
-                          </tr>
+                          if (eqConfig && eqConfig.formato_arquivo) {
+                            setSimulatorSelectedFormato(eqConfig.formato_arquivo as any);
+                          } else if (mod.includes("UF") || mod.includes("SYSMEX") || mod.includes("YUMIZEN") || mod.includes("ACCESS")) {
+                            setSimulatorSelectedFormato("ASTM");
+                          } else if (mod.includes("BS_240") || mod.includes("BC_5380") || mod.includes("MINDRAY")) {
+                            setSimulatorSelectedFormato("HL7");
+                          } else {
+                            setSimulatorSelectedFormato("JSON");
+                          }
+                          setLabfacilConvertedResult(null);
+                          setConvertedTransmissionFeedback(null);
+                        }}
+                        className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none cursor-pointer"
+                      >
+                        {catalogoModelos.filter(m => m.ativo !== false).map(m => (
+                          <option key={m.codigo_modelo} value={m.codigo_modelo}>
+                            {m.nome_completo}
+                          </option>
                         ))}
-                      </tbody>
-                    </table>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold font-sans">2. Formato do Protocolo Alvo:</label>
+                      <select
+                        value={simulatorSelectedFormato}
+                        onChange={(e) => {
+                          setSimulatorSelectedFormato(e.target.value as any);
+                          setLabfacilConvertedResult(null);
+                          setConvertedTransmissionFeedback(null);
+                        }}
+                        className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none cursor-pointer"
+                      >
+                        <option value="AUTO">Automático (Padrão do Aparelho)</option>
+                        <option value="ASTM">ASTM E1394 (Sysmex, Yumizen, Access)</option>
+                        <option value="HL7">HL7 v2.3.1 (Mindray BS-240 / BC-5380)</option>
+                        <option value="JSON">JSON (CB350 / Wiener Lab)</option>
+                        <option value="XML">XML Estruturado (&lt;Principal&gt;...)</option>
+                      </select>
+                    </div>
                   </div>
 
-                  {/* PACOTE BRUTO (RAW TELEMETRIA / PROTOCOLO HL7 / ASTM / JSON) */}
-                  <details className="text-[11px] bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                    <summary className="text-purple-300 cursor-pointer font-bold font-sans flex items-center justify-between">
-                      <span>📄 Ver Mensagem Bruta transmitida na porta/arquivo ({simulatorSimulatedRelease.formato})</span>
-                      <span className="text-[10px] text-slate-500 font-normal">Clique para expandir</span>
-                    </summary>
-                    <pre className="mt-2.5 p-3 rounded-lg bg-slate-950 text-cyan-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap border border-slate-800/80 leading-relaxed">
-                      {simulatorSimulatedRelease.rawOutputPayload}
-                    </pre>
-                  </details>
+                  {/* ALVO DE PRODUÇÃO VINCULADO */}
+                  {equipamentoConfiguradoReal ? (
+                    <div className="bg-gradient-to-r from-slate-950 via-teal-950/30 to-slate-950 border border-teal-500/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-lg shadow-teal-500/10">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="font-bold text-slate-100 flex items-center gap-1.5">
+                            🎯 Alvo de Produção Vinculado: <strong className="text-teal-300 font-mono text-sm">{equipamentoConfiguradoReal.nome}</strong>
+                          </span>
+                          <span className="bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                            {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? 'Modo Rede TCP/IP' : 'Modo Pasta Carga'}
+                          </span>
+                          <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                            Formato: {equipamentoConfiguradoReal.formato_arquivo || 'ASTM E1394'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-slate-400 font-mono pt-1">
+                          {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? (
+                            <div>🌐 IP & Porta: <strong className="text-slate-200">{equipamentoConfiguradoReal.ip_host}:{equipamentoConfiguradoReal.porta}</strong></div>
+                          ) : (
+                            <div>📁 Pasta Carga: <strong className="text-slate-200">{(equipamentoConfiguradoReal.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\Carga').replace(/[/\\]+/g, '\\')}</strong></div>
+                          )}
+                          <div>📊 Pasta Resultados: <strong className="text-slate-200">{(equipamentoConfiguradoReal.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\Resultados').replace(/[/\\]+/g, '\\')}</strong></div>
+                        </div>
+                      </div>
+
+                      <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl shrink-0">
+                        ✓ Configurações Ativas
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-xs text-slate-400">
+                      💡 Operando em <strong>Modo Sandbox de Validação</strong>. Cadastre este analisador na empresa ativa para habilitar envio físico automático para a pasta de carga ou porta TCP/IP.
+                    </div>
+                  )}
+
+                  {/* ARQUIVO DE ENTRADA DO LABFACIL */}
+                  <div className="bg-slate-950/80 border border-slate-800 p-4.5 rounded-2xl space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs font-bold text-slate-100">
+                          Arquivo Gerado pelo Labfacil Apoio / LIS (Entrada Bruta):
+                        </span>
+                        <span className="text-[11px] font-mono text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                          {labfacilFileName}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="file"
+                          ref={labfacilFileInputRef}
+                          onChange={handleUploadArquivoLabfacil}
+                          accept=".json,.xml,.txt"
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => labfacilFileInputRef.current?.click()}
+                          className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                        >
+                          <Upload className="w-3.5 h-3.5" /> Importar Arquivo (.json / .xml)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLabfacilRawInput(EXEMPLO_LABFACIL_JSON);
+                            setLabfacilFileName("pedido_labfacil_bioquimica.json");
+                            setLabfacilConvertedResult(null);
+                            setConvertedTransmissionFeedback(null);
+                            showNotification("💡 Exemplo JSON do Labfacil (Bioquímica) carregado!");
+                          }}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                        >
+                          Exemplo JSON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLabfacilRawInput(EXEMPLO_LABFACIL_XML);
+                            setLabfacilFileName("pedido_labfacil_oficial.xml");
+                            setLabfacilConvertedResult(null);
+                            setConvertedTransmissionFeedback(null);
+                            showNotification("💡 Exemplo XML do Labfacil (<Principal><Paciente>) carregado!");
+                          }}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                        >
+                          Exemplo XML
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLabfacilRawInput(EXEMPLO_LABFACIL_SYSMEX);
+                            setLabfacilFileName("pedido_labfacil_urina.json");
+                            setSimulatorSelectedEquipamento("SYSMEX_UF_1500");
+                            setSimulatorSelectedFormato("ASTM");
+                            setLabfacilConvertedResult(null);
+                            setConvertedTransmissionFeedback(null);
+                            showNotification("💡 Exemplo Sysmex UF-1500 (Urinálise) carregado!");
+                          }}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                        >
+                          Exemplo Sysmex UF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLabfacilRawInput("");
+                            setLabfacilConvertedResult(null);
+                            setConvertedTransmissionFeedback(null);
+                          }}
+                          className="text-slate-400 hover:text-rose-400 p-1.5 rounded hover:bg-slate-800 transition cursor-pointer text-xs"
+                          title="Limpar texto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <textarea
+                      rows={8}
+                      value={labfacilRawInput}
+                      onChange={(e) => {
+                        setLabfacilRawInput(e.target.value);
+                        setLabfacilConvertedResult(null);
+                        setConvertedTransmissionFeedback(null);
+                      }}
+                      placeholder="Cole aqui o conteúdo JSON ou XML gerado pelo Labfacil..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500 custom-scrollbar leading-relaxed"
+                    />
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Caracteres: <strong>{labfacilRawInput.length}</strong> | Linhas: <strong>{labfacilRawInput.split('\n').length}</strong> | Formato Detectado: <strong className="text-purple-300">{labfacilRawInput.trim().startsWith('<') ? 'XML' : 'JSON'}</strong>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleConverterArquivoLabfacil}
+                        className="bg-gradient-to-r from-purple-600 via-indigo-600 to-teal-600 hover:opacity-90 text-white font-black px-6 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-purple-600/30"
+                      >
+                        <Zap className="w-4 h-4 fill-current text-amber-300" />
+                        ⚡ Converter Arquivo para o Formato da Máquina ({simulatorSelectedEquipamento})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* RESULTADO DA CONVERSÃO (LADO A LADO) */}
+                  {labfacilConvertedResult && (
+                    <div className="p-5 rounded-2xl bg-slate-950 border border-teal-500/50 space-y-4 animate-fadeIn shadow-2xl">
+                      {/* CABEÇALHO DO PEDIDO RECONHECIDO */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                              Conversão Realizada com Sucesso para: <strong className="text-teal-300 font-mono">{simulatorSelectedEquipamento}</strong>
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Pedido: <strong className="text-teal-300 font-mono">{labfacilConvertedResult.pedidoParsed.numeroPedido}</strong> | Paciente: <strong className="text-slate-200">{labfacilConvertedResult.pedidoParsed.cliente.nome}</strong> | Protocolo Gerado: <strong className="text-amber-400 font-mono">{labfacilConvertedResult.formato}</strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[11px] font-mono px-3 py-1 rounded-full font-bold border ${
+                            labfacilConvertedResult.examesNaoMapeadosCount === 0
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                              : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                          }`}>
+                            DE-PARA: {labfacilConvertedResult.examesMapeadosCount}/{labfacilConvertedResult.examesDetalhes.length} Exames Mapeados ({Math.round((labfacilConvertedResult.examesMapeadosCount / (labfacilConvertedResult.examesDetalhes.length || 1)) * 100)}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* GRID LADO A LADO: MAPEAMENTO DE-PARA vs ARQUIVO CONVERTIDO */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* COLUNA 1: MAPEAMENTO DE-PARA DOS EXAMES DO PEDIDO */}
+                        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                              <GitCompare className="w-4 h-4 text-teal-400" /> Mapeamento DE-PARA dos Exames do Pedido
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Total: {labfacilConvertedResult.examesDetalhes.length} itens
+                            </span>
+                          </div>
+
+                          <div className="overflow-x-auto rounded-lg border border-slate-800/80 max-h-64 overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-left text-xs font-mono">
+                              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 sticky top-0">
+                                <tr>
+                                  <th className="py-2 px-3">#</th>
+                                  <th className="py-2 px-3">Cód. Labfacil</th>
+                                  <th className="py-2 px-3">➔ Cód. Aparelho</th>
+                                  <th className="py-2 px-3 text-right">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
+                                {labfacilConvertedResult.examesDetalhes.map((ex, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-800/40 transition">
+                                    <td className="py-2 px-3 text-slate-500">{idx + 1}</td>
+                                    <td className="py-2 px-3 text-purple-300 font-bold">{ex.codigoLabfacil}</td>
+                                    <td className="py-2 px-3 text-teal-300 font-bold">{ex.codigoEquipamento}</td>
+                                    <td className="py-2 px-3 text-right">
+                                      {ex.mapeado ? (
+                                        <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                          ✓ MAPEADO
+                                        </span>
+                                      ) : (
+                                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-bold" title="Usando mnemônico direto como fallback">
+                                          ⚠️ DIRETO
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* COLUNA 2: ARQUIVO CONVERTIDO PRONTO PARA O APARELHO */}
+                        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Terminal className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span className="text-xs font-bold text-slate-200 truncate" title={labfacilConvertedResult.nomeArquivoSugerido}>
+                                {labfacilConvertedResult.nomeArquivoSugerido}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(labfacilConvertedResult.conteudoArquivo);
+                                  showNotification("📋 Conteúdo copiado para a área de transferência!");
+                                }}
+                                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 font-semibold"
+                                title="Copiar conteúdo"
+                              >
+                                <Copy className="w-3.5 h-3.5 text-teal-400" /> Copiar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleBaixarArquivoConvertido}
+                                className="text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 font-semibold"
+                                title="Baixar arquivo no computador"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Baixar
+                              </button>
+                            </div>
+                          </div>
+
+                          <pre className="p-3.5 rounded-lg bg-slate-950 text-emerald-400 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64 border border-slate-800 custom-scrollbar leading-relaxed select-all">
+                            {labfacilConvertedResult.conteudoArquivo}
+                          </pre>
+                        </div>
+                      </div>
+
+                      {/* DISPARO DA TRANSMISSÃO REAL */}
+                      <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <span className="text-xs text-slate-400">
+                          {equipamentoConfiguradoReal ? (
+                            <span>Equipamento configurado para receber em: <strong className="text-slate-200 font-mono">{equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? `${equipamentoConfiguradoReal.ip_host}:${equipamentoConfiguradoReal.porta}` : (equipamentoConfiguradoReal.diretorio_carga || 'Pasta Carga')}</strong></span>
+                          ) : (
+                            <span>💡 Analisador em modo de visualização. Para enviar direto na máquina, confirme o cadastro do equipamento.</span>
+                          )}
+                        </span>
+
+                        <button
+                          type="button"
+                          disabled={isTransmittingConverted}
+                          onClick={handleTransmitirCargaConvertidaReal}
+                          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/25 disabled:opacity-50 shrink-0"
+                          title="Grava o arquivo convertido diretamente na pasta de carga ou envia via socket TCP/IP"
+                        >
+                          <Zap className={`w-4 h-4 fill-current ${isTransmittingConverted ? 'animate-bounce' : ''}`} />
+                          {isTransmittingConverted ? "Gravando / Transmitindo..." : "🚀 Gravar na Pasta Carga / Transmitir via TCP/IP"}
+                        </button>
+                      </div>
+
+                      {/* FEEDBACK DO ENVIO REAL */}
+                      {convertedTransmissionFeedback && (
+                        <div className="p-3.5 rounded-xl bg-slate-950 border border-teal-500/40 text-xs font-mono space-y-1 animate-fadeIn">
+                          <div className="flex items-center justify-between text-teal-300 font-bold border-b border-slate-800 pb-1">
+                            <span className="flex items-center gap-1.5">
+                              <Terminal className="w-4 h-4 text-teal-400" /> Retorno da Comunicação com o Equipamento
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setConvertedTransmissionFeedback(null)}
+                              className="text-slate-400 hover:text-slate-200 cursor-pointer text-[10px]"
+                            >
+                              Fechar ✕
+                            </button>
+                          </div>
+                          <pre className="text-slate-200 whitespace-pre-wrap leading-relaxed select-all max-h-32 overflow-y-auto custom-scrollbar pt-1">
+                            {convertedTransmissionFeedback}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ======================================================== */}
+              {/* MODO 2: SIMULAÇÃO MANUAL / GERADOR RÁPIDO DE RESULTADOS  */}
+              {/* ======================================================== */}
+              {simulatorModo === "gerador_rapido" && (
+                <div className="space-y-4 animate-fadeIn">
+                  {/* CONTROLES DO SIMULADOR */}
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-xs font-mono">
+                    {/* 1. ESCOLHA DO ANALISADOR A SER SIMULADO */}
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold font-sans">1. Analisador Simulado:</label>
+                      <select
+                        value={simulatorSelectedEquipamento}
+                        onChange={(e) => {
+                          const mod = e.target.value;
+                          setSimulatorSelectedEquipamento(mod);
+                          const modObj = catalogoModelos.find(m => m.codigo_modelo === mod);
+                          
+                          // Auto-configura formato de transmissão a partir do cadastro do equipamento
+                          const modNorm = mod.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                          const eqConfig = equipamentosList.find(eq => {
+                            const eqModNorm = (eq.modelo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            const eqNomeNorm = (eq.nome || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            return eqModNorm === modNorm || eqNomeNorm.includes(modNorm) || modNorm.includes(eqModNorm);
+                          });
+
+                          if (eqConfig && eqConfig.formato_arquivo) {
+                            setSimulatorSelectedFormato(eqConfig.formato_arquivo as any);
+                          }
+
+                          if (mod === "SYSMEX_UF_1500" || mod.includes("UF") || mod.includes("SYSMEX")) {
+                            setSimulatorExamesInput("RBC, WBC, EC, CAST, BACT, XTAL");
+                            setSimulatorSelectedFormato("ASTM");
+                          } else if (modObj && modObj.exames && modObj.exames.length > 0) {
+                            setSimulatorExamesInput(modObj.exames.slice(0, 6).map(x => x.codigoEquipamento).join(", "));
+                          } else if (mod === "ACCESS") {
+                            setSimulatorExamesInput("VITDACCESS, TSH, T4L, PSA");
+                          } else if (mod === "BC_3000" || mod === "BC_5380" || mod === "YUMIZEN") {
+                            setSimulatorExamesInput("WBC, RBC, HGB, HCT, PLT, NEU%, LYM%");
+                          } else {
+                            setSimulatorExamesInput("GLI, URE, CRE, COL, TRI, AST, ALT");
+                          }
+                          setSimulatorSimulatedRelease(null);
+                          setRespostaTransmissaoReal(null);
+                        }}
+                        className="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 font-bold focus:outline-none cursor-pointer"
+                      >
+                        {catalogoModelos.filter(m => m.ativo !== false).map(m => (
+                          <option key={m.codigo_modelo} value={m.codigo_modelo}>
+                            {m.nome_completo}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[10px] text-slate-400 font-sans block">
+                        Protocolo Padrão: <strong>{CATALOGO_EQUIPAMENTOS_DOC[simulatorSelectedEquipamento]?.protocoloComunicacao || "Padrão Integrado"}</strong>
+                      </span>
+                    </div>
+
+                    {/* 2. FORMATO DA MENSAGEM DE RETORNO */}
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold font-sans">2. Formato de Transmissão:</label>
+                      <select
+                        value={simulatorSelectedFormato}
+                        onChange={(e) => setSimulatorSelectedFormato(e.target.value as any)}
+                        className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none"
+                      >
+                        <option value="AUTO">Automático (Padrão do Aparelho)</option>
+                        <option value="XML">XML Estruturado (&lt;Principal&gt;&lt;Paciente&gt;...)</option>
+                        <option value="JSON">JSON (Carga Web/API Midway)</option>
+                        <option value="ASTM">ASTM E1394 (Porta Serial / Arquivo)</option>
+                        <option value="HL7">HL7 v2.3.1 (ORU^R01)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400 font-sans block">Estrutura transmitida ao Midway</span>
+                    </div>
+
+                    {/* 3. DADOS DO PEDIDO DE TESTE */}
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold font-sans">3. Número Pedido / Tubo:</label>
+                      <input
+                        type="text"
+                        value={simulatorPedidoNumero}
+                        onChange={(e) => setSimulatorPedidoNumero(e.target.value.toUpperCase())}
+                        placeholder="Ex: 0142215202"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500"
+                      />
+                      <span className="text-[10px] text-slate-400 font-sans block">Código de barras / Amostra</span>
+                    </div>
+
+                    {/* 4. PACIENTE */}
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold font-sans">4. Nome do Paciente:</label>
+                      <input
+                        type="text"
+                        value={simulatorPacienteNome}
+                        onChange={(e) => setSimulatorPacienteNome(e.target.value)}
+                        placeholder="Ex: Maria Helena Santos"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:border-purple-500 font-sans"
+                      />
+                      <span className="text-[10px] text-slate-400 font-sans block">Identificação do paciente</span>
+                    </div>
+
+                    {/* 5. EXAMES REQUISITADOS */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-slate-300 font-bold font-sans">5. Códigos dos Exames:</label>
+                        <button
+                          type="button"
+                          onClick={() => setSimulatorSimularAlterados(!simulatorSimularAlterados)}
+                          className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition font-bold font-sans ${
+                            simulatorSimularAlterados ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-slate-800 text-slate-400"
+                          }`}
+                          title="Alternar entre gerar todos normais ou alguns alterados"
+                        >
+                          {simulatorSimularAlterados ? "⚠️ Alterados" : "✅ Normais"}
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={simulatorExamesInput}
+                        onChange={(e) => setSimulatorExamesInput(e.target.value.toUpperCase())}
+                        placeholder="VITDACCESS, GLI, URE"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-teal-300 font-bold focus:outline-none focus:border-purple-500"
+                      />
+                      <span className="text-[10px] text-slate-400 font-sans block">Separados por vírgula</span>
+                    </div>
+                  </div>
+
+                  {/* CARD DE CONEXÃO REAL DE PRODUÇÃO VINCULADO À IMAGEM 2 */}
+                  {equipamentoConfiguradoReal ? (
+                    <div className="bg-gradient-to-r from-slate-950 via-teal-950/30 to-slate-950 border border-teal-500/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-lg shadow-teal-500/10">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="font-bold text-slate-100 flex items-center gap-1.5">
+                            🎯 Alvo de Produção Vinculado: <strong className="text-teal-300 font-mono text-sm">{equipamentoConfiguradoReal.nome}</strong>
+                          </span>
+                          <span className="bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                            {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? 'Modo Rede TCP/IP' : 'Modo Pasta Carga'}
+                          </span>
+                          <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                            Formato: {equipamentoConfiguradoReal.formato_arquivo || 'ASTM E1394'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-slate-400 font-mono pt-1">
+                          {equipamentoConfiguradoReal.tipo_comunicacao === 'TCP_IP' ? (
+                            <div>🌐 IP & Porta: <strong className="text-slate-200">{equipamentoConfiguradoReal.ip_host}:{equipamentoConfiguradoReal.porta}</strong></div>
+                          ) : (
+                            <div>📁 Pasta Carga: <strong className="text-slate-200">{(equipamentoConfiguradoReal.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\Carga').replace(/[/\\]+/g, '\\')}</strong></div>
+                          )}
+                          <div>📊 Pasta Resultados: <strong className="text-slate-200">{(equipamentoConfiguradoReal.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\Resultados').replace(/[/\\]+/g, '\\')}</strong></div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isTransmitindoReal}
+                        onClick={handleTransmitirCargaReal}
+                        className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-50 shrink-0"
+                        title="Conecta no IP/Porta ou Pasta Carga reais configurados no analisador e transmite a carga"
+                      >
+                        <Zap className={`w-4 h-4 fill-current ${isTransmitindoReal ? 'animate-bounce' : ''}`} />
+                        {isTransmitindoReal ? 'Transmitindo ao Equipamento...' : '🚀 Transmitir para o Equipamento Real'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-xs text-slate-400 flex items-center justify-between">
+                      <span>💡 Analisador operando em <strong>Modo Sandbox Simulado</strong>. As configurações reais deste equipamento serão carregadas quando ele estiver cadastrado na empresa ativa.</span>
+                    </div>
+                  )}
+
+                  {/* CONSOLE DE RETORNO DA TRANSMISSÃO REAL */}
+                  {respostaTransmissaoReal && (
+                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/40 text-xs font-mono space-y-1 animate-fadeIn">
+                      <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-slate-800 pb-1.5">
+                        <span className="flex items-center gap-1.5">
+                          <Terminal className="w-4 h-4 text-cyan-400" />
+                          Console de Resposta da Comunicação com o Equipamento
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setRespostaTransmissaoReal(null)}
+                          className="text-slate-400 hover:text-slate-200 cursor-pointer text-[10px]"
+                        >
+                          Fechar console ✕
+                        </button>
+                      </div>
+                      <pre className="text-slate-200 whitespace-pre-wrap leading-relaxed select-all max-h-32 overflow-y-auto custom-scrollbar pt-1">
+                        {respostaTransmissaoReal}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* BOTÕES DE AÇÃO: DISPARAR SIMULAÇÃO */}
+                  <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const examesArray = simulatorExamesInput
+                          .split(",")
+                          .map((c) => c.trim())
+                          .filter(Boolean)
+                          .map((c) => ({ codigoEquipamento: c, nomeExame: c }));
+
+                        if (examesArray.length === 0) {
+                          showNotification("⚠️ Informe ao menos um código de exame para simular.");
+                          return;
+                        }
+
+                        const resultados = EquipamentoSimulatorService.gerarResultadosSimulados(
+                          examesArray,
+                          simulatorSelectedEquipamento,
+                          simulatorSimularAlterados
+                        );
+
+                        const formatoFinal = simulatorSelectedFormato === "AUTO" ? undefined : simulatorSelectedFormato;
+                        const releasePayload = EquipamentoSimulatorService.construirPayloadRetorno(
+                          simulatorPedidoNumero,
+                          simulatorPacienteNome,
+                          simulatorSelectedEquipamento,
+                          resultados,
+                          formatoFinal
+                        );
+
+                        setSimulatorSimulatedRelease(releasePayload);
+                        showNotification(`🧪 [SIMULADOR] Equipamento '${simulatorSelectedEquipamento}' executou a análise do pedido '${simulatorPedidoNumero}' e liberou ${resultados.length} resultados em formato ${releasePayload.formato}!`);
+                      }}
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-purple-600/30"
+                    >
+                      <Play className="w-4 h-4 fill-current" /> ▶️ Simular Ida & Execução do Aparelho
+                    </button>
+
+                    {simulatorSimulatedRelease && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          showNotification(`📥 [RETORNO] Resultados do pedido '${simulatorSimulatedRelease.numeroPedido}' recebidos com sucesso no Midway via protocolo ${simulatorSimulatedRelease.formato}!`);
+                        }}
+                        className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/20"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> 📥 Confirmar Entrada de Retorno no Midway
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSimulatorSimulatedRelease(null);
+                        showNotification("🧹 Painel de simulação limpo.");
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+
+                  {/* PAINEL DE RESULTADOS SIMULADOS (RETORNO DO ANALISADOR) */}
+                  {simulatorSimulatedRelease && (
+                    <div className="mt-4 p-5 rounded-2xl bg-slate-950 border border-purple-500/50 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                            <Activity className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                              Pacote de Retorno Gerado pelo Aparelho: <span className="text-purple-300 font-mono">{simulatorSimulatedRelease.equipamentoModelo}</span>
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Pedido: <strong className="text-teal-300 font-mono">{simulatorSimulatedRelease.numeroPedido}</strong> | Paciente: <strong className="text-slate-200">{simulatorSimulatedRelease.pacienteNome}</strong> | Formato: <strong className="text-amber-400 font-mono">{simulatorSimulatedRelease.formato}</strong>
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          Liberado em: {new Date(simulatorSimulatedRelease.dataHoraLiberacao).toLocaleTimeString()}
+                        </span>
+                      </div>
+
+                      {/* TABELA DE RESULTADOS CLÍNICOS LIBERADOS */}
+                      <div className="overflow-x-auto rounded-xl border border-slate-800">
+                        <table className="w-full text-left text-xs font-mono">
+                          <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                            <tr>
+                              <th className="py-2 px-3">Status</th>
+                              <th className="py-2 px-3">Cód. Aparelho</th>
+                              <th className="py-2 px-3">Exame</th>
+                              <th className="py-2 px-3 text-right">Resultado</th>
+                              <th className="py-2 px-3">Unidade</th>
+                              <th className="py-2 px-3">Valores de Referência</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/80 bg-slate-950/60">
+                            {simulatorSimulatedRelease.resultados.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-slate-900/40 transition">
+                                <td className="py-2 px-3">
+                                  {item.status === "NORMAL" ? (
+                                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      NORMAL
+                                    </span>
+                                  ) : (
+                                    <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      ALTERADO
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-xs font-bold">
+                                    {item.codigoEquipamento}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-slate-200 font-sans font-medium">
+                                  {item.nomeExame}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <span className={`text-sm font-black font-mono ${item.status === "NORMAL" ? "text-emerald-400" : "text-rose-400 font-extrabold"}`}>
+                                    {item.valor}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-slate-400 text-xs">
+                                  {item.unidade}
+                                </td>
+                                <td className="py-2 px-3 text-slate-400 text-xs">
+                                  {item.valoresReferencia}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* PACOTE BRUTO (RAW TELEMETRIA / PROTOCOLO HL7 / ASTM / JSON) */}
+                      <details className="text-[11px] bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <summary className="text-purple-300 cursor-pointer font-bold font-sans flex items-center justify-between">
+                          <span>📄 Ver Mensagem Bruta transmitida na porta/arquivo ({simulatorSimulatedRelease.formato})</span>
+                          <span className="text-[10px] text-slate-500 font-normal">Clique para expandir</span>
+                        </summary>
+                        <pre className="mt-2.5 p-3 rounded-lg bg-slate-950 text-cyan-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap border border-slate-800/80 leading-relaxed">
+                          {simulatorSimulatedRelease.rawOutputPayload}
+                        </pre>
+                      </details>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

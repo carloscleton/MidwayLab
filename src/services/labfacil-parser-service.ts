@@ -173,26 +173,29 @@ export class LabfacilParserService {
 
   /**
    * Converte o pedido do Labfacil para o formato de carga de trabalho do equipamento selecionado
-   * Ex: CB350 (Bioquímica) ou YUMIZEN (Hematologia)
+   * Suporta ASTM E1394 (Sysmex, Yumizen, Access), HL7 v2.x (Mindray), JSON (CB350) e XML
    */
   static gerarCargaEquipamento(
     pedido: ILabfacilPedidoParsed,
     modeloEquipamento: 'CB350' | 'YUMIZEN' | string,
-    mapeamentos: Map<string, string> // codigoLabfacil -> codigoEquipamento
+    mapeamentos: Map<string, string>, // codigoLabfacil -> codigoEquipamento
+    formatoForcado?: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV'
   ): {
     conteudoArquivo: string;
-    formato: 'JSON' | 'ASTM' | 'HL7' | 'CSV';
+    formato: 'JSON' | 'ASTM' | 'HL7' | 'XML' | 'CSV';
     nomeArquivoSugerido: string;
     examesMapeadosCount: number;
     examesNaoMapeadosCount: number;
+    examesDetalhes: Array<{ codigoLabfacil: string; codigoEquipamento: string; mapeado: boolean }>;
   } {
     const modeloUpper = modeloEquipamento.toUpperCase();
-    const examesEquipamento: Array<{ codigoLabfacil: string; codigoEquipamento: string; amostra?: string; material?: string }> = [];
+    const examesEquipamento: Array<{ codigoLabfacil: string; codigoEquipamento: string; amostra?: string; material?: string; mapeado: boolean }> = [];
     let naoMapeados = 0;
 
     for (const ex of pedido.exames) {
+      const temMapeamento = mapeamentos.has(ex.codigo) || Boolean(ex.codigoEquipamento);
       const codEq = mapeamentos.get(ex.codigo) || ex.codigoEquipamento || ex.codigo;
-      if (!mapeamentos.has(ex.codigo) && !ex.codigoEquipamento) {
+      if (!temMapeamento) {
         naoMapeados++;
       }
       examesEquipamento.push({
@@ -200,13 +203,107 @@ export class LabfacilParserService {
         codigoEquipamento: codEq,
         amostra: ex.amostra,
         material: ex.material,
+        mapeado: temMapeamento
       });
     }
 
-    if (modeloUpper.includes('CB350')) {
-      // Formato para analisador de Bioquímica CB350 (Worklist estruturada por Amostra)
+    const examesDetalhes = examesEquipamento.map(e => ({
+      codigoLabfacil: e.codigoLabfacil,
+      codigoEquipamento: e.codigoEquipamento,
+      mapeado: e.mapeado
+    }));
+
+    const dateFormatted = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+    const sampleId = pedido.exames[0]?.amostra || pedido.numeroPedido;
+    const patientNameAstm = (pedido.cliente.nome || 'PACIENTE').trim().replace(/\s+/g, '^');
+
+    // Determina o formato alvo
+    const isAstm = formatoForcado === 'ASTM' || (!formatoForcado && (
+      modeloUpper.includes('YUMIZEN') ||
+      modeloUpper.includes('SYSMEX') ||
+      modeloUpper.includes('UF') ||
+      modeloUpper.includes('ACCESS') ||
+      modeloUpper.includes('COBAS')
+    ));
+
+    const isHl7 = formatoForcado === 'HL7' || (!formatoForcado && (
+      modeloUpper.includes('MINDRAY') ||
+      modeloUpper.includes('BS_240') ||
+      modeloUpper.includes('BC_5380')
+    ));
+
+    const isXml = formatoForcado === 'XML';
+
+    if (isAstm) {
+      // ASTM E1394 Padrão Internacional (Sysmex UF, Horiba Yumizen, Beckman Access)
+      const testCodesAstm = examesEquipamento.map(e => `^^^${e.codigoEquipamento}`).join('\\');
+      const astmLines = [
+        `H|\\^&|||${modeloEquipamento}|||||||P|1|${dateFormatted}`,
+        `P|1|||${pedido.cliente.codPac || pedido.numeroPedido}||${patientNameAstm}|||${pedido.cliente.sexo || 'U'}|||||||||||||||`,
+        `O|1|${sampleId}||${testCodesAstm}|||||||A||||||||||||||Q`,
+        `L|1|N`,
+      ];
+
+      return {
+        conteudoArquivo: astmLines.join('\r\n'),
+        formato: 'ASTM',
+        nomeArquivoSugerido: `${modeloEquipamento}_${pedido.numeroPedido}.astm`,
+        examesMapeadosCount: examesEquipamento.length - naoMapeados,
+        examesNaoMapeadosCount: naoMapeados,
+        examesDetalhes
+      };
+    } else if (isHl7) {
+      // HL7 v2.3.1 Padrão Internacional (Mindray BS-240 / BC-5380)
+      const testCodesHl7 = examesEquipamento.map(e => e.codigoEquipamento).join('~');
+      const hl7Lines = [
+        `MSH|^~\\&|MIDWAYLAB|LAB|${modeloEquipamento}|EQUIP|${dateFormatted}||ORM^O01|MSG${Date.now()}|P|2.3.1`,
+        `PID|1||${pedido.cliente.codPac || pedido.numeroPedido}||${patientNameAstm}|||${pedido.cliente.sexo || 'U'}`,
+        `ORC|NW|${sampleId}|||||${dateFormatted}`,
+        `OBR|1|${sampleId}||${testCodesHl7}|||${dateFormatted}|||||||||||||||||O`,
+      ];
+
+      return {
+        conteudoArquivo: hl7Lines.join('\r\n'),
+        formato: 'HL7',
+        nomeArquivoSugerido: `${modeloEquipamento}_${pedido.numeroPedido}.hl7`,
+        examesMapeadosCount: examesEquipamento.length - naoMapeados,
+        examesNaoMapeadosCount: naoMapeados,
+        examesDetalhes
+      };
+    } else if (isXml) {
+      // XML Estruturado
+      const examesXml = examesEquipamento.map(e => `      <Exame>
+        <Codigo>${e.codigoEquipamento}</Codigo>
+        <CodigoLabfacil>${e.codigoLabfacil}</CodigoLabfacil>
+        <Material>${e.material || 'SORO'}</Material>
+      </Exame>`).join('\n');
+
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<Principal>
+  <Equipamento>${modeloEquipamento}</Equipamento>
+  <Paciente>
+    <Amostra>${sampleId}</Amostra>
+    <CodigoLis>${pedido.numeroPedido}</CodigoLis>
+    <Nome>${pedido.cliente.nome}</Nome>
+    <Sexo>${pedido.cliente.sexo || 'U'}</Sexo>
+    <Exames>
+${examesXml}
+    </Exames>
+  </Paciente>
+</Principal>`;
+
+      return {
+        conteudoArquivo: xmlContent,
+        formato: 'XML',
+        nomeArquivoSugerido: `${modeloEquipamento}_${pedido.numeroPedido}.xml`,
+        examesMapeadosCount: examesEquipamento.length - naoMapeados,
+        examesNaoMapeadosCount: naoMapeados,
+        examesDetalhes
+      };
+    } else if (modeloUpper.includes('CB350') || formatoForcado === 'JSON') {
+      // Formato para analisador de Bioquímica CB350 / Wiener (Worklist estruturada por Amostra)
       const worklistCb350 = {
-        equipamento: 'CB350',
+        equipamento: modeloEquipamento,
         lis_code: pedido.numeroPedido,
         patient: {
           id: pedido.cliente.codPac || pedido.cliente.cpf || pedido.numeroPedido,
@@ -218,7 +315,7 @@ export class LabfacilParserService {
         tests: examesEquipamento.map(e => ({
           test_code: e.codigoEquipamento,
           labfacil_code: e.codigoLabfacil,
-          sample_tube: e.amostra,
+          sample_tube: e.amostra || sampleId,
           sample_material: e.material || 'SORO',
         })),
         generated_at: new Date().toISOString(),
@@ -227,27 +324,10 @@ export class LabfacilParserService {
       return {
         conteudoArquivo: JSON.stringify(worklistCb350, null, 2),
         formato: 'JSON',
-        nomeArquivoSugerido: `CB350_WORKLIST_${pedido.numeroPedido}.json`,
+        nomeArquivoSugerido: `${modeloEquipamento}_WORKLIST_${pedido.numeroPedido}.json`,
         examesMapeadosCount: examesEquipamento.length - naoMapeados,
         examesNaoMapeadosCount: naoMapeados,
-      };
-    } else if (modeloUpper.includes('YUMIZEN')) {
-      // Formato para analisador de Hematologia Horiba Yumizen (ASTM E1394)
-      const dateFormatted = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-      const sampleId = pedido.exames[0]?.amostra || pedido.numeroPedido;
-      const astmLines = [
-        `H|\\^&|||YUMIZEN|||||||P|1|${dateFormatted}`,
-        `P|1|||${pedido.cliente.codPac || pedido.numeroPedido}||${pedido.cliente.nome.replace(/\s+/g, '^')}|||${pedido.cliente.sexo || 'U'}|||||||||||||||`,
-        `O|1|${sampleId}||^^^${examesEquipamento.map(e => e.codigoEquipamento).join('\\^^^')}|||||||A||||||||||||||Q`,
-        `L|1|N`,
-      ];
-
-      return {
-        conteudoArquivo: astmLines.join('\r\n'),
-        formato: 'ASTM',
-        nomeArquivoSugerido: `YUMIZEN_${pedido.numeroPedido}.astm`,
-        examesMapeadosCount: examesEquipamento.length - naoMapeados,
-        examesNaoMapeadosCount: naoMapeados,
+        examesDetalhes
       };
     } else {
       // Carga Genérica JSON
@@ -265,6 +345,7 @@ export class LabfacilParserService {
         nomeArquivoSugerido: `EQUIP_${modeloEquipamento}_${pedido.numeroPedido}.json`,
         examesMapeadosCount: examesEquipamento.length - naoMapeados,
         examesNaoMapeadosCount: naoMapeados,
+        examesDetalhes
       };
     }
   }
