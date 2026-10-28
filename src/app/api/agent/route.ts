@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../db/supabase';
+import { LabfacilParserService } from '../../../services/labfacil-parser-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,6 +152,78 @@ export async function POST(request: Request) {
     // Heartbeat dedicado
     if (body.acao === 'heartbeat') {
       return NextResponse.json({ ok: true, timestamp: new Date().toISOString() });
+    }
+
+    // Processamento remoto direto de arquivo do Labfacil (XML ou JSON)
+    if (body.acao === 'processar_arquivo' || body.conteudoArquivo) {
+      const conteudo = body.conteudoArquivo || '';
+      const nomeArquivo = body.nomeArquivo || 'pedido.xml';
+      const modelo = body.modeloEquipamento || 'SYSMEX_UF_1500';
+
+      if (!conteudo.trim()) {
+        return NextResponse.json({ ok: false, erro: 'Conteúdo do arquivo está vazio.' }, { status: 400 });
+      }
+
+      const parsedOrders = LabfacilParserService.parseFile(conteudo, nomeArquivo);
+      if (!parsedOrders || parsedOrders.length === 0) {
+        return NextResponse.json({ ok: false, erro: 'Nenhum pedido válido extraído do arquivo.' }, { status: 400 });
+      }
+
+      // Mapa DE-PARA do laboratório
+      const mapaDePara = new Map<string, string>();
+      try {
+        const { data: deparaRows } = await supabase
+          .from('depara_exames')
+          .select('codigo_labfacil, codigo_equipamento')
+          .eq('tenant_id', tenant.id);
+        if (deparaRows) {
+          deparaRows.forEach((r: any) => {
+            if (r.codigo_labfacil && r.codigo_equipamento) {
+              mapaDePara.set(r.codigo_labfacil.trim().toUpperCase(), r.codigo_equipamento.trim().toUpperCase());
+            }
+          });
+        }
+      } catch (_) {}
+
+      const resultadosCarga: Array<{
+        pedidoId: string;
+        paciente: string;
+        nomeArquivoSugerido: string;
+        conteudoArquivo: string;
+        formato: string;
+      }> = [];
+
+      for (const order of parsedOrders) {
+        const result = LabfacilParserService.gerarCargaEquipamento(order, modelo, mapaDePara);
+        
+        // Grava no banco Supabase em tempo real
+        try {
+          await supabase.from('pedidos').insert({
+            tenant_id: tenant.id,
+            codigo_pedido_labfacil: order.numeroPedido,
+            paciente_nome: order.cliente.nome,
+            exames: order.exames.map(e => e.codigoEquipamento || e.codigo),
+            status: 'PROCESSADO',
+            origem_arquivo: nomeArquivo,
+            equipamento_destino: modelo,
+            created_at: new Date().toISOString()
+          });
+        } catch (_) {}
+
+        resultadosCarga.push({
+          pedidoId: order.numeroPedido,
+          paciente: order.cliente.nome,
+          nomeArquivoSugerido: result.nomeArquivoSugerido,
+          conteudoArquivo: result.conteudoArquivo,
+          formato: result.formato
+        });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        pedidosProcessados: resultadosCarga.length,
+        cargas: resultadosCarga
+      });
     }
 
     const {
