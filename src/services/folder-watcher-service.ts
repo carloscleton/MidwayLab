@@ -7,6 +7,8 @@ export interface IWatcherConfig {
   diretorioEntrada: string;
   diretorioProcessados: string;
   diretorioErros: string;
+  diretorioCarga?: string;
+  diretorioResultados?: string;
   equipamentoDestino: 'CB350' | 'YUMIZEN' | string;
   tenantId: string;
   ativo: boolean;
@@ -30,10 +32,12 @@ export class FolderWatcherService {
   private static intervalId: NodeJS.Timeout | null = null;
   private static logs: IWatcherLog[] = [];
   private static config: IWatcherConfig = {
-    diretorioEntrada: 'C:\\Labfacil\\Pedidos',
-    diretorioProcessados: 'C:\\Labfacil\\Processados',
-    diretorioErros: 'C:\\Labfacil\\Erros',
-    equipamentoDestino: 'CB350',
+    diretorioEntrada: 'C:\\MidwayLab\\Labfacil\\SYSMEX_UF_1500\\Entrada',
+    diretorioProcessados: 'C:\\MidwayLab\\Labfacil\\SYSMEX_UF_1500\\Processados',
+    diretorioErros: 'C:\\MidwayLab\\Labfacil\\SYSMEX_UF_1500\\Erros',
+    diretorioCarga: 'C:\\MidwayLab\\Equipamentos\\SYSMEX_UF_1500\\Carga',
+    diretorioResultados: 'C:\\MidwayLab\\Equipamentos\\SYSMEX_UF_1500\\Resultados',
+    equipamentoDestino: 'SYSMEX_UF_1500',
     tenantId: '11111111-1111-1111-1111-111111111111',
     ativo: false,
     intervaloMs: 5000,
@@ -61,10 +65,29 @@ export class FolderWatcherService {
   static atualizarConfiguracao(novaConfig: Partial<IWatcherConfig>): IWatcherConfig {
     this.config = { ...this.config, ...novaConfig };
     
-    // Assegura criação das pastas configuradas
+    // Calcula base e pastas de Carga / Resultados se não fornecidas explicitamente
+    let baseMidway = 'C:\\MidwayLab';
+    if (this.config.diretorioEntrada && this.config.diretorioEntrada.toLowerCase().includes('labfacil')) {
+      const partes = this.config.diretorioEntrada.split(/[\\/]labfacil/i);
+      if (partes[0] && partes[0].trim().length > 0) {
+        baseMidway = partes[0].trim();
+      }
+    }
+
+    const equip = this.config.equipamentoDestino || 'EQUIPAMENTO_PADRAO';
+    if (!this.config.diretorioCarga) {
+      this.config.diretorioCarga = path.join(baseMidway, 'Equipamentos', equip, 'Carga');
+    }
+    if (!this.config.diretorioResultados) {
+      this.config.diretorioResultados = path.join(baseMidway, 'Equipamentos', equip, 'Resultados');
+    }
+
+    // Assegura criação das 5 pastas configuradas
     if (this.config.diretorioEntrada) this.assegurarDiretorio(this.config.diretorioEntrada);
     if (this.config.diretorioProcessados) this.assegurarDiretorio(this.config.diretorioProcessados);
     if (this.config.diretorioErros) this.assegurarDiretorio(this.config.diretorioErros);
+    if (this.config.diretorioCarga) this.assegurarDiretorio(this.config.diretorioCarga);
+    if (this.config.diretorioResultados) this.assegurarDiretorio(this.config.diretorioResultados);
 
     return this.config;
   }
@@ -83,10 +106,12 @@ export class FolderWatcherService {
   static iniciar(): boolean {
     if (this.isRunning) return true;
 
-    // Assegura que os diretórios existam
+    // Assegura que todos os diretórios existam
     this.assegurarDiretorio(this.config.diretorioEntrada);
     this.assegurarDiretorio(this.config.diretorioProcessados);
     this.assegurarDiretorio(this.config.diretorioErros);
+    if (this.config.diretorioCarga) this.assegurarDiretorio(this.config.diretorioCarga);
+    if (this.config.diretorioResultados) this.assegurarDiretorio(this.config.diretorioResultados);
 
     this.isRunning = true;
     this.config.ativo = true;

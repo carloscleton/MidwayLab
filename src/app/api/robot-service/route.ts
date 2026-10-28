@@ -20,12 +20,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { acao, tenantId, pastaRaiz } = body;
+    const { acao, tenantId, pastaRaiz, modelo, equipamentoDestino } = body;
 
     const baseDir = pastaRaiz || 'C:\\MidwayLab';
 
     if (acao === 'iniciar') {
-      // Se informou tenantId, sincroniza as pastas do tenant
+      let modeloEscolhido = (modelo || equipamentoDestino || '').trim();
+
+      // Se informou tenantId, sincroniza as configurações do tenant
       if (tenantId) {
         const { data: tenant } = await supabase
           .from('tenants')
@@ -34,20 +36,36 @@ export async function POST(request: Request) {
           .single();
 
         const equipPastas = tenant?.configuracoes?.equipamentos_pastas;
-        if (equipPastas) {
-          const primeiroModelo = Object.keys(equipPastas)[0];
-          if (primeiroModelo) {
-            const p = equipPastas[primeiroModelo];
-            FolderWatcherService.atualizarConfiguracao({
-              diretorioEntrada: p.diretorio_entrada || path.join(baseDir, 'Labfacil', primeiroModelo, 'Entrada'),
-              diretorioProcessados: p.diretorio_processados || path.join(baseDir, 'Labfacil', primeiroModelo, 'Processados'),
-              diretorioErros: p.diretorio_erros || path.join(baseDir, 'Labfacil', primeiroModelo, 'Erros'),
-              equipamentoDestino: primeiroModelo,
-              tenantId: tenantId,
-              ativo: true
-            });
-          }
+        if (!modeloEscolhido && equipPastas) {
+          modeloEscolhido = Object.keys(equipPastas)[0] || '';
         }
+
+        if (!modeloEscolhido) {
+          modeloEscolhido = 'SYSMEX_UF_1500';
+        }
+
+        const p = equipPastas?.[modeloEscolhido] || {};
+        FolderWatcherService.atualizarConfiguracao({
+          diretorioEntrada: p.diretorio_entrada || path.join(baseDir, 'Labfacil', modeloEscolhido, 'Entrada'),
+          diretorioProcessados: p.diretorio_processados || path.join(baseDir, 'Labfacil', modeloEscolhido, 'Processados'),
+          diretorioErros: p.diretorio_erros || path.join(baseDir, 'Labfacil', modeloEscolhido, 'Erros'),
+          diretorioCarga: p.diretorio_carga || path.join(baseDir, 'Equipamentos', modeloEscolhido, 'Carga'),
+          diretorioResultados: p.diretorio_resultados || path.join(baseDir, 'Equipamentos', modeloEscolhido, 'Resultados'),
+          equipamentoDestino: modeloEscolhido,
+          tenantId: tenantId,
+          ativo: true
+        });
+      } else {
+        if (!modeloEscolhido) modeloEscolhido = 'SYSMEX_UF_1500';
+        FolderWatcherService.atualizarConfiguracao({
+          diretorioEntrada: path.join(baseDir, 'Labfacil', modeloEscolhido, 'Entrada'),
+          diretorioProcessados: path.join(baseDir, 'Labfacil', modeloEscolhido, 'Processados'),
+          diretorioErros: path.join(baseDir, 'Labfacil', modeloEscolhido, 'Erros'),
+          diretorioCarga: path.join(baseDir, 'Equipamentos', modeloEscolhido, 'Carga'),
+          diretorioResultados: path.join(baseDir, 'Equipamentos', modeloEscolhido, 'Resultados'),
+          equipamentoDestino: modeloEscolhido,
+          ativo: true
+        });
       }
       FolderWatcherService.iniciar();
       return NextResponse.json({
@@ -92,7 +110,7 @@ export async function POST(request: Request) {
         'echo ========================================================',
         '',
         'cd /d "%~dp0"',
-        `curl -X POST ${appUrl}/api/robot-service -H "Content-Type: application/json" -d "{\\"acao\\":\\"iniciar\\",\\"tenantId\\":\\"${tenantId || ''}\\"}"`,
+        `curl -X POST ${appUrl}/api/robot-service -H "Content-Type: application/json" -d "{\\"acao\\":\\"iniciar\\",\\"tenantId\\":\\"${tenantId || ''}\\",\\"modelo\\":\\"${modelo || ''}\\"}"`,
         'echo.',
         'echo [OK] Robo ativado em segundo plano com sucesso!',
         'timeout /t 5 >nul',
