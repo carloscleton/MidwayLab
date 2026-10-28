@@ -619,6 +619,7 @@ export default function MidwayLabDashboard() {
   const [processedFileNames, setProcessedFileNames] = useState<Set<string>>(new Set());
 
   const [isSavingWatcherConfig, setIsSavingWatcherConfig] = useState(false);
+  const [localRobotStatus, setLocalRobotStatus] = useState<"ATIVO" | "INATIVO" | "VERIFICANDO">("VERIFICANDO");
   const [parsedLabfacilOrders, setParsedLabfacilOrders] = useState<ILabfacilPedidoParsed[]>([]);
   const [selectedTargetEquipamento, setSelectedTargetEquipamento] = useState<string>("CB350");
   const [generatedWorklists, setGeneratedWorklists] = useState<Array<{ pedido: string; arquivo: string; formato: string; nomeArquivo: string }>>([]);
@@ -2110,6 +2111,33 @@ export default function MidwayLabDashboard() {
 
     return () => {
       supabaseBrowser.removeChannel(channel);
+    };
+  }, []);
+
+  // MONITORAMENTO CONTÍNUO DO STATUS DO ROBÔ LOCAL (HEALTHCHECK A CADA 8S)
+  useEffect(() => {
+    let isMounted = true;
+    const checkRobot = async () => {
+      try {
+        const res = await fetch("/api/robot-service");
+        const data = await res.json();
+        if (isMounted) {
+          if (data.success && data.isRunning) {
+            setLocalRobotStatus("ATIVO");
+          } else {
+            setLocalRobotStatus("INATIVO");
+          }
+        }
+      } catch (_) {
+        if (isMounted) setLocalRobotStatus("INATIVO");
+      }
+    };
+
+    checkRobot();
+    const interval = setInterval(checkRobot, 8000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -4736,6 +4764,26 @@ export default function MidwayLabDashboard() {
             <span className="text-slate-400">Autolac WS:</span>
             <span className="text-cyan-300 font-semibold">Porta 8002</span>
           </div>
+
+          <div className="h-3 w-px bg-slate-800" />
+
+          {/* STATUS EM TEMPO REAL DO ROBÔ LOCAL */}
+          <button
+            type="button"
+            onClick={() => setIsSetupLocalModalOpen(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono font-bold transition cursor-pointer ${
+              localRobotStatus === "ATIVO"
+                ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20"
+                : "bg-rose-500/15 text-rose-300 border-rose-500/40 hover:bg-rose-500/25 animate-pulse"
+            }`}
+            title="Status do Robô de Integração Local no Windows. Clique para instalar ou gerenciar."
+          >
+            <span className={`w-2 h-2 rounded-full ${localRobotStatus === "ATIVO" ? "bg-emerald-400 animate-pulse" : "bg-rose-500"}`} />
+            <span className="text-slate-400">Robô Local:</span>
+            <span className={localRobotStatus === "ATIVO" ? "text-emerald-400" : "text-rose-400 font-black"}>
+              {localRobotStatus === "ATIVO" ? "ONLINE (24h)" : "INATIVO (Instalar)"}
+            </span>
+          </button>
         </div>
 
         {/* PROMINENTLY HIGHLIGHTED ACTIVE TENANT SELECTOR IN TOP FIRST HORIZONTAL LINE */}
@@ -5811,6 +5859,35 @@ export default function MidwayLabDashboard() {
                 </button>
               </div>
             </div>
+
+            {/* ALERTA PROATIVO QUANDO O ROBÔ LOCAL ESTIVER INATIVO / NÃO INSTALADO */}
+            {localRobotStatus === "INATIVO" && (
+              <div className="bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-500/50 rounded-2xl p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl shadow-amber-500/10 animate-fadeIn">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-6 h-6 text-amber-400 animate-bounce" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      ⚠️ Robô Local de Integração Desconectado ou Não Instalado nesta Máquina
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                      Para que as cargas de exames do Labfacil sejam gravadas diretamente nas pastas (<code className="text-amber-300 font-mono">C:\MidwayLab\Equipamentos\...</code>) e os resultados voltem automaticamente, o serviço do Robô precisa estar ativo no Windows.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSetupLocalModalOpen(true)}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-500/30 shrink-0"
+                  title="Abrir o assistente guiado para criar pastas no C:\ e ativar o serviço do robô 24h"
+                >
+                  <HardDrive className="w-4 h-4 text-slate-950" />
+                  🛠️ Instalar / Ativar Robô Local Agora
+                </button>
+              </div>
+            )}
 
             {/* LISTA DE EQUIPAMENTOS FILTRADOS POR EMPRESA */}
             {(() => {
