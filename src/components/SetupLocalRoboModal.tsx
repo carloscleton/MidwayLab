@@ -18,7 +18,10 @@ import {
   Copy,
   Check,
   Download,
-  ListChecks
+  ListChecks,
+  FlaskConical,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface ISetupLocalRoboModalProps {
@@ -59,10 +62,13 @@ export function SetupLocalRoboModal({
     logs: []
   });
   const [isLoadingRobo, setIsLoadingRobo] = useState(false);
-  const [scriptWindowsGerado, setScriptWindowsGerado] = useState<string | null>(null);
-  const [copiedScript, setCopiedScript] = useState(false);
-  const [copiedStartupCmd, setCopiedStartupCmd] = useState(false);
+  const [isTestingPedido, setIsTestingPedido] = useState(false);
+  const [showCredenciais, setShowCredenciais] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedEntrada, setCopiedEntrada] = useState(false);
+  const [copiedCarga, setCopiedCarga] = useState(false);
+  const [copiedResultados, setCopiedResultados] = useState(false);
+  const [scriptWindowsGerado, setScriptWindowsGerado] = useState<string | null>(null);
   const [scriptInfo, setScriptInfo] = useState<{
     batPath: string;
     batContent: string;
@@ -86,53 +92,57 @@ export function SetupLocalRoboModal({
     }
   };
 
+  const equipsFiltrados = equipamentos.filter(eq =>
+    activeTenant ? eq.tenant_id === activeTenant.id : true
+  );
+  const modeloAtivo = equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500';
+
   const copiarChecklistInstalacao = () => {
-    const equipNome = equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500';
     const texto = [
       `========================================================================`,
       `MIDWAYLAB - ROTEIRO DE INSTALAÇÃO DO ZERO NO CLIENTE`,
       `Empresa: ${activeTenant?.nome || 'Laboratório Cliente'}`,
-      `Equipamento: ${equipNome}`,
+      `Equipamento: ${modeloAtivo}`,
       `Pasta Raiz: ${pastaRaiz || 'C:\\MidwayLab'}`,
       `========================================================================`,
       ``,
-      `PASSO 1: CRIAR ESTRUTURA NO C:\\`,
-      `* No assistente da tela, clique em "Gerar Pastas com 1 Clique".`,
+      `ETAPA 1: CRIAR ESTRUTURA NO C:\\`,
+      `* No assistente da tela, clique em "Criar Pastas com 1 Clique".`,
       `* Será criada a pasta ${pastaRaiz || 'C:\\MidwayLab'} com subpastas e atalhos prontos.`,
       ``,
-      `PASSO 2: CONFIGURAR O LABFÁCIL (LIS DO CLIENTE)`,
+      `ETAPA 2: CONFIGURAR O LABFÁCIL (LIS DO CLIENTE)`,
       `* No sistema Labfácil / Apoio, configure a exportação de pedidos para:`,
-      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Labfacil\\${equipNome}\\Entrada`,
+      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Labfacil\\${modeloAtivo}\\Entrada`,
       ``,
-      `PASSO 3: CONFIGURAR O ANALISADOR (SOFTWARE DO EQUIPAMENTO)`,
+      `ETAPA 3: CONFIGURAR O ANALISADOR (SOFTWARE DO EQUIPAMENTO)`,
       `* Pasta de Leitura de Carga (Worklist):`,
-      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Equipamentos\\${equipNome}\\Carga`,
+      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Equipamentos\\${modeloAtivo}\\Carga`,
       `* Pasta de Gravação de Resultados (Laudos):`,
-      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Equipamentos\\${equipNome}\\Resultados`,
+      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Equipamentos\\${modeloAtivo}\\Resultados`,
       ``,
-      `PASSO 4: ATIVAR O ROBÔ PERMANENTE 24H NO WINDOWS`,
+      `ETAPA 4: ATIVAR O ROBÔ PERMANENTE 24H NO WINDOWS`,
       `* Abra a pasta ${pastaRaiz || 'C:\\MidwayLab'} no Windows Explorer.`,
       `* Clique com botão direito em "1_INSTALAR_ROBO_24H.bat" e selecione "Executar como Administrador".`,
       `* O robô iniciará automaticamente no boot do Windows e ficará monitorando na bandeja do relógio.`,
       ``,
-      `PASSO 5: TESTE DE COMUNICAÇÃO DE PONTA A PONTA`,
-      `* Exporte um pedido de teste no Labfácil.`,
+      `ETAPA 5: TESTE DE COMUNICAÇÃO DE PONTA A PONTA`,
+      `* Exporte um pedido de teste no Labfácil ou clique em "Gerar Pedido de Teste".`,
       `* O robô consumirá o arquivo de Entrada, gerará a Carga para o analisador e notificará no relógio do Windows.`,
       `========================================================================`
     ].join('\r\n');
 
     navigator.clipboard.writeText(texto);
-    showNotification('📋 Roteiro de instalação copiado! Pronto para colar no WhatsApp ou Bloco de Notas.');
+    showNotification('📋 Roteiro de instalação copiado! Cole no WhatsApp ou Bloco de Notas.');
   };
 
-  // Carrega status atual do robô ao abrir o modal
   const carregarStatusRobo = async () => {
     try {
-      const res = await fetch('/api/robot-service');
+      const tenantQuery = activeTenant?.id ? `?tenantId=${activeTenant.id}` : '';
+      const res = await fetch(`/api/robot-service${tenantQuery}`);
       const data = await res.json();
       if (data.success) {
         setRoboStatus({
-          isRunning: Boolean(data.isRunning),
+          isRunning: Boolean(data.isRunning || data.ativo),
           logs: data.logs || []
         });
       }
@@ -148,10 +158,6 @@ export function SetupLocalRoboModal({
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const equipsFiltrados = equipamentos.filter(eq =>
-    activeTenant ? eq.tenant_id === activeTenant.id : true
-  );
 
   const handleCriarPastas = async () => {
     if (!activeTenant?.id) {
@@ -175,13 +181,12 @@ export function SetupLocalRoboModal({
       if (data.success) {
         setPastasCriadas(data.resultados || []);
         if (data.todasCriadasNoDisco) {
-          showNotification(`✓ Estrutura de pastas criada com sucesso no disco em ${data.pastaRaiz}!`);
+          showNotification(`✓ Estrutura de pastas criada em ${data.pastaRaiz}! Atalhos 1_INSTALAR_ROBO_24H.bat prontos.`);
         } else {
-          // Ambiente Web/Vercel: baixa o script .bat para criar com 2 cliques no Windows
           if (data.batScript) {
             downloadArquivo(data.batScript, 'CRIAR_PASTAS_MIDWAYLAB.bat');
           }
-          showNotification(`📥 Arquivo 'CRIAR_PASTAS_MIDWAYLAB.bat' baixado! Dê dois cliques para criar as pastas no seu Windows.`);
+          showNotification(`📥 Arquivo 'CRIAR_PASTAS_MIDWAYLAB.bat' baixado! Execute-o para criar as pastas no Windows.`);
         }
         if (onConfigAtualizada) onConfigAtualizada();
       } else {
@@ -194,8 +199,13 @@ export function SetupLocalRoboModal({
     }
   };
 
-  const handleToggleRobo = async (acao: 'iniciar' | 'parar' | 'varrer_agora') => {
-    setIsLoadingRobo(true);
+  const handleToggleRobo = async (acao: 'iniciar' | 'parar' | 'varrer_agora' | 'gerar_pedido_teste') => {
+    if (acao === 'gerar_pedido_teste') {
+      setIsTestingPedido(true);
+    } else {
+      setIsLoadingRobo(true);
+    }
+
     try {
       const res = await fetch('/api/robot-service', {
         method: 'POST',
@@ -203,7 +213,8 @@ export function SetupLocalRoboModal({
         body: JSON.stringify({
           acao,
           tenantId: activeTenant?.id,
-          pastaRaiz: pastaRaiz
+          pastaRaiz: pastaRaiz,
+          modelo: modeloAtivo
         })
       });
       const data = await res.json();
@@ -223,6 +234,7 @@ export function SetupLocalRoboModal({
       showNotification(`⚠️ Erro ao comunicar com o robô: ${err.message}`);
     } finally {
       setIsLoadingRobo(false);
+      setIsTestingPedido(false);
     }
   };
 
@@ -235,7 +247,8 @@ export function SetupLocalRoboModal({
         body: JSON.stringify({
           acao: 'gerar_script_windows',
           tenantId: activeTenant?.id,
-          pastaRaiz: pastaRaiz
+          pastaRaiz: pastaRaiz,
+          modelo: modeloAtivo
         })
       });
       const data = await res.json();
@@ -248,15 +261,14 @@ export function SetupLocalRoboModal({
           gravadoNoDisco: Boolean(data.gravadoNoDisco)
         });
 
-        // Se veio o conteúdo do script, inicia download imediato para a máquina local
         if (data.batContent) {
-          downloadArquivo(data.batContent, 'INICIAR_ROBO_MIDWAY.bat');
+          downloadArquivo(data.batContent, '1_INSTALAR_ROBO_24H.bat');
         }
 
         if (data.gravadoNoDisco) {
-          showNotification(`✓ Script gerado em ${data.batPath} e configurado no Windows!`);
+          showNotification(`✓ Script gerado em ${data.batPath} e pronto no Windows!`);
         } else {
-          showNotification(`📥 Arquivo 'INICIAR_ROBO_MIDWAY.bat' baixado! Coloque-o na pasta Startup do Windows.`);
+          showNotification(`📥 Arquivo '1_INSTALAR_ROBO_24H.bat' baixado! Execute como Administrador no Windows.`);
         }
       } else {
         showNotification(`⚠️ Erro: ${data.error}`);
@@ -270,7 +282,7 @@ export function SetupLocalRoboModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-slate-900 border border-teal-500/40 w-full max-w-4xl max-h-[92vh] rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-y-auto custom-scrollbar">
+      <div className="bg-slate-900 border border-teal-500/40 w-full max-w-5xl max-h-[92vh] rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-y-auto custom-scrollbar">
         {/* CABEÇALHO */}
         <div className="flex items-start justify-between border-b border-slate-800 pb-4">
           <div className="space-y-1">
@@ -280,13 +292,13 @@ export function SetupLocalRoboModal({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  Assistente de Instalação Local & Robô de Produção
+                  Assistente de Instalação Local & Robô de Produção 24h
                   <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">
                     Carlos Cleton (Admin)
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Cria a estrutura de pastas no computador local do laboratório e coloca o robô para rodar 24h sem depender de navegador.
+                  Estrutura de pastas, atalhos autônomos e execução passo a passo para deixar o cliente 100% funcionando.
                 </p>
               </div>
             </div>
@@ -300,467 +312,268 @@ export function SetupLocalRoboModal({
           </button>
         </div>
 
-        {/* RECOMENDAÇÕES: PASSO A PASSO PARA IMPLANTAÇÃO DO ZERO NO CLIENTE */}
-        <div className="bg-gradient-to-br from-slate-950 via-teal-950/25 to-slate-950 border-2 border-teal-500/40 rounded-2xl p-4.5 space-y-3.5 shadow-xl shadow-teal-500/5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-teal-500/20 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-300 flex items-center justify-center shrink-0">
-                <ListChecks className="w-4 h-4 text-teal-400" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  📋 Recomendações: Passo a Passo para Instalar do Zero no Cliente
-                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">
-                    5 Etapas
-                  </span>
-                </h4>
-                <p className="text-[11px] text-slate-400">
-                  Sequência oficial recomendada para colocar a integração 100% no ar em qualquer computador novo de laboratório.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={copiarChecklistInstalacao}
-              className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 text-[11px] font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0 shadow-sm"
-              title="Copiar instruções completas para enviar ao técnico ou cliente via WhatsApp"
-            >
-              <Copy className="w-3.5 h-3.5" /> Copiar Roteiro (WhatsApp / Técnico)
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5 text-xs">
-            {/* ETAPA 1 */}
-            <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-teal-500/30 transition">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
-                    ETAPA 1
-                  </span>
-                  <FolderCheck className="w-3.5 h-3.5 text-teal-400" />
-                </div>
-                <h5 className="font-bold text-slate-100 text-xs mt-1">Gerar Pastas no C:\</h5>
-                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                  No Passo 1 abaixo, clique em <strong className="text-teal-300">"📁 Gerar Pastas com 1 Clique"</strong> para criar <code className="text-cyan-300 font-mono">C:\MidwayLab</code> e as subpastas.
-                </p>
-              </div>
-              <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 mt-1">
-                <CheckCircle2 className="w-3 h-3" /> Criação automática
+        {/* BARRA SUPERIOR: CONFIGURAÇÃO DE PASTA RAIZ & EMPRESA */}
+        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap flex-1">
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                Pasta Raiz no Disco Local (Windows):
               </span>
-            </div>
-
-            {/* ETAPA 2 */}
-            <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-cyan-500/30 transition">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
-                    ETAPA 2
-                  </span>
-                  <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
-                </div>
-                <h5 className="font-bold text-slate-100 text-xs mt-1">Configurar Labfácil</h5>
-                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                  No LIS do laboratório, aponte a exportação de pedidos (XML/JSON) para:
-                </p>
-                <div className="bg-slate-950 p-1.5 rounded-lg border border-slate-800 font-mono text-[10px] text-teal-300 mt-1 break-all">
-                  C:\MidwayLab\Labfacil\{equipsFiltrados[0]?.modelo || 'MODELO'}\Entrada
-                </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={pastaRaiz}
+                  onChange={(e) => setPastaRaiz(e.target.value)}
+                  placeholder="C:\MidwayLab"
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-teal-300 font-mono text-xs font-bold w-48 sm:w-56 focus:outline-none focus:border-teal-400"
+                />
+                <span className="text-slate-400 text-xs">•</span>
+                <span className="text-xs text-slate-300 font-medium">
+                  Empresa: <strong className="text-teal-300">{activeTenant?.nome || 'Cliente'}</strong>
+                </span>
+                <span className="text-slate-400 text-xs">•</span>
+                <span className="text-xs text-slate-300 font-medium">
+                  Modelo: <strong className="text-cyan-300">{modeloAtivo}</strong>
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(`C:\\MidwayLab\\Labfacil\\${equipsFiltrados[0]?.modelo || 'MODELO'}\\Entrada`);
-                  showNotification('📋 Caminho de Entrada do Labfácil copiado!');
-                }}
-                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-mono flex items-center gap-1 cursor-pointer mt-1"
-              >
-                <Copy className="w-2.5 h-2.5" /> Copiar caminho
-              </button>
-            </div>
-
-            {/* ETAPA 3 */}
-            <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-indigo-500/30 transition">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
-                    ETAPA 3
-                  </span>
-                  <Server className="w-3.5 h-3.5 text-indigo-400" />
-                </div>
-                <h5 className="font-bold text-slate-100 text-xs mt-1">Configurar Analisador</h5>
-                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                  No software do aparelho, configure as pastas:
-                </p>
-                <div className="space-y-1 mt-1 text-[10px] font-mono">
-                  <div className="bg-slate-950 p-1.5 rounded border border-slate-800 text-indigo-300 break-all">
-                    <strong>Carga:</strong> ...\Equipamentos\{equipsFiltrados[0]?.modelo || 'MODELO'}\Carga
-                  </div>
-                  <div className="bg-slate-950 p-1.5 rounded border border-slate-800 text-amber-300 break-all">
-                    <strong>Resultados:</strong> ...\Resultados
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(`C:\\MidwayLab\\Equipamentos\\${equipsFiltrados[0]?.modelo || 'MODELO'}\\Carga`);
-                  showNotification('📋 Caminho de Carga do analisador copiado!');
-                }}
-                className="text-[10px] text-indigo-400 hover:text-indigo-300 underline font-mono flex items-center gap-1 cursor-pointer mt-1"
-              >
-                <Copy className="w-2.5 h-2.5" /> Copiar Carga
-              </button>
-            </div>
-
-            {/* ETAPA 4 */}
-            <div className="bg-slate-900/90 border border-emerald-500/30 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-emerald-500/50 transition">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                    ETAPA 4
-                  </span>
-                  <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                </div>
-                <h5 className="font-bold text-slate-100 text-xs mt-1">Ativar Robô 24h</h5>
-                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                  Abra <code className="text-teal-300 font-mono">C:\MidwayLab</code> no Explorer e execute como Administrador:
-                </p>
-                <div className="bg-slate-950 p-1.5 rounded-lg border border-emerald-500/30 font-mono text-[10px] text-emerald-300 font-bold mt-1 break-all">
-                  👉 1_INSTALAR_ROBO_24H.bat
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Inicia sozinho toda vez que o Windows ligar.
-                </p>
-              </div>
-              <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 mt-1">
-                <CheckCircle2 className="w-3 h-3" /> Fica ativo no relógio
-              </span>
-            </div>
-
-            {/* ETAPA 5 */}
-            <div className="bg-slate-900/90 border border-amber-500/30 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-amber-500/50 transition">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                    ETAPA 5
-                  </span>
-                  <CheckCircle2 className="w-3 h-3 text-amber-400" />
-                </div>
-                <h5 className="font-bold text-slate-100 text-xs mt-1">Testar e Validar</h5>
-                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                  Exporte um pedido de teste no Labfácil e confirme a entrega imediata na pasta do analisador com notificação no Windows.
-                </p>
-              </div>
-              <span className="text-[10px] font-bold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded text-center block mt-1">
-                ✨ Produção 100% Pronta
-              </span>
             </div>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-300">
-            <span className="flex items-center gap-2">
-              💡 <strong className="text-teal-300">Dica Prática:</strong> Os atalhos <code className="text-cyan-300 font-mono">1_INSTALAR_ROBO_24H.bat</code>, <code className="text-cyan-300 font-mono">2_INICIAR_ROBO_BANDEJA.bat</code> e <code className="text-cyan-300 font-mono">3_VER_STATUS_ROBO.bat</code> ficam salvos diretamente na raiz de <code className="text-teal-300 font-mono">C:\MidwayLab</code> para não precisar abrir pastas internas do sistema.
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText('C:\\MidwayLab');
-                showNotification('📋 Caminho C:\\MidwayLab copiado!');
-              }}
-              className="text-cyan-400 hover:text-cyan-300 underline font-mono text-[10px] shrink-0 cursor-pointer"
-            >
-              Copiar "C:\MidwayLab"
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={copiarChecklistInstalacao}
+            className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 cursor-pointer shrink-0 shadow-sm"
+            title="Copiar todo o roteiro com caminhos para colar no WhatsApp ou enviar ao suporte"
+          >
+            <ListChecks className="w-4 h-4 text-teal-400" />
+            📋 Copiar Roteiro (WhatsApp / Suporte)
+          </button>
         </div>
 
-        {/* PASSO 1: DADOS DA INSTALAÇÃO LOCAL */}
-        <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-teal-300 uppercase tracking-wider flex items-center gap-2">
-              <FolderPlus className="w-4 h-4 text-teal-400" />
-              Passo 1: Definir Pasta Raiz do Disco Local
-            </span>
-            <span className="text-[11px] text-slate-400">
-              Empresa: <strong className="text-slate-200">{activeTenant?.nome || 'Não selecionada'}</strong>
-            </span>
-          </div>
+        {/* GRID PRINCIPAL: 5 CARDS COM EXECUÇÃO INTEGRADA */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* CARD 1: GERAR PASTAS NO C:\ */}
+          <div className="bg-slate-950/80 border border-teal-500/30 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-teal-500/50 transition">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-[11px] font-mono font-bold text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20 flex items-center gap-1.5">
+                  <FolderPlus className="w-3.5 h-3.5" /> ETAPA 1
+                </span>
+                {pastasCriadas.length > 0 ? (
+                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Pastas Criadas ✓
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">Pendente de geração</span>
+                )}
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2 space-y-1">
-              <label className="block text-[11px] text-slate-300 font-semibold">
-                Caminho Raiz no Disco Local (Recomendado C:\MidwayLab)
-              </label>
-              <input
-                type="text"
-                value={pastaRaiz}
-                onChange={(e) => setPastaRaiz(e.target.value)}
-                placeholder="C:\MidwayLab"
-                className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-400 font-bold"
-              />
-              <span className="text-[10px] text-slate-500 block">
-                O sistema criará automaticamente as subpastas separadas para o Labfácil e para cada equipamento dentro deste diretório.
-              </span>
+              <div>
+                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  1. Gerar Estrutura de Pastas no Disco Local
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                  Cria automaticamente a pasta <code className="text-teal-300 font-mono font-bold">{pastaRaiz}</code> com todas as subpastas necessárias para o Labfácil e para o analisador <strong className="text-slate-200">{modeloAtivo}</strong>, além dos atalhos executáveis.
+                </p>
+              </div>
+
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 space-y-0.5">
+                <div>📁 <span className="text-teal-300">{pastaRaiz}\Labfacil\{modeloAtivo}\...</span></div>
+                <div>📁 <span className="text-cyan-300">{pastaRaiz}\Equipamentos\{modeloAtivo}\...</span></div>
+              </div>
             </div>
 
-            <div className="flex flex-col justify-end">
+            <div className="pt-2">
               <button
                 type="button"
                 disabled={isCriandoPastas}
                 onClick={handleCriarPastas}
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer disabled:opacity-50"
+                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-teal-500/20 cursor-pointer disabled:opacity-50"
               >
                 <FolderCheck className={`w-4 h-4 ${isCriandoPastas ? 'animate-spin' : ''}`} />
-                {isCriandoPastas ? 'Criando Pastas...' : '📁 Gerar Pastas com 1 Clique'}
+                {isCriandoPastas ? 'Criando Pastas no C:\\...' : '📁 Executar: Criar Pastas com 1 Clique'}
               </button>
             </div>
           </div>
 
-          {/* LISTA DE EQUIPAMENTOS DA EMPRESA */}
-          <div className="pt-2 border-t border-slate-800/60">
-            <span className="text-[11px] text-slate-400 block mb-1.5 font-medium">
-              Equipamentos que receberão as pastas automáticas ({equipsFiltrados.length}):
-            </span>
-            <div className="flex items-center gap-2 flex-wrap">
-              {equipsFiltrados.length === 0 ? (
-                <span className="text-xs text-amber-400 italic">
-                  Nenhum equipamento cadastrado ainda nesta empresa. O sistema usará as pastas padrão do modelo.
+          {/* CARD 2: CONFIGURAR LABFÁCIL LIS */}
+          <div className="bg-slate-950/80 border border-cyan-500/30 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-cyan-500/50 transition">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-[11px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 flex items-center gap-1.5">
+                  <HardDrive className="w-3.5 h-3.5" /> ETAPA 2
                 </span>
-              ) : (
-                equipsFiltrados.map(eq => (
-                  <span
-                    key={eq.id}
-                    className="bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg text-slate-200 text-xs font-mono flex items-center gap-1.5"
-                  >
-                    <Server className="w-3 h-3 text-cyan-400" />
-                    <strong>{eq.nome}</strong> ({eq.modelo})
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* GUIA / EXEMPLO DA ESTRUTURA DE PASTAS CASO QUEIRA CRIAR MANUALMENTE */}
-        <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs font-bold text-slate-200">
-                Exemplo da Estrutura Oficial de Pastas (Referência para Criação Manual no Windows)
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const modeloExemplo = equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500';
-                const texto = [
-                  `${pastaRaiz || 'C:\\MidwayLab'}\\`,
-                  `├── Labfacil\\`,
-                  `│   └── ${modeloExemplo}\\`,
-                  `│       ├── Entrada\\       <- Onde o Labfácil deposita os pedidos`,
-                  `│       ├── Processados\\   <- Arquivos já lidos e convertidos`,
-                  `│       └── Erros\\         <- Arquivos com divergência`,
-                  `└── Equipamentos\\`,
-                  `    └── ${modeloExemplo}\\`,
-                  `        ├── Carga\\         <- Onde o analisador busca a worklist`,
-                  `        └── Resultados\\    <- Onde o analisador grava os resultados`
-                ].join('\n');
-                navigator.clipboard.writeText(texto);
-                showNotification('📋 Exemplo de estrutura de pastas copiado para a área de transferência!');
-              }}
-              className="text-[11px] text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-1 rounded-lg font-mono font-semibold transition cursor-pointer flex items-center gap-1.5"
-              title="Copiar árvore de exemplo para colar na documentação ou bloco de notas"
-            >
-              <Copy className="w-3.5 h-3.5" /> Copiar Estrutura Exemplo
-            </button>
-          </div>
-
-          <p className="text-[11px] text-slate-400">
-            Se preferir criar as pastas manualmente pelo Windows Explorer, siga exatamente este padrão de diretórios para garantir que o robô e o Labfácil se comuniquem perfeitamente:
-          </p>
-
-          <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-3 font-mono text-[11px] text-teal-300 select-all leading-relaxed overflow-x-auto">
-            <span className="text-amber-300 font-bold">{pastaRaiz || 'C:\\MidwayLab'}\</span><br />
-            ├── <span className="text-slate-100 font-semibold">Labfacil\</span><br />
-            │   └── <span className="text-cyan-300 font-bold">{equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500'}\</span><br />
-            │       ├── <span className="text-emerald-400 font-bold">Entrada\</span>       <span className="text-slate-500">&lt;- Onde o Labfácil deposita os pedidos (XML / JSON)</span><br />
-            │       ├── <span className="text-slate-400 font-bold">Processados\</span>   <span className="text-slate-500">&lt;- Arquivos já lidos e convertidos com timestamp</span><br />
-            │       └── <span className="text-rose-400 font-bold">Erros\</span>         <span className="text-slate-500">&lt;- Arquivos com divergência para auditoria</span><br />
-            └── <span className="text-slate-100 font-semibold">Equipamentos\</span><br />
-            &nbsp;&nbsp;&nbsp;&nbsp;└── <span className="text-cyan-300 font-bold">{equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500'}\</span><br />
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── <span className="text-indigo-300 font-bold">Carga\</span>         <span className="text-slate-500">&lt;- Onde o analisador busca a worklist gerada</span><br />
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <span className="text-amber-400 font-bold">Resultados\</span>    <span className="text-slate-500">&lt;- Onde o analisador grava os resultados processados</span>
-          </div>
-        </div>
-
-        {/* FEEDBACK DE PASTAS CRIADAS */}
-        {pastasCriadas.length > 0 && (
-          <div className="bg-emerald-950/20 border border-emerald-500/40 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Estrutura de Pastas Criada e Validada no Disco Local!
-              </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full font-bold">
-                {pastasCriadas.length} Analisadores Prontos
-              </span>
-            </div>
-
-            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-              {pastasCriadas.map((p, idx) => (
-                <div key={idx} className="bg-slate-950/80 border border-emerald-500/20 rounded-xl p-3 text-xs space-y-1 font-mono">
-                  <div className="flex items-center justify-between text-slate-200 font-bold">
-                    <span>🔬 {p.equipamentoNome} ({p.modelo})</span>
-                    <span className="text-[10px] text-emerald-400">Permissão de Escrita: OK ✓</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-400 pt-1">
-                    <div>📥 Labfácil Entrada: <span className="text-teal-300">{p.diretorioEntrada}</span></div>
-                    <div>📦 Analisador Carga: <span className="text-cyan-300">{p.diretorioCarga}</span></div>
-                    <div>✓ Labfácil Processados: <span className="text-slate-300">{p.diretorioProcessados}</span></div>
-                    <div>📊 Analisador Resultados: <span className="text-slate-300">{p.diretorioResultados}</span></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* PASSO 2: CREDENCIAIS SEGURAS DA EMPRESA (INSTALAÇÃO NO CLIENTE) */}
-        <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Passo 2: Credenciais Seguras do Cliente (Token de API)
-            </span>
-            <span className="text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-              ✓ Zero Credenciais do Banco no Cliente
-            </span>
-          </div>
-
-          <p className="text-[11px] text-slate-300 leading-relaxed">
-            Para garantir <strong>100% de segurança</strong> contra acessos indevidos e invasões, a máquina do cliente 
-            <strong> NÃO possui senha do banco de dados (Supabase)</strong> nem chaves mestras. O robô local se comunica com a 
-            nuvem MidwayLab utilizando exclusivamente o Token de API deste laboratório.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* SERVIDOR URL */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">
-                URL da API MidwayLab (Servidor):
-              </span>
-              <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono text-cyan-300 truncate font-bold">
-                  {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const url = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-                    navigator.clipboard.writeText(url);
-                    showNotification('📋 URL da API copiada!');
-                  }}
-                  className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 cursor-pointer"
-                  title="Copiar URL"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
+                <span className="text-[10px] text-slate-400">LIS / Exportação</span>
               </div>
-            </div>
 
-            {/* TOKEN DO CLIENTE */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">
-                  Token Exclusivo do Laboratório:
+              <div>
+                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  2. Configurar Labfácil (Entrada de Pedidos)
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                  No software Labfácil ou sistema de apoio, aponte a pasta de exportação de pedidos (XML ou JSON) para este diretório:
+                </p>
+              </div>
+
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold block">
+                  Caminho de Entrada dos Pedidos:
                 </span>
-                <span className="text-[10px] text-emerald-400 font-mono">Ativo ✓</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono text-emerald-300 truncate font-bold select-all">
-                  {activeTenant?.configuracoes?.api_token || 'Token não gerado (salve a empresa)'}
+                <code className="text-xs font-mono text-cyan-300 font-bold block break-all select-all">
+                  {pastaRaiz}\Labfacil\{modeloAtivo}\Entrada
                 </code>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const token = activeTenant?.configuracoes?.api_token || '';
-                    if (token) {
-                      navigator.clipboard.writeText(token);
-                      setCopiedToken(true);
-                      setTimeout(() => setCopiedToken(false), 2000);
-                      showNotification('📋 Token de API copiado!');
-                    }
-                  }}
-                  className="text-slate-400 hover:text-emerald-400 p-1 rounded hover:bg-slate-800 cursor-pointer"
-                  title="Copiar Token"
-                >
-                  {copiedToken ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
               </div>
             </div>
-          </div>
 
-          {/* BOTÕES DE DOWNLOAD .ENV E INSTRUÇÕES */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
-            <span className="text-[11px] text-slate-400">
-              Arquivo de configuração pronto para colocar na pasta do robô:
-            </span>
-            <div className="flex items-center gap-2">
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  const url = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-                  const token = activeTenant?.configuracoes?.api_token || '';
-                  const envContent = [
-                    '# =====================================================================',
-                    '# MIDWAYLAB - CONFIGURACAO SEGURA DO AGENTE LOCAL',
-                    `# Laboratorio: ${activeTenant?.nome || 'Cliente'}`,
-                    '# NENHUMA chave do banco Supabase fica nesta maquina.',
-                    '# =====================================================================',
-                    `MIDWAY_API_URL=${url}`,
-                    `MIDWAY_AGENT_TOKEN=${token}`,
-                    ''
-                  ].join('\r\n');
-                  downloadArquivo(envContent, '.env');
-                  showNotification('📥 Arquivo .env seguro baixado com sucesso!');
+                  navigator.clipboard.writeText(`${pastaRaiz}\\Labfacil\\${modeloAtivo}\\Entrada`);
+                  setCopiedEntrada(true);
+                  setTimeout(() => setCopiedEntrada(false), 2000);
+                  showNotification('📋 Caminho de Entrada copiado para colar no Labfácil!');
                 }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-600/20"
+                className="w-full bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
               >
-                <Download className="w-3.5 h-3.5" /> Baixar .env do Cliente
+                {copiedEntrada ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copiedEntrada ? 'Caminho Copiado!' : '📋 Copiar Caminho para o Labfácil'}
               </button>
             </div>
           </div>
-        </div>
 
-        {/* PASSO 3: COLOCAR ROBÔ EM PRODUÇÃO (24 HORAS) */}
-        <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-indigo-400" />
-                Passo 3: Ativação do Robô em Produção 24 Horas
-              </span>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono flex items-center gap-1 ${
-                  roboStatus.isRunning
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${roboStatus.isRunning ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'}`} />
-                {roboStatus.isRunning ? 'ROBÔ ONLINE (EM PRODUÇÃO)' : 'ROBÔ PARADO'}
-              </span>
+          {/* CARD 3: CONFIGURAR ANALISADOR / EQUIPAMENTO */}
+          <div className="bg-slate-950/80 border border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-indigo-500/50 transition">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-[11px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 flex items-center gap-1.5">
+                  <Server className="w-3.5 h-3.5" /> ETAPA 3
+                </span>
+                <span className="text-[10px] text-slate-400">Software do Analisador</span>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  3. Configurar Analisador ({modeloAtivo})
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                  No software do aparelho (Sysmex, Horiba, Cormay, etc.), configure as duas pastas de integração:
+                </p>
+              </div>
+
+              <div className="space-y-2 text-xs font-mono">
+                <div className="bg-slate-900 p-2 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                  <div className="truncate">
+                    <span className="text-[10px] text-indigo-400 font-bold uppercase block">Carga / Worklist:</span>
+                    <span className="text-slate-200 text-[11px] font-bold truncate block">{pastaRaiz}\Equipamentos\{modeloAtivo}\Carga</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${pastaRaiz}\\Equipamentos\\${modeloAtivo}\\Carga`);
+                      setCopiedCarga(true);
+                      setTimeout(() => setCopiedCarga(false), 2000);
+                      showNotification('📋 Caminho de Carga copiado!');
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-indigo-300 hover:bg-slate-800 rounded-lg cursor-pointer shrink-0"
+                    title="Copiar Carga"
+                  >
+                    {copiedCarga ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                <div className="bg-slate-900 p-2 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                  <div className="truncate">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase block">Resultados / Laudos:</span>
+                    <span className="text-slate-200 text-[11px] font-bold truncate block">{pastaRaiz}\Equipamentos\{modeloAtivo}\Resultados</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${pastaRaiz}\\Equipamentos\\${modeloAtivo}\\Resultados`);
+                      setCopiedResultados(true);
+                      setTimeout(() => setCopiedResultados(false), 2000);
+                      showNotification('📋 Caminho de Resultados copiado!');
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg cursor-pointer shrink-0"
+                    title="Copiar Resultados"
+                  >
+                    {copiedResultados ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="pt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${pastaRaiz}\\Equipamentos\\${modeloAtivo}\\Carga`);
+                  showNotification('📋 Caminho de Carga copiado!');
+                }}
+                className="w-1/2 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copiar Carga
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${pastaRaiz}\\Equipamentos\\${modeloAtivo}\\Resultados`);
+                  showNotification('📋 Caminho de Resultados copiado!');
+                }}
+                className="w-1/2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copiar Resultados
+              </button>
+            </div>
+          </div>
+
+          {/* CARD 4: ATIVAR ROBÔ 24H NO WINDOWS */}
+          <div className="bg-slate-950/80 border border-emerald-500/30 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-emerald-500/50 transition">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5" /> ETAPA 4
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono flex items-center gap-1 ${
+                    roboStatus.isRunning
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${roboStatus.isRunning ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'}`} />
+                  {roboStatus.isRunning ? 'ROBÔ ONLINE (24H)' : 'ROBÔ PARADO'}
+                </span>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  4. Ativação do Robô Permanente (24h Windows)
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                  O robô monitora as pastas em segundo plano. Para nunca depender do navegador, use o atalho de 1 clique gerado na raiz:
+                </p>
+              </div>
+
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-xs">
+                <span className="text-slate-400 text-[11px] block">Atalho no Windows Explorer:</span>
+                <code className="text-emerald-300 font-mono font-bold text-xs mt-0.5 block">
+                  👉 {pastaRaiz}\1_INSTALAR_ROBO_24H.bat
+                </code>
+                <span className="text-[10px] text-slate-500 block mt-0.5">
+                  Inicia automaticamente toda vez que o Windows ligar.
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
               {roboStatus.isRunning ? (
                 <button
                   type="button"
                   disabled={isLoadingRobo}
                   onClick={() => handleToggleRobo('parar')}
-                  className="bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                  className="w-full sm:w-1/2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 px-3 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Square className="w-3.5 h-3.5" /> Pausar Robô
                 </button>
@@ -769,145 +582,203 @@ export function SetupLocalRoboModal({
                   type="button"
                   disabled={isLoadingRobo}
                   onClick={() => handleToggleRobo('iniciar')}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
+                  className="w-full sm:w-1/2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
                 >
-                  <Play className="w-3.5 h-3.5" /> Iniciar Robô em Produção
+                  <Play className="w-3.5 h-3.5" /> Executar: Iniciar Robô
                 </button>
               )}
 
               <button
                 type="button"
                 disabled={isLoadingRobo}
-                onClick={() => handleToggleRobo('varrer_agora')}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
-                title="Executar varredura manual imediata das pastas"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRobo ? 'animate-spin' : ''}`} /> Varrer Agora
-              </button>
-
-              <button
-                type="button"
-                disabled={isLoadingRobo}
                 onClick={handleGerarScriptWindows}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
-                title="Gera script .BAT para iniciar com o Windows"
+                className="w-full sm:w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5"
+                title="Configurar inicialização automática no Windows"
               >
-                <Terminal className="w-3.5 h-3.5" /> ⚡ Iniciar com o Windows (Startup)
+                <Zap className="w-3.5 h-3.5" /> Configurar Auto 24h
               </button>
             </div>
           </div>
 
-          {/* SCRIPT WINDOWS GERADO & INSTRUÇÕES DE STARTUP */}
-          {scriptWindowsGerado && (
-            <div className="bg-indigo-950/40 border border-indigo-500/40 rounded-2xl p-4 space-y-3 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-500/30 pb-2.5">
-                <div className="space-y-0.5 font-mono text-[11px]">
-                  <div className="text-indigo-300 font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    Script de Inicialização Automática Pronto!
-                  </div>
-                  <div className="text-slate-300">
-                    Caminho padrão: <code className="text-teal-300 font-bold">{scriptWindowsGerado}</code>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {scriptInfo?.batContent && (
-                    <button
-                      type="button"
-                      onClick={() => downloadArquivo(scriptInfo.batContent, 'INICIAR_ROBO_MIDWAY.bat')}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Baixar .BAT
-                    </button>
-                  )}
-                  {scriptInfo?.vbsContent && (
-                    <button
-                      type="button"
-                      onClick={() => downloadArquivo(scriptInfo.vbsContent || '', 'MidwayLab_Silencioso.vbs')}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
-                      title="Script VBS para iniciar o robô sem janela preta aberta"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Baixar .VBS (Oculto)
-                    </button>
-                  )}
-                </div>
+          {/* CARD 5: TESTAR E VALIDAR ESTEIRA DE PONTA A PONTA (FULL-WIDTH) */}
+          <div className="md:col-span-2 bg-slate-950/90 border border-amber-500/40 rounded-2xl p-4.5 space-y-3.5 hover:border-amber-500/60 transition shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> ETAPA 5
+                </span>
+                <h4 className="text-sm font-bold text-slate-100">
+                  5. Testar e Validar Esteira de Ponta a Ponta
+                </h4>
               </div>
 
-              {/* GUIA PASSO A PASSO PARA INICIAR COM O WINDOWS */}
-              <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 space-y-2 text-[11px]">
-                <span className="font-bold text-slate-200 flex items-center gap-1.5">
-                  📌 Como colocar para iniciar sozinho ao ligar o computador Windows:
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  disabled={isTestingPedido}
+                  onClick={() => handleToggleRobo('gerar_pedido_teste')}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow-md shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50"
+                  title="Gera um XML de teste na pasta Entrada e processa na hora"
+                >
+                  <FlaskConical className={`w-4 h-4 ${isTestingPedido ? 'animate-spin' : ''}`} />
+                  {isTestingPedido ? 'Gerando Teste...' : '🧪 Executar Teste: Gerar Pedido na Entrada'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isLoadingRobo}
+                  onClick={() => handleToggleRobo('varrer_agora')}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                  title="Força uma varredura imediata nas pastas"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRobo ? 'animate-spin' : ''}`} />
+                  Varrer Agora
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Clique em <strong className="text-amber-300">"Executar Teste"</strong> para que o sistema gere um pedido XML real na pasta <code className="text-teal-300 font-mono font-bold">{pastaRaiz}\Labfacil\{modeloAtivo}\Entrada</code>. O robô irá processá-lo instantaneamente, gerando o arquivo de carga para o analisador em <code className="text-cyan-300 font-mono font-bold">{pastaRaiz}\Equipamentos\{modeloAtivo}\Carga</code> e movendo o original para <code className="text-slate-400 font-mono font-bold">Processados</code>.
+            </p>
+
+            {/* TERMINAL DE LOGS EM TEMPO REAL */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-teal-400" />
+                  Terminal de Processamento em Tempo Real
                 </span>
-                <ol className="list-decimal list-inside space-y-1 text-slate-300 font-sans">
-                  <li>
-                    Pressione as teclas <kbd className="bg-slate-800 text-teal-300 px-1.5 py-0.5 rounded border border-slate-700 font-mono font-bold">Win + R</kbd> no teclado.
-                  </li>
-                  <li className="flex items-center gap-2 flex-wrap">
-                    <span>Digite o comando:</span>
-                    <code className="bg-slate-900 text-emerald-400 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">shell:startup</code>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {roboStatus.logs.length} eventos registrados
+                </span>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-36 overflow-y-auto custom-scrollbar font-mono text-[11px] space-y-1 text-slate-300">
+                {roboStatus.logs.length === 0 ? (
+                  <div className="text-slate-500 text-center py-3 text-xs italic">
+                    Nenhum arquivo processado ainda. Clique no botão acima "Executar Teste" para validar a esteira.
+                  </div>
+                ) : (
+                  roboStatus.logs.slice(0, 15).map((log, i) => (
+                    <div key={log.id || i} className="flex items-start gap-2 border-b border-slate-900 pb-1">
+                      <span className="text-slate-500 shrink-0">[{log.timestamp}]</span>
+                      <span
+                        className={`font-bold shrink-0 ${
+                          log.status === 'PROCESSADO'
+                            ? 'text-emerald-400'
+                            : log.status === 'ERRO'
+                            ? 'text-rose-400'
+                            : 'text-amber-400'
+                        }`}
+                      >
+                        {log.status}:
+                      </span>
+                      <span className="text-slate-200 truncate flex-1">{log.mensagem}</span>
+                      <span className="text-slate-400 text-[10px] shrink-0 font-bold">
+                        {log.paciente ? `(${log.paciente})` : ''}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DICA PRÁTICA FORMATADA (SEM QUEBRA INDEVIDA DE PALAVRAS) */}
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5">
+            <span className="text-base shrink-0 mt-0.5">💡</span>
+            <p className="text-slate-300 leading-relaxed m-0">
+              <strong className="text-teal-300 font-semibold">Dica de Gestão:</strong> Os arquivos executáveis <code className="text-cyan-300 font-mono font-bold">1_INSTALAR_ROBO_24H.bat</code>, <code className="text-cyan-300 font-mono font-bold">2_INICIAR_ROBO_BANDEJA.bat</code> e <code className="text-cyan-300 font-mono font-bold">3_VER_STATUS_ROBO.bat</code> ficam gravados na raiz de <code className="text-teal-300 font-mono font-bold">{pastaRaiz}</code> para que você ou o laboratório controlem tudo sem precisar abrir o código do projeto.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(pastaRaiz);
+              showNotification(`📋 Caminho '${pastaRaiz}' copiado!`);
+            }}
+            className="text-cyan-400 hover:text-cyan-300 font-mono text-xs font-bold underline shrink-0 cursor-pointer self-start sm:self-center"
+          >
+            Copiar "{pastaRaiz}"
+          </button>
+        </div>
+
+        {/* ACORDEÃO OPCIONAL: CREDENCIAIS SEGURAS / TOKEN DE API */}
+        <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/50">
+          <button
+            type="button"
+            onClick={() => setShowCredenciais(!showCredenciais)}
+            className="w-full px-4 py-3 text-left flex items-center justify-between text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer hover:bg-slate-900/50"
+          >
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Credenciais Seguras do Laboratório (Token de API & Arquivo .env)
+            </span>
+            {showCredenciais ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          </button>
+
+          {showCredenciais && (
+            <div className="p-4 border-t border-slate-800/80 space-y-3 text-xs bg-slate-950/70">
+              <p className="text-slate-400 leading-relaxed">
+                A máquina do cliente utiliza apenas o Token de API do laboratório. <strong>Nenhuma senha ou chave mestra do banco de dados</strong> fica armazenada no computador local.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-slate-500 uppercase font-mono block">Token de API do Laboratório:</span>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <code className="text-emerald-300 font-mono font-bold truncate">
+                      {activeTenant?.configuracoes?.api_token || 'Token não gerado'}
+                    </code>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText('shell:startup');
-                        setCopiedStartupCmd(true);
-                        setTimeout(() => setCopiedStartupCmd(false), 2000);
+                        const token = activeTenant?.configuracoes?.api_token || '';
+                        if (token) {
+                          navigator.clipboard.writeText(token);
+                          setCopiedToken(true);
+                          setTimeout(() => setCopiedToken(false), 2000);
+                          showNotification('📋 Token copiado!');
+                        }
                       }}
-                      className="text-[10px] text-teal-400 hover:text-teal-300 underline font-mono flex items-center gap-1 cursor-pointer"
+                      className="text-slate-400 hover:text-emerald-400 p-1 cursor-pointer"
                     >
-                      {copiedStartupCmd ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      {copiedStartupCmd ? 'Copiado!' : 'Copiar comando'}
+                      {copiedToken ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
-                  </li>
-                  <li>
-                    A pasta <strong className="text-slate-100">Inicializar do Windows</strong> vai se abrir. Cole o arquivo <code className="text-teal-300 font-mono">INICIAR_ROBO_MIDWAY.bat</code> lá dentro!
-                  </li>
-                </ol>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-mono block">Configuração .env Pronta:</span>
+                    <span className="text-xs text-slate-300">Contém o token e URL do servidor</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+                      const token = activeTenant?.configuracoes?.api_token || '';
+                      const envContent = [
+                        '# MIDWAYLAB - CONFIGURACAO DO AGENTE LOCAL',
+                        `MIDWAY_API_URL=${url}`,
+                        `MIDWAY_AGENT_TOKEN=${token}`,
+                        `EQUIPAMENTO=${modeloAtivo}`,
+                        `PASTA_RAIZ=${pastaRaiz}`,
+                        ''
+                      ].join('\r\n');
+                      downloadArquivo(envContent, '.env');
+                      showNotification('📥 Arquivo .env baixado!');
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Baixar .env
+                  </button>
+                </div>
               </div>
             </div>
           )}
-
-          {/* ÚLTIMOS LOGS DO ROBÔ EM TEMPO REAL */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <Terminal className="w-3.5 h-3.5 text-teal-400" />
-                Logs de Execução do Robô (Últimos Processamentos)
-              </span>
-              <span className="text-[10px] text-slate-500 font-mono">
-                {roboStatus.logs.length} registros capturados
-              </span>
-            </div>
-
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-36 overflow-y-auto custom-scrollbar font-mono text-[11px] space-y-1 text-slate-300">
-              {roboStatus.logs.length === 0 ? (
-                <div className="text-slate-500 text-center py-4 text-xs italic">
-                  Nenhum arquivo processado ainda. Assim que o Labfácil gravar um arquivo na pasta de Entrada, os logs aparecerão aqui instantaneamente.
-                </div>
-              ) : (
-                roboStatus.logs.slice(0, 20).map((log, i) => (
-                  <div key={log.id || i} className="flex items-start gap-2 border-b border-slate-900 pb-1">
-                    <span className="text-slate-500 shrink-0">[{log.timestamp}]</span>
-                    <span
-                      className={`font-bold shrink-0 ${
-                        log.status === 'PROCESSADO'
-                          ? 'text-emerald-400'
-                          : log.status === 'ERRO'
-                          ? 'text-rose-400'
-                          : 'text-amber-400'
-                      }`}
-                    >
-                      {log.status}:
-                    </span>
-                    <span className="text-slate-200 truncate flex-1">{log.mensagem}</span>
-                    <span className="text-slate-400 text-[10px] shrink-0 font-bold">
-                      {log.paciente ? `(${log.paciente})` : ''}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </div>
 
         {/* RODAPÉ DO MODAL */}
@@ -915,7 +786,7 @@ export function SetupLocalRoboModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition cursor-pointer"
           >
             Fechar Assistente
           </button>

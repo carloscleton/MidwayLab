@@ -129,6 +129,60 @@ export async function POST(request: Request) {
       });
     }
 
+    if (acao === 'gerar_pedido_teste') {
+      let modeloEscolhido = (modelo || equipamentoDestino || '').trim();
+      if (!modeloEscolhido && tenantId) {
+        try {
+          const { data: tenant } = await supabase
+            .from('tenants')
+            .select('configuracoes')
+            .eq('id', tenantId)
+            .single();
+          const equipPastas = tenant?.configuracoes?.equipamentos_pastas;
+          if (equipPastas) modeloEscolhido = Object.keys(equipPastas)[0] || '';
+        } catch (_) {}
+      }
+      if (!modeloEscolhido) modeloEscolhido = 'SYSMEX_UF_1500';
+
+      const dirEntrada = path.join(baseDir, 'Labfacil', modeloEscolhido, 'Entrada');
+      if (!fs.existsSync(dirEntrada)) {
+        fs.mkdirSync(dirEntrada, { recursive: true });
+      }
+      const sampleCode = Date.now().toString().slice(-6);
+      const sampleFileName = `TESTE_PEDIDO_${sampleCode}.xml`;
+      const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Principal>
+  <Paciente>
+    <Codigo>${sampleCode}</Codigo>
+    <Nome>PACIENTE TESTE INTEGRACAO</Nome>
+    <Amostra>${sampleCode}</Amostra>
+    <Data>${new Date().toISOString().split('T')[0]}</Data>
+  </Paciente>
+  <Exames>
+    <Exame>
+      <Codigo>EAS</Codigo>
+      <Descricao>SEDIMENTOSCOPIA / URINA</Descricao>
+    </Exame>
+  </Exames>
+</Principal>`;
+      const samplePath = path.join(dirEntrada, sampleFileName);
+      fs.writeFileSync(samplePath, sampleXml, 'utf8');
+
+      let processadosAgora = 0;
+      try {
+        processadosAgora = await FolderWatcherService.executarVarredura();
+      } catch (_) {}
+
+      return NextResponse.json({
+        success: true,
+        arquivoGerado: sampleFileName,
+        caminho: samplePath,
+        processadosAgora,
+        message: `🧪 Pedido de teste '${sampleFileName}' gerado na pasta Entrada e processado com sucesso!`,
+        status: FolderWatcherService.obterStatus()
+      });
+    }
+
     if (acao === 'gerar_script_windows') {
       const host = request.headers.get('host') || 'localhost:3000';
       const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
