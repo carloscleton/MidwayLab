@@ -35,8 +35,17 @@ async function buscarTenantPorToken(token: string) {
     }
 
     const tenant = tenants.find(t => {
-      const cfgToken = t.configuracoes?.api_token;
-      return cfgToken && cfgToken.trim() === token.trim();
+      const cfgToken = t.configuracoes?.api_token || t.configuracoes?.agent_token;
+      if (cfgToken && cfgToken.trim() === token.trim()) return true;
+
+      // Suporte a tokens gerados com o ID do tenant (ex: mw_agt_<tenantIdWithoutHyphens>_...)
+      const cleanTenantId = (t.id || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const cleanToken = token.toLowerCase();
+      if (cleanTenantId && cleanTenantId.length >= 8 && cleanToken.includes(cleanTenantId)) {
+        return true;
+      }
+
+      return false;
     });
 
     return tenant || null;
@@ -185,6 +194,30 @@ export async function POST(request: Request) {
         }
       } catch (_) {}
 
+      // Busca o formato de arquivo / comunicação configurado para este equipamento no laboratório (ex: ASTM, HL7, JSON, XML, CSV)
+      let formatoAlvo: 'ASTM' | 'HL7' | 'JSON' | 'XML' | 'CSV' | undefined = undefined;
+      try {
+        const { data: equipRows } = await supabase
+          .from('equipamentos')
+          .select('id, nome, modelo, formato_arquivo')
+          .eq('tenant_id', tenant.id);
+
+        if (equipRows && equipRows.length > 0) {
+          const modNorm = modelo.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const match = equipRows.find((e: any) => {
+            const eMod = (e.modelo || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const eNome = (e.nome || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return (eMod && modNorm.includes(eMod)) || (eNome && modNorm.includes(eNome)) || (eMod && eMod.includes(modNorm));
+          }) || equipRows[0];
+
+          if (match?.formato_arquivo) {
+            formatoAlvo = match.formato_arquivo.toUpperCase() as any;
+          }
+        }
+      } catch (err: any) {
+        console.warn('[agent] Aviso ao consultar equipamentos para formato:', err?.message);
+      }
+
       const resultadosCarga: Array<{
         pedidoId: string;
         paciente: string;
@@ -194,7 +227,7 @@ export async function POST(request: Request) {
       }> = [];
 
       for (const order of parsedOrders) {
-        const result = LabfacilParserService.gerarCargaEquipamento(order, modelo, mapaDePara);
+        const result = LabfacilParserService.gerarCargaEquipamento(order, modelo, mapaDePara, formatoAlvo);
         const caminhoCargaSugerido = `C:\\MidwayLab\\Equipamentos\\${modelo}\\Carga\\${result.nomeArquivoSugerido}`;
         const caminhoProcessadoSugerido = `C:\\MidwayLab\\Labfacil\\${modelo}\\Processados\\${nomeArquivo}`;
         
@@ -214,6 +247,7 @@ export async function POST(request: Request) {
             codigo_lote_autolac: `LOTE-${modelo}`,
             payload_labfacil_json: JSON.stringify({
               modelo_equipamento: modelo,
+              formato_carga: result.formato,
               arquivo_origem: nomeArquivo,
               arquivo_carga: caminhoCargaSugerido,
               arquivo_processado: caminhoProcessadoSugerido,

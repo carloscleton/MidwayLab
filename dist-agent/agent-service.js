@@ -200,7 +200,7 @@ async function carregarAlvosMonitoramento() {
     return alvos;
 }
 // Sincroniza o pedido processado com a nuvem (via API Segura ou Supabase Legado)
-async function registrarPedidoProcessado(alvo, codigoPedido, pacienteNome, arquivo, destinoProcessado, destinoCarga = '', status = 'PROCESSADO', mensagemErro = null) {
+async function registrarPedidoProcessado(alvo, codigoPedido, pacienteNome, arquivo, destinoProcessado, destinoCarga = '', status = 'NA_CARGA', mensagemErro = null) {
     const agora = new Date().toISOString();
     // Etapas detalhadas do ciclo de vida para o log
     const etapas = [
@@ -344,9 +344,9 @@ async function processarPasta(alvo) {
             const conteudo = fs.readFileSync(caminhoOrigem, 'utf8');
             if (!conteudo.trim())
                 continue;
-            const extraido = extrairDadosArquivo(conteudo, arquivo);
-            codigoPedido = extraido.codigoPedido;
-            pacienteNome = extraido.pacienteNome;
+            const extraidoInicial = extrairDadosArquivo(conteudo, arquivo);
+            codigoPedido = extraidoInicial.codigoPedido;
+            pacienteNome = extraidoInicial.pacienteNome;
             // 1. Pasta de Carga do analisador
             let baseMidway = 'C:\\MidwayLab';
             if (alvo.diretorioEntrada && alvo.diretorioEntrada.toLowerCase().includes('labfacil')) {
@@ -357,10 +357,55 @@ async function processarPasta(alvo) {
             }
             const pastaCargaEquipamento = alvo.diretorioCarga || path.join(baseMidway, 'Equipamentos', alvo.modeloEquipamento, 'Carga');
             assegurarPasta(pastaCargaEquipamento);
-            // 2. Copia para a pasta de Carga do equipamento
-            const destinoCarga = path.join(pastaCargaEquipamento, arquivo);
-            fs.copyFileSync(caminhoOrigem, destinoCarga);
-            console.log(`[Agente] 📋 Carga copiada para o equipamento em: ${destinoCarga}`);
+            // 2. Converte para o layout oficial do equipamento (ASTM, HL7, JSON, etc) via API Segura
+            if (modoSeguro) {
+                const res = await axios_1.default.post(`${API_URL}/api/agent`, {
+                    acao: 'processar_arquivo',
+                    modeloEquipamento: alvo.modeloEquipamento,
+                    nomeArquivo: arquivo,
+                    conteudoArquivo: conteudo
+                }, {
+                    headers: { 'x-agent-token': AGENT_TOKEN },
+                    timeout: 15000
+                });
+                if (res.data?.ok && Array.isArray(res.data.cargas) && res.data.cargas.length > 0) {
+                    for (const c of res.data.cargas) {
+                        codigoPedido = c.pedidoId || codigoPedido;
+                        pacienteNome = c.paciente || pacienteNome;
+                        const nomeCarga = c.nomeArquivoSugerido || `CARGA_${c.pedidoId}.astm`;
+                        const destinoCarga = path.join(pastaCargaEquipamento, nomeCarga);
+                        fs.writeFileSync(destinoCarga, c.conteudoArquivo, 'utf8');
+                        console.log(`[Agente] 📋 Carga oficial (${c.formato || 'ASTM'}) gerada com sucesso em: ${destinoCarga}`);
+                    }
+                    // 3. Move o arquivo original XML/JSON para a pasta Processados
+                    const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
+                    const extensao = path.extname(arquivo);
+                    const destinoProcessado = path.join(alvo.diretorioProcessados, `${nomeBaseLimpo}_${Date.now()}${extensao}`);
+                    fs.copyFileSync(caminhoOrigem, destinoProcessado);
+                    fs.unlinkSync(caminhoOrigem);
+                    console.log(`[Agente] ✅ Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
+                    continue;
+                }
+                else {
+                    throw new Error(res.data?.erro || 'API não retornou cargas convertidas');
+                }
+            }
+            // Modo de contingência / legado
+            const extraidoFallback = extrairDadosArquivo(conteudo, arquivo);
+            codigoPedido = extraidoFallback.codigoPedido;
+            pacienteNome = extraidoFallback.pacienteNome;
+            const dateFormatted = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+            const patientNameAstm = (pacienteNome || 'PACIENTE').trim().replace(/\s+/g, '^');
+            const astmContent = [
+                `H|\\^&|||${alvo.modeloEquipamento}|||||||P|1|${dateFormatted}`,
+                `P|1|||${codigoPedido}||${patientNameAstm}|||U|||||||||||||||`,
+                `O|1|${codigoPedido}||||||||A||||||||||||||Q`,
+                `L|1|N`
+            ].join('\r\n');
+            const nomeCarga = `${alvo.modeloEquipamento}_${codigoPedido}.astm`;
+            const destinoCarga = path.join(pastaCargaEquipamento, nomeCarga);
+            fs.writeFileSync(destinoCarga, astmContent, 'utf8');
+            console.log(`[Agente] 📋 Carga ASTM gerada localmente em: ${destinoCarga}`);
             // 3. Arquiva em Processados
             const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
             const extensao = path.extname(arquivo);
@@ -369,7 +414,7 @@ async function processarPasta(alvo) {
             fs.unlinkSync(caminhoOrigem);
             console.log(`[Agente] ✅ Arquivo original arquivado com sucesso em: ${destinoProcessado}`);
             // 4. Registra o ciclo completo de ponta a ponta na nuvem
-            await registrarPedidoProcessado(alvo, codigoPedido, pacienteNome, arquivo, destinoProcessado, destinoCarga, 'PROCESSADO', null);
+            await registrarPedidoProcessado(alvo, codigoPedido, pacienteNome, arquivo, destinoProcessado, destinoCarga, 'NA_CARGA', null);
         }
         catch (err) {
             console.error(`[Agente] ⚠️ Falha ao processar ${arquivo}:`, err.message);

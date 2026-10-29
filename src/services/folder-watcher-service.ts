@@ -194,12 +194,37 @@ export class FolderWatcherService {
           } catch (_) {}
         }
 
+        // Carrega o formato configurado para o analisador
+        let formatoAlvo: 'ASTM' | 'HL7' | 'JSON' | 'XML' | 'CSV' | undefined = undefined;
+        if (this.config.tenantId) {
+          try {
+            const { data: equipRows } = await supabase
+              .from('equipamentos')
+              .select('id, nome, modelo, formato_arquivo')
+              .eq('tenant_id', this.config.tenantId);
+
+            if (equipRows && equipRows.length > 0) {
+              const modNorm = (this.config.equipamentoDestino || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+              const match = equipRows.find((e: any) => {
+                const eMod = (e.modelo || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const eNome = (e.nome || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return (eMod && modNorm.includes(eMod)) || (eNome && modNorm.includes(eNome)) || (eMod && eMod.includes(modNorm));
+              }) || equipRows[0];
+
+              if (match?.formato_arquivo) {
+                formatoAlvo = match.formato_arquivo.toUpperCase() as any;
+              }
+            }
+          } catch (_) {}
+        }
+
         for (const order of parsedOrders) {
-          // Geração da carga para o equipamento (Sysmex, CB350, Yumizen, etc)
+          // Geração da carga para o equipamento no formato configurado (Sysmex UF -> ASTM, Mindray -> HL7, etc)
           const result = LabfacilParserService.gerarCargaEquipamento(
             order,
             this.config.equipamentoDestino,
-            mapaDePara
+            mapaDePara,
+            formatoAlvo
           );
 
           // Extrai a pasta raiz do MidwayLab (ex: C:\MidwayLab) a partir da pasta de entrada configurada

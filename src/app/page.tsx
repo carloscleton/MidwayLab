@@ -639,6 +639,7 @@ export default function MidwayLabDashboard() {
     codigo_lote_autolac?: string;
     arquivo_carga?: string;
     arquivo_processado?: string;
+    formato_carga?: string;
     created_at: string;
     total_exames?: number;
     exames?: Array<{
@@ -3734,6 +3735,7 @@ export default function MidwayLabDashboard() {
         setPedidosFila(data.map((p: any) => {
           let arqCarga = '';
           let arqProc = '';
+          let formatoCarga = '';
           let examesList: Array<{ codigo: string; descricao?: string; amostra?: string; material?: string }> = [];
           if (p.payload_labfacil_json) {
             try {
@@ -3742,6 +3744,7 @@ export default function MidwayLabDashboard() {
                 : p.payload_labfacil_json;
               arqCarga = parsed.arquivo_carga || '';
               arqProc = parsed.arquivo_processado || '';
+              formatoCarga = parsed.formato_carga || '';
               if (Array.isArray(parsed.exames)) {
                 examesList = parsed.exames;
               }
@@ -3761,6 +3764,7 @@ export default function MidwayLabDashboard() {
             codigo_lote_autolac: p.codigo_lote_autolac,
             arquivo_carga: arqCarga,
             arquivo_processado: arqProc,
+            formato_carga: formatoCarga,
             created_at: p.created_at,
             total_exames: p.total_exames || examesList.length,
             exames: examesList
@@ -7424,10 +7428,17 @@ export default function MidwayLabDashboard() {
                                 <td className="p-3 text-slate-400 text-[11px] max-w-[180px] truncate" title={pedido.arquivo_nome}>
                                   {pedido.arquivo_nome}
                                 </td>
-                                <td className="p-3 text-indigo-300 text-[11px] max-w-[200px] truncate" title={pedido.arquivo_carga || 'Gerado na pasta Carga'}>
+                                <td className="p-3 text-indigo-300 text-[11px] max-w-[220px]" title={pedido.arquivo_carga || 'Gerado na pasta Carga'}>
                                   {pedido.arquivo_carga ? (
-                                    <span className="flex items-center gap-1.5">
-                                      <span className="truncate">{pedido.arquivo_carga.split('\\').pop() || pedido.arquivo_carga}</span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {pedido.formato_carga && (
+                                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] px-1 py-0.2 rounded font-mono font-bold">
+                                          {pedido.formato_carga}
+                                        </span>
+                                      )}
+                                      <span className="truncate max-w-[140px] font-bold text-slate-200">
+                                        {pedido.arquivo_carga.split('\\').pop() || pedido.arquivo_carga}
+                                      </span>
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -7439,7 +7450,7 @@ export default function MidwayLabDashboard() {
                                       >
                                         <Copy className="w-3 h-3" />
                                       </button>
-                                    </span>
+                                    </div>
                                   ) : (
                                     <span className="text-slate-500 italic">Worklist gerada</span>
                                   )}
