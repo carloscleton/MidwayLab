@@ -241,14 +241,12 @@ export async function POST(request: Request) {
             tenant_id: tenant.id,
             codigo_pedido_labfacil: order.numeroPedido,
             numero_solicitacao: order.numeroPedido,
-            protocolo_autolac: `${order.numeroPedido}_${Date.now().toString().slice(-4)}`,
             paciente_nome: order.cliente.nome,
             total_exames: order.exames.length,
             status: 'NA_CARGA',
             origem_arquivo: origemSegura,
             arquivo_nome: nomeArquivo,
             modelo_equipamento: modelo,
-            codigo_lote_autolac: `LOTE-${modelo}`.slice(0, 50),
             payload_labfacil_json: JSON.stringify({
               modelo_equipamento: modelo,
               formato_carga: result.formato,
@@ -311,10 +309,7 @@ export async function POST(request: Request) {
 
     const payloadInsert = {
       tenant_id: tenant.id,
-      local_autolac: 'LABFACIL',
-      codigo_lote_autolac: `LOTE-${modeloEquipamento || 'GERAL'}`,
       modelo_equipamento: modeloEquipamento || 'GERAL',
-      protocolo_autolac: protocoloUnico,
       numero_solicitacao: String(codigoPedido),
       paciente_nome: pacienteNome || 'PACIENTE IMPORTADO',
       codigo_pedido_labfacil: String(codigoPedido),

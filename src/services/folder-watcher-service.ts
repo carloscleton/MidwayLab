@@ -277,7 +277,6 @@ export class FolderWatcherService {
                 tenant_id: this.config.tenantId,
                 codigo_pedido_labfacil: order.numeroPedido,
                 numero_solicitacao: order.numeroPedido,
-                protocolo_autolac: `${order.numeroPedido}_${Date.now().toString().slice(-4)}`,
                 paciente_nome: order.cliente.nome,
                 total_exames: order.exames.length,
                 status: 'NA_CARGA',
@@ -286,7 +285,6 @@ export class FolderWatcherService {
                   : (fileName.toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'),
                 arquivo_nome: fileName,
                 modelo_equipamento: this.config.equipamentoDestino,
-                codigo_lote_autolac: `LOTE-${this.config.equipamentoDestino}`,
                 payload_labfacil_json: JSON.stringify({
                   modelo_equipamento: this.config.equipamentoDestino,
                   arquivo_origem: fileName,

@@ -630,13 +630,11 @@ export default function MidwayLabDashboard() {
     tenant_id: string;
     codigo_pedido_labfacil?: string;
     numero_solicitacao?: string;
-    protocolo_autolac?: string;
     paciente_nome: string;
     status: string; // 'NA_CARGA' | 'PROCESSADO' | 'ERRO'
     arquivo_nome?: string;
     origem_arquivo?: string;
     equipamento_destino?: string;
-    codigo_lote_autolac?: string;
     arquivo_carga?: string;
     arquivo_processado?: string;
     formato_carga?: string;
@@ -2264,7 +2262,7 @@ export default function MidwayLabDashboard() {
         }
         if (payload.eventType === 'INSERT') {
           const newRecord = payload.new as any;
-          showNotification(`⚡ Novo Pedido Processado pelo Robô: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || 'PROTO'} (${newRecord.paciente_nome || 'Paciente'})`);
+          showNotification(`⚡ Novo Pedido Processado pelo Robô: ${newRecord.codigo_pedido_labfacil || newRecord.numero_solicitacao || 'PEDIDO'} (${newRecord.paciente_nome || 'Paciente'})`);
           const now = new Date();
           const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
           
@@ -2273,9 +2271,9 @@ export default function MidwayLabDashboard() {
             {
               id: newRecord.id || `log-${Date.now()}`,
               timestamp: timeStr,
-              arquivo: newRecord.arquivo_nome || `ARQUIVO_${newRecord.protocolo_autolac || '001'}`,
+              arquivo: newRecord.arquivo_nome || 'ARQUIVO_001',
               status: newRecord.status || "PROCESSADO",
-              mensagem: `Paciente: ${newRecord.paciente_nome || 'N/I'} | Pedido: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || '-'} (Lido pelo Robô)`
+              mensagem: `Paciente: ${newRecord.paciente_nome || 'N/I'} | Pedido: ${newRecord.codigo_pedido_labfacil || newRecord.numero_solicitacao || '-'} (Lido pelo Robô)`
             },
             ...prev
           ]);
@@ -2284,7 +2282,7 @@ export default function MidwayLabDashboard() {
             {
               id: `LOG-${Date.now().toString().slice(-4)}`,
               tipo: "IDA (Autolac ➔ Labfacil)",
-              protocolo: newRecord.protocolo_autolac || "PROTO-LIVE",
+              protocolo: newRecord.codigo_pedido_labfacil || "PED-LIVE",
               paciente: newRecord.paciente_nome || "PACIENTE SUPABASE REALTIME",
               exames: "GLICOSE, HEMOGRAMA",
               status: "SUCESSO (ETIQUETAS EPL GERADAS)",
@@ -3776,16 +3774,14 @@ export default function MidwayLabDashboard() {
           return {
             id: p.id,
             tenant_id: p.tenant_id,
-            codigo_pedido_labfacil: p.codigo_pedido_labfacil || p.numero_solicitacao || p.protocolo_autolac || 'N/A',
+            codigo_pedido_labfacil: p.codigo_pedido_labfacil || p.numero_solicitacao || 'N/A',
             numero_solicitacao: p.numero_solicitacao,
-            protocolo_autolac: p.protocolo_autolac,
-            paciente_nome: p.paciente_nome || 'N/I',
+                        paciente_nome: p.paciente_nome || 'N/I',
             status: p.status || 'NA_CARGA',
             arquivo_nome: p.arquivo_nome || p.origem_arquivo || 'pedido.xml',
             origem_arquivo: p.origem_arquivo,
-            equipamento_destino: p.modelo_equipamento || p.equipamento_destino || (p.codigo_lote_autolac?.replace('LOTE-', '')) || 'SYSMEX_UF_1500',
-            codigo_lote_autolac: p.codigo_lote_autolac,
-            arquivo_carga: arqCarga,
+            equipamento_destino: p.modelo_equipamento || p.equipamento_destino || 'SYSMEX_UF_1500',
+                        arquivo_carga: arqCarga,
             arquivo_processado: arqProc,
             formato_carga: formatoCarga,
             created_at: p.created_at,
@@ -3883,9 +3879,9 @@ export default function MidwayLabDashboard() {
           setWatcherLogs(dbPedidos.map((p: any) => ({
             id: p.id,
             timestamp: new Date(p.created_at).toLocaleTimeString('pt-BR'),
-            arquivo: p.arquivo_nome || `${p.origem_arquivo || 'ARQUIVO'}_${p.protocolo_autolac || '001'}`,
+            arquivo: p.arquivo_nome || 'ARQUIVO_001',
             status: p.status || 'PROCESSADO',
-            mensagem: `Paciente: ${p.paciente_nome || 'N/I'} | Pedido: ${p.codigo_pedido_labfacil || p.protocolo_autolac || '-'} (Lido pelo Robô)`
+            mensagem: `Paciente: ${p.paciente_nome || 'N/I'} | Pedido: ${p.codigo_pedido_labfacil || p.numero_solicitacao || '-'} (Lido pelo Robô)`
           })));
         }
       } catch (logErr) {
@@ -7455,7 +7451,7 @@ export default function MidwayLabDashboard() {
                                           {pedido.paciente_nome || "Paciente"}
                                         </span>
                                         <span className="text-[10px] text-slate-400 font-mono">
-                                          {pedido.protocolo_autolac ? `Protocolo: ${pedido.protocolo_autolac}` : (pedido.numero_solicitacao ? `Sol: ${pedido.numero_solicitacao}` : 'LabFácil LIS')}
+                                          {pedido.numero_solicitacao ? `Sol: ${pedido.numero_solicitacao}` : 'LabFácil LIS'}
                                         </span>
                                       </div>
                                     </div>

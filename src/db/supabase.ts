@@ -138,24 +138,21 @@ export interface IPedidoRecord {
   id?: string;
   tenant_id: string;
   equipamento_id?: string | null;
-  codigo_lote_autolac?: string;
-  local_autolac?: string;
-  protocolo_autolac?: string;
-  numero_solicitacao?: string;
   codigo_pedido_labfacil?: string;
-  codigo_pedido_softlab?: string; // alias
+  numero_solicitacao?: string;
   paciente_nome?: string;
   paciente_cpf?: string;
   paciente_sexo?: string;
   paciente_nascimento?: string;
-  origem_arquivo?: 'LABFACIL_JSON' | 'LABFACIL_XML' | 'AUTOLAC_SOAP' | 'MANUAL';
+  modelo_equipamento?: string;
+  total_exames?: number;
+  origem_arquivo?: 'LABFACIL_JSON' | 'LABFACIL_XML' | 'MANUAL' | string;
   status: string;
   mensagem_erro?: string;
-  payload_autolac_xml?: string;
   payload_labfacil_json?: string;
-  payload_softlab_json?: string; // alias
   arquivo_nome?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface IUsuarioRecord {
