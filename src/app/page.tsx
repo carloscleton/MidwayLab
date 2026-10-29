@@ -4154,12 +4154,6 @@ export default function MidwayLabDashboard() {
         email: tenantFormData.email,
         cnpj: tenantFormData.cnpj,
         identificacao_entidade: identEntidade,
-        senha_ws: tenantFormData.senhaWs,
-        codigo_entidade: tenantFormData.codigoAgente || '1',
-        ws_url: tenantFormData.wsUrl,
-        labfacil_base_url: tenantFormData.labfacilBaseUrl || 'http://apoio.softlabsolucoes.com.br',
-        labfacil_login: tenantFormData.labfacilLogin,
-        labfacil_senha: tenantFormData.labfacilSenha,
         usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
         ativo: tenantFormData.ativo !== false
       });
@@ -4231,6 +4225,10 @@ export default function MidwayLabDashboard() {
         const mappedTenants = dbTenants.map(t => ({
           id: t.id,
           nome: t.nome,
+          nomeResponsavel: t.nome_responsavel || (t.configuracoes?.nome_responsavel) || "",
+          nome_responsavel: t.nome_responsavel || (t.configuracoes?.nome_responsavel) || "",
+          email: t.email || (t.configuracoes?.email) || "",
+          cnpj: t.cnpj || (t.configuracoes?.cnpj) || "",
           identificacaoEntidade: t.identificacao_entidade || (t.configuracoes?.autolac?.identificacao_entidade) || "",
           identificacao_entidade: t.identificacao_entidade || (t.configuracoes?.autolac?.identificacao_entidade) || "",
           senhaWs: t.senha_ws || (t.configuracoes?.autolac?.senha_ws) || "",
@@ -5599,7 +5597,7 @@ export default function MidwayLabDashboard() {
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-teal-400" /> Cadastro de Laboratórios Clientes (Tenants)
                 </h2>
-                <p className="text-xs text-slate-400">Configure os parâmetros do Fácil 2024 / Autolac e credenciais do Labfacil para cada cliente</p>
+                <p className="text-xs text-slate-400">Gerencie os laboratórios clientes cadastrados, responsáveis técnicos e configurações de acesso</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -5672,11 +5670,11 @@ export default function MidwayLabDashboard() {
                   <table className="w-full text-left text-sm text-slate-300">
                     <thead className="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
                       <tr>
-                        <th className="py-3.5 px-5">Laboratório Tenant</th>
-                        <th className="py-3.5 px-5">Identificação / E-mail</th>
-                        <th className="py-3.5 px-5">URL Autolac WS</th>
-                        <th className="py-3.5 px-5">Login Labfacil Apoio</th>
-                        <th className="py-3.5 px-5">Agente / Lote</th>
+                        <th className="py-3.5 px-5">Laboratório</th>
+                        <th className="py-3.5 px-5">Responsável Técnico</th>
+                        <th className="py-3.5 px-5">CNPJ</th>
+                        <th className="py-3.5 px-5">E-mail de Contato</th>
+                        <th className="py-3.5 px-5 text-center">Catálogo</th>
                         <th className="py-3.5 px-5 text-center">Status</th>
                         <th className="py-3.5 px-5 text-right">Ação</th>
                       </tr>
@@ -5686,38 +5684,45 @@ export default function MidwayLabDashboard() {
                         .filter(t =>
                           !searchTenantsText ||
                           t.nome.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
-                          t.identificacaoEntidade.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
-                          t.id.toLowerCase().includes(searchTenantsText.toLowerCase())
+                          (t.identificacaoEntidade && t.identificacaoEntidade.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                          (t.cnpj && t.cnpj.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                          (t.email && t.email.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                          (t.nomeResponsavel && t.nomeResponsavel.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                          (t.id && t.id.toLowerCase().includes(searchTenantsText.toLowerCase()))
                         )
                         .map((t) => (
                           <tr key={t.id} className="hover:bg-slate-800/40 transition">
                             <td className="py-3.5 px-5">
                               <span className="font-bold text-slate-100 text-sm block">{t.nome}</span>
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                                {t.cnpj && <span className="font-mono text-[11px] text-cyan-300 font-medium">CNPJ: {t.cnpj}</span>}
-                                {t.nomeResponsavel && <span className="text-[11px] text-slate-400">• Resp: {t.nomeResponsavel}</span>}
-                              </div>
                               <span className="font-mono text-[10px] text-slate-500">ID: {t.id}</span>
                             </td>
+                            <td className="py-3.5 px-5">
+                              <span className="text-slate-200 font-medium text-xs block">{t.nomeResponsavel || t.nome_responsavel || "—"}</span>
+                            </td>
                             <td className="py-3.5 px-5 font-mono text-xs">
-                              <span className="text-teal-300 font-semibold block">{t.identificacaoEntidade}</span>
-                              {t.email && t.email !== t.identificacaoEntidade && (
-                                <span className="text-[11px] text-slate-400 block">{t.email}</span>
+                              {t.cnpj ? (
+                                <span className="text-cyan-300 font-semibold">{t.cnpj}</span>
+                              ) : (
+                                <span className="text-slate-500">—</span>
                               )}
                             </td>
-                            <td className="py-3.5 px-5 font-mono text-xs text-slate-300 break-all max-w-[200px]">
-                              {t.wsUrl}
-                            </td>
-                            <td className="py-3.5 px-5 font-mono text-xs text-slate-300">
-                              {t.labfacilLogin}
-                            </td>
                             <td className="py-3.5 px-5 font-mono text-xs">
-                              <span className="text-teal-400 font-bold">Agente: {t.codigoAgente}</span>
-                              <span className="block text-cyan-400 text-[11px]">Lote: #{t.ultimoLote}</span>
+                              <span className="text-teal-300 font-medium">{t.email || t.identificacaoEntidade || "—"}</span>
+                            </td>
+                            <td className="py-3.5 px-5 text-center">
+                              {Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio) ? (
+                                <span className="text-[11px] font-semibold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  Customizado
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-medium text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  Global
+                                </span>
+                              )}
                             </td>
                             <td className="py-3.5 px-5 text-center">
                               <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" /> {t.status}
+                                <CheckCircle2 className="w-3 h-3" /> {t.status || "ATIVO"}
                               </span>
                             </td>
                             <td className="py-3.5 px-5 text-right">
@@ -5727,7 +5732,7 @@ export default function MidwayLabDashboard() {
                                     type="button"
                                     onClick={() => handleCloneTenant(t)}
                                     className="text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-semibold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-                                    title="Clonar configurações para criar um novo laboratório baseado neste"
+                                    title="Clonar laboratório"
                                   >
                                     <Copy className="w-3.5 h-3.5" /> Clonar
                                   </button>
@@ -5754,8 +5759,11 @@ export default function MidwayLabDashboard() {
                   .filter(t =>
                     !searchTenantsText ||
                     t.nome.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
-                    t.identificacaoEntidade.toLowerCase().includes(searchTenantsText.toLowerCase()) ||
-                    t.id.toLowerCase().includes(searchTenantsText.toLowerCase())
+                    (t.identificacaoEntidade && t.identificacaoEntidade.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                    (t.cnpj && t.cnpj.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                    (t.email && t.email.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                    (t.nomeResponsavel && t.nomeResponsavel.toLowerCase().includes(searchTenantsText.toLowerCase())) ||
+                    (t.id && t.id.toLowerCase().includes(searchTenantsText.toLowerCase()))
                   )
                   .map((t) => (
                     <div key={t.id} className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-teal-500/40 transition">
@@ -5766,59 +5774,56 @@ export default function MidwayLabDashboard() {
                           </div>
                           <div className="min-w-0">
                             <h3 className="font-bold text-slate-100 text-base truncate">{t.nome}</h3>
-                            <p className="text-xs text-slate-400 truncate">Identificação Entidade: <span className="font-mono text-teal-300 font-semibold">{t.identificacaoEntidade}</span></p>
-                            <p className="font-mono text-[10px] text-slate-600 truncate">ID: {t.id}</p>
+                            <p className="font-mono text-[10px] text-slate-500 truncate">ID: {t.id}</p>
                           </div>
                         </div>
                         <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex-shrink-0 ml-2">
-                          {t.status}
+                          {t.status || "ATIVO"}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">URL do WebService Autolac</span>
-                          <span className="font-mono text-slate-200 font-medium break-all">{t.wsUrl}</span>
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Responsável Técnico</span>
+                          <span className="text-slate-200 font-medium block truncate">{t.nomeResponsavel || t.nome_responsavel || "Não informado"}</span>
                         </div>
 
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Login API Labfacil Apoio</span>
-                          <span className="font-mono text-slate-200 font-medium break-all">{t.labfacilLogin}</span>
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">CNPJ do Laboratório</span>
+                          <span className="font-mono text-cyan-300 font-semibold block truncate">{t.cnpj || "Não informado"}</span>
                         </div>
 
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Código do Agente Autolac</span>
-                          <span className="font-mono text-teal-400 font-bold">{t.codigoAgente}</span>
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">E-mail de Contato</span>
+                          <span className="font-mono text-teal-300 font-medium break-all block truncate">{t.email || t.identificacaoEntidade || "Não informado"}</span>
                         </div>
 
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Último Lote Enviado</span>
-                          <span className="font-mono text-cyan-400 font-bold">#{t.ultimoLote}</span>
+                          <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Tipo de Catálogo</span>
+                          <span className="font-semibold text-slate-200 block truncate">
+                            {Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio) ? "✨ Customizado Próprio" : "🌐 Global Padrão"}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2">
-                        <span className="text-xs text-slate-400">Tabela de Mapeamento: <strong className="text-teal-300">5 Exames Vinculados</strong></span>
-                        
-                        <div className="flex items-center gap-2">
-                          {(currentUser.role === 'admin' || currentUser.email.includes("carloscleton")) && (
-                            <button
-                              type="button"
-                              onClick={() => handleCloneTenant(t)}
-                              className="text-xs font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
-                              title="Clonar configurações para criar um novo laboratório"
-                            >
-                              <Copy className="w-3.5 h-3.5" /> Clonar
-                            </button>
-                          )}
-                          <button 
+                      <div className="flex items-center justify-end pt-2 gap-2">
+                        {(currentUser.role === 'admin' || currentUser.email.includes("carloscleton")) && (
+                          <button
                             type="button"
-                            onClick={() => handleOpenEditTenant(t)}
-                            className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                            onClick={() => handleCloneTenant(t)}
+                            className="text-xs font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                            title="Clonar laboratório"
                           >
-                            <Edit className="w-3.5 h-3.5" /> Editar Configurações
+                            <Copy className="w-3.5 h-3.5" /> Clonar
                           </button>
-                        </div>
+                        )}
+                        <button 
+                          type="button"
+                          onClick={() => handleOpenEditTenant(t)}
+                          className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Edit className="w-3.5 h-3.5" /> Editar Cadastro
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -5827,9 +5832,6 @@ export default function MidwayLabDashboard() {
           </div>
         )}
 
-
-
-        {/* TAB LOGS */}
         {activeTab === "logs" && (
           <div className="space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -10524,11 +10526,11 @@ export default function MidwayLabDashboard() {
       {/* MODAL 1: CREATE / EDIT TENANT */}
       {isNewTenantModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl max-h-[90vh] rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-y-auto custom-scrollbar">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl max-h-[90vh] rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-teal-400" />
-                {editingTenant ? "Editar Laboratório Client" : "Cadastrar Novo Laboratório (Tenant)"}
+                {editingTenant ? "Editar Laboratório Cliente" : "Cadastrar Novo Laboratório (Tenant)"}
               </h3>
               <button 
                 type="button"
@@ -10597,165 +10599,11 @@ export default function MidwayLabDashboard() {
                 </div>
               </div>
 
-              {/* SEÇÃO 2: PARÂMETROS AUTOLAC / FÁCIL 2024 */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-                  <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-cyan-400" />
-                    <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">2. Integração Fácil 2024 / Autolac (WebServices)</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTestTenantConnection("autolac")}
-                    disabled={testingTarget === "autolac" || testingTarget === "both"}
-                    className="text-[11px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
-                  >
-                    <Activity className={`w-3 h-3 ${testingTarget === "autolac" ? "animate-spin" : ""}`} />
-                    {testingTarget === "autolac" ? "Testando..." : "Testar Autolac"}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Identificação da Entidade (Código Fácil / Login WS) <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex.: 784 ou contato@lab.com.br"
-                      value={tenantFormData.identificacaoEntidade || ""}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Código do Agente</label>
-                    <input
-                      type="text"
-                      placeholder="1"
-                      value={tenantFormData.codigoAgente || "1"}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, codigoAgente: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">URL WebService Autolac (Endpoint SOAP)</label>
-                    <input
-                      type="text"
-                      placeholder="http://homolog.app.lifesys.com.br:5030"
-                      value={tenantFormData.wsUrl || ""}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Senha WebService Autolac</label>
-                    <div className="relative">
-                      <input
-                        type={showSenhaWs ? "text" : "password"}
-                        placeholder="Senha do WS Autolac"
-                        value={tenantFormData.senhaWs || ""}
-                        onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-9 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSenhaWs(!showSenhaWs)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
-                      >
-                        {showSenhaWs ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {tenantTestResult?.autolacMsg && (
-                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center gap-2 ${tenantTestResult.autolacSuccess ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
-                    {tenantTestResult.autolacSuccess ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                    <span>{tenantTestResult.autolacMsg}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* SEÇÃO 3: CREDENCIAIS LABFACIL APOIO */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-                  <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-purple-400" />
-                    <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">3. Credenciais Labfacil Apoio</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTestTenantConnection("labfacil")}
-                    disabled={testingTarget === "labfacil" || testingTarget === "both"}
-                    className="text-[11px] bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
-                  >
-                    <Activity className={`w-3 h-3 ${testingTarget === "labfacil" ? "animate-spin" : ""}`} />
-                    {testingTarget === "labfacil" ? "Testando..." : "Testar Labfacil"}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-slate-300 font-semibold mb-1">URL Base Labfacil Apoio</label>
-                    <input
-                      type="text"
-                      placeholder="http://apoio.softlabsolucoes.com.br"
-                      value={tenantFormData.labfacilBaseUrl || ""}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilBaseUrl: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-purple-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Login Labfacil Apoio</label>
-                    <input
-                      type="text"
-                      placeholder="usuario@labfacil.com.br"
-                      value={tenantFormData.labfacilLogin || ""}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilLogin: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-purple-500/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Senha Labfacil Apoio</label>
-                    <div className="relative">
-                      <input
-                        type={showLabfacilSenha ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={tenantFormData.labfacilSenha || ""}
-                        onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilSenha: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-9 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-purple-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowLabfacilSenha(!showLabfacilSenha)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
-                      >
-                        {showLabfacilSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {tenantTestResult?.labfacilMsg && (
-                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center gap-2 ${tenantTestResult.labfacilSuccess ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
-                    {tenantTestResult.labfacilSuccess ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                    <span>{tenantTestResult.labfacilMsg}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* SEÇÃO 4: CONFIGURAÇÕES EXTRAS & STATUS */}
+              {/* SEÇÃO 2: OPÇÕES & STATUS */}
               <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
                   <Sliders className="w-4 h-4 text-amber-400" />
-                  <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">4. Opções & Status do Laboratório</span>
+                  <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">2. Opções & Status do Laboratório</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -10773,7 +10621,7 @@ export default function MidwayLabDashboard() {
                       <p className="text-[11px] text-slate-400 leading-normal">
                         {tenantFormData.usarCatalogoProprio ? (
                           <span className="text-teal-300 font-semibold">
-                            ✨ Ativo: Permite salvar e consultar um catálogo exclusivo gravado com este <code className="text-cyan-300">tenant_id</code>.
+                            ✨ Ativo: Permite salvar e consultar um catálogo exclusivo gravado para este laboratório.
                           </span>
                         ) : (
                           <span className="text-amber-300 font-semibold">
@@ -10793,46 +10641,33 @@ export default function MidwayLabDashboard() {
                     />
                     <div>
                       <span className="font-bold text-slate-100 text-xs block">Laboratório Ativo no Sistema</span>
-                      <span className="text-[11px] text-slate-400">Permite sincronização de pedidos, laudos e ingestão de arquivos</span>
+                      <span className="text-[11px] text-slate-400">Permite sincronização de pedidos, laudos e ingestão de exames</span>
                     </div>
                   </label>
                 </div>
               </div>
 
               {/* BOTÕES DE AÇÃO */}
-              <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-slate-800 gap-3">
+              <div className="flex items-center justify-end pt-4 border-t border-slate-800 gap-3">
                 <button
                   type="button"
-                  onClick={() => handleTestTenantConnection("both")}
-                  disabled={testingTarget !== "none"}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-teal-500/30 text-teal-300 hover:bg-teal-500/10 font-bold text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+                  onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
+                  className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
                 >
-                  <Activity className={`w-3.5 h-3.5 ${testingTarget !== "none" ? "animate-spin" : ""}`} />
-                  {testingTarget !== "none" ? "Executando Diagnóstico..." : "Diagnóstico Geral de Conexões"}
+                  Cancelar
                 </button>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                  <button
-                    type="button"
-                    onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
-                    className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
-                  >
-                    Cancelar
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
-                  >
-                    <Save className="w-4 h-4" /> Salvar Laboratório
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
+                >
+                  <Save className="w-4 h-4" /> Salvar Laboratório
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
 
       {/* DYNAMIC MODAL 2: MAP EXAM DE-PARA */}
       {mappingExamModal && (

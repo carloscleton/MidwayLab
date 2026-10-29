@@ -46,7 +46,7 @@ export interface ITenantRecord {
   nome_responsavel?: string;
   email?: string;
   cnpj?: string;
-  codigo_entidade: string;
+  codigo_entidade?: string;
   identificacao_entidade: string;
   configuracoes?: {
     autolac?: {

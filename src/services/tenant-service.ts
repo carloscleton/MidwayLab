@@ -56,74 +56,56 @@ export class TenantService {
     const cnpj = tenant.cnpj || (tenant as any).cnpj || existingConfigs?.cnpj || '';
     const nomeResponsavel = tenant.nome_responsavel || (tenant as any).nomeResponsavel || existingConfigs?.nome_responsavel || '';
     const email = tenant.email || (tenant as any).email || existingConfigs?.email || '';
-    const apiToken = existingConfigs?.api_token || `mw_agt_${(tenant.identificacao_entidade || "agt").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10)}_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 6)}`;
-    
-    const baseUrl = tenant.labfacil_base_url || tenant.softlab_base_url || existingConfigs?.labfacil?.base_url || existingConfigs?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
-    const login = tenant.labfacil_login || tenant.softlab_login || existingConfigs?.labfacil?.login || existingConfigs?.softlab?.login || '';
-    const senha = tenant.labfacil_senha || tenant.softlab_senha || existingConfigs?.labfacil?.senha || existingConfigs?.softlab?.senha || '';
+    const identificacaoEntidade = tenant.identificacao_entidade || email || cnpj || (tenant.nome ? tenant.nome.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') : 'entidade_padrao');
+    const apiToken = existingConfigs?.api_token || `mw_agt_${identificacaoEntidade.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}_${Math.random().toString(36).substring(2, 10)}`;
 
-    const payload: any = {
+    const basePayload: any = {
       nome: tenant.nome,
-      codigo_entidade: tenant.codigo_entidade || '1',
-      identificacao_entidade: tenant.identificacao_entidade,
+      identificacao_entidade: identificacaoEntidade,
+      usar_catalogo_proprio: isCustomCatalog,
+      ativo: tenant.ativo !== undefined ? tenant.ativo : true,
       configuracoes: {
         ...existingConfigs,
         api_token: apiToken,
-        autolac: {
-          ws_url: (tenant as any).ws_url || (tenant as any).wsUrl || existingConfigs?.autolac?.ws_url || 'http://homolog.app.lifesys.com.br:5030',
-          identificacao_entidade: tenant.identificacao_entidade,
-          senha_ws: tenant.senha_ws || existingConfigs?.autolac?.senha_ws || ''
-        },
-        labfacil: {
-          base_url: baseUrl,
-          login: login,
-          senha: senha
-        },
-        softlab: {
-          base_url: baseUrl,
-          login: login,
-          senha: senha
-        },
         usar_catalogo_proprio: isCustomCatalog,
         cnpj,
         nome_responsavel: nomeResponsavel,
         email
-      },
-      ativo: tenant.ativo !== undefined ? tenant.ativo : true
+      }
     };
 
     if (tenant.id && typeof tenant.id === 'string' && tenant.id.includes('-') && tenant.id.length >= 30) {
-      payload.id = tenant.id;
+      basePayload.id = tenant.id;
     }
 
     try {
+      // 1. Tenta salvar incluindo as novas colunas dedicadas (cnpj, nome_responsavel, email)
       const fullPayload = {
-        ...payload,
-        labfacil_base_url: baseUrl,
-        labfacil_login: login,
-        labfacil_senha: senha,
-        softlab_base_url: baseUrl,
-        softlab_login: login,
-        softlab_senha: senha,
-        usar_catalogo_proprio: isCustomCatalog,
+        ...basePayload,
         ...(cnpj ? { cnpj } : {}),
         ...(nomeResponsavel ? { nome_responsavel: nomeResponsavel } : {}),
         ...(email ? { email } : {})
       };
-      
+
       const { data, error } = await supabaseBrowser
         .from('tenants')
-        .upsert(fullPayload, { onConflict: payload.id ? 'id' : 'identificacao_entidade' })
+        .upsert(fullPayload, { onConflict: basePayload.id ? 'id' : 'identificacao_entidade' })
         .select('*')
         .single();
 
       if (!error && data) {
-        return data as ITenantRecord;
+        return {
+          ...data,
+          cnpj: data.cnpj || data.configuracoes?.cnpj || cnpj,
+          nome_responsavel: data.nome_responsavel || data.configuracoes?.nome_responsavel || nomeResponsavel,
+          email: data.email || data.configuracoes?.email || email
+        } as ITenantRecord;
       }
 
+      // 2. Fallback caso as novas colunas ainda não tenham sido criadas no banco (ficam salvas em configuracoes JSONB)
       const { data: fallbackData, error: fallbackError } = await supabaseBrowser
         .from('tenants')
-        .upsert(payload, { onConflict: payload.id ? 'id' : 'identificacao_entidade' })
+        .upsert(basePayload, { onConflict: basePayload.id ? 'id' : 'identificacao_entidade' })
         .select('*')
         .single();
 
@@ -132,7 +114,12 @@ export class TenantService {
         return null;
       }
 
-      return fallbackData as ITenantRecord;
+      return {
+        ...fallbackData,
+        cnpj: fallbackData.cnpj || fallbackData.configuracoes?.cnpj || cnpj,
+        nome_responsavel: fallbackData.nome_responsavel || fallbackData.configuracoes?.nome_responsavel || nomeResponsavel,
+        email: fallbackData.email || fallbackData.configuracoes?.email || email
+      } as ITenantRecord;
     } catch (err: any) {
       console.warn('[TenantService] Conexão com Supabase indisponível:', err?.message || err);
       return null;

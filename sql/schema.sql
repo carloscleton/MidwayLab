@@ -10,16 +10,8 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     nome_responsavel VARCHAR(255),
     email VARCHAR(255),
     cnpj VARCHAR(50),
-    codigo_entidade VARCHAR(50),
     identificacao_entidade VARCHAR(255) UNIQUE NOT NULL,
-    senha_ws VARCHAR(255) NOT NULL,
-    labfacil_base_url VARCHAR(255) NOT NULL DEFAULT 'http://apoio.softlabsolucoes.com.br',
-    labfacil_login VARCHAR(255) NOT NULL,
-    labfacil_senha VARCHAR(255) NOT NULL,
-    softlab_base_url VARCHAR(255),
-    softlab_login VARCHAR(255),
-    softlab_senha VARCHAR(255),
-    configuracoes JSONB,
+    configuracoes JSONB DEFAULT '{}'::jsonb,
     usar_catalogo_proprio BOOLEAN DEFAULT false,
     ativo BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -132,8 +124,8 @@ CREATE TABLE IF NOT EXISTS public.catalogo_labfacil_exames (
 );
 
 -- SEED DATA INICIAL
-INSERT INTO public.tenants (id, nome, codigo_entidade, identificacao_entidade, senha_ws, labfacil_base_url, labfacil_login, labfacil_senha)
-VALUES ('11111111-1111-1111-1111-111111111111', 'LAB. ARES - LABFACIL (San Mathews)', '1', 'yorod23826@gcont.com', 'Soft@2026', 'http://apoio.softlabsolucoes.com.br', 'carloscleton@gmail.com', 'Carlos@2026')
+INSERT INTO public.tenants (id, nome, identificacao_entidade, email, nome_responsavel)
+VALUES ('11111111-1111-1111-1111-111111111111', 'LAB. ARES - LABFACIL (San Mathews)', 'yorod23826@gcont.com', 'yorod23826@gcont.com', 'Responsável Técnico Ares')
 ON CONFLICT (identificacao_entidade) DO NOTHING;
 
 -- Equipamentos Seed para o Tenant de demonstração (CB350 e YUMIZEN)
