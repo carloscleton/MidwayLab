@@ -2149,7 +2149,12 @@ export default function MidwayLabDashboard() {
         setTenants(mappedTenants);
         setStats(prev => ({ ...prev, tenantsAtivos: mappedTenants.length }));
         if (mappedTenants.length > 0) {
-          setSelectedTenant(mappedTenants[0].nome);
+          const savedTenantName = typeof window !== 'undefined' ? localStorage.getItem('midway_selected_tenant') : null;
+          const tenantToSelect = mappedTenants.find(t => t.nome === savedTenantName) || 
+                                 mappedTenants.find(t => t.nome.includes('CIAMOLAB')) || 
+                                 mappedTenants[0];
+          setSelectedTenant(tenantToSelect.nome);
+          carregarPedidosFila(tenantToSelect.id);
         }
 
         // 2. Fetch Users
@@ -2249,7 +2254,12 @@ export default function MidwayLabDashboard() {
     const channel = supabaseBrowser
       .channel('realtime_pedidos_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (payload) => {
-        carregarPedidosFila();
+        const newRecord = payload.new as any;
+        if (newRecord?.tenant_id) {
+          carregarPedidosFila(newRecord.tenant_id);
+        } else {
+          carregarPedidosFila();
+        }
         if (payload.eventType === 'INSERT') {
           const newRecord = payload.new as any;
           showNotification(`⚡ Novo Pedido Processado pelo Robô: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || 'PROTO'} (${newRecord.paciente_nome || 'Paciente'})`);
@@ -3718,18 +3728,29 @@ export default function MidwayLabDashboard() {
 
   // CARREGAR PEDIDOS DA TABELA 'PEDIDOS' DO SUPABASE PARA A FILA
   const carregarPedidosFila = async (targetTenantId?: string) => {
-    const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
-    const tId = targetTenantId || activeTenantObj?.id;
-    if (!tId) return;
+    let tId = targetTenantId;
+    if (!tId) {
+      const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+      tId = activeTenantObj?.id;
+    }
+    if (!tId && tenants.length > 0) {
+      const fallbackTenant = tenants.find(t => t.nome.includes('CIAMOLAB')) || tenants[0];
+      tId = fallbackTenant?.id;
+    }
 
     setIsLoadingFila(true);
     try {
-      const { data, error } = await supabaseBrowser
+      let query = supabaseBrowser
         .from('pedidos')
         .select('*')
-        .eq('tenant_id', tId)
         .order('created_at', { ascending: false })
         .limit(150);
+
+      if (tId) {
+        query = query.eq('tenant_id', tId);
+      }
+
+      const { data, error } = await query;
 
       if (data && !error) {
         setPedidosFila(data.map((p: any) => {
@@ -3938,6 +3959,9 @@ export default function MidwayLabDashboard() {
 
     startTransition(() => {
       setSelectedTenant(tenantNome);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('midway_selected_tenant', tenantNome);
+      }
       setSelectedLabfacilExam(null);
       setSelectedAutolacExam(null);
       setSelectedDeparaEquipId("");
