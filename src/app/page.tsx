@@ -7397,140 +7397,218 @@ export default function MidwayLabDashboard() {
                   }
 
                   return (
-                    <div className="overflow-x-auto rounded-xl border border-slate-800">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
-                          <tr>
-                            <th className="p-3">Pedido / Amostra</th>
-                            <th className="p-3">Paciente</th>
-                            <th className="p-3">Equipamento</th>
-                            <th className="p-3">Exames Solicitados</th>
-                            <th className="p-3">Arquivo Entrada</th>
-                            <th className="p-3">Arquivo Carga (Worklist)</th>
-                            <th className="p-3">Data / Hora</th>
-                            <th className="p-3">Status na Esteira</th>
-                            <th className="p-3 text-center">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/60 bg-slate-950 font-mono">
-                          {pedidosFiltrados.map((pedido) => {
-                            const isNaCarga = pedido.status !== 'PROCESSADO';
-                            return (
-                              <tr key={pedido.id} className="hover:bg-slate-900/40 transition">
-                                <td className="p-3 font-bold text-teal-300">
-                                  {pedido.codigo_pedido_labfacil}
-                                </td>
-                                <td className="p-3 font-sans font-semibold text-slate-100">
-                                  {pedido.paciente_nome}
-                                </td>
-                                <td className="p-3">
-                                  <span className="bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
-                                    {pedido.equipamento_destino || 'SYSMEX_UF_1500'}
-                                  </span>
-                                </td>
-                                <td className="p-3">
-                                  {pedido.exames && pedido.exames.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1.5 items-center max-w-[280px]">
-                                      {pedido.exames.map((ex, idx) => (
-                                        <div
-                                          key={idx}
-                                          className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-[11px] font-bold font-mono flex items-center gap-1.5"
-                                          title={`Exame: ${ex.codigo} - ${ex.descricao || ''}${ex.amostra ? `\nAmostra: ${ex.amostra}` : ''}${ex.material ? `\nMaterial: ${ex.material}` : ''}`}
-                                        >
-                                          <span className="text-purple-400 font-extrabold">{ex.codigo}</span>
-                                          {ex.descricao && (
-                                            <span className="text-[10px] text-slate-300 font-normal font-sans truncate max-w-[120px]">
-                                              {ex.descricao}
-                                            </span>
-                                          )}
-                                          {ex.material && (
-                                            <span className="text-[9px] bg-slate-900 text-teal-300 px-1 py-0.2 rounded font-sans border border-slate-700">
-                                              {ex.material}
-                                            </span>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : pedido.total_exames ? (
-                                    <span className="bg-purple-500/10 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-[11px] font-bold">
-                                      {pedido.total_exames} exame(s)
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-500 italic text-xs">Sem exames</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-slate-400 text-[11px] max-w-[180px] truncate" title={pedido.arquivo_nome}>
-                                  {pedido.arquivo_nome}
-                                </td>
-                                <td className="p-3 text-indigo-300 text-[11px] max-w-[220px]" title={pedido.arquivo_carga || 'Gerado na pasta Carga'}>
-                                  {pedido.arquivo_carga ? (
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      {pedido.formato_carga && (
-                                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] px-1 py-0.2 rounded font-mono font-bold">
-                                          {pedido.formato_carga}
+                    <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/90 shadow-2xl backdrop-blur-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-800/80 bg-slate-900/90 text-slate-400 uppercase tracking-wider text-[11px] font-bold">
+                              <th className="py-4 px-4 whitespace-nowrap">Pedido / Amostra</th>
+                              <th className="py-4 px-4 whitespace-nowrap">Paciente</th>
+                              <th className="py-4 px-4 whitespace-nowrap">Equipamento</th>
+                              <th className="py-4 px-4 whitespace-nowrap">Exames Solicitados</th>
+                              <th className="py-4 px-4 whitespace-nowrap">Arquivo Entrada</th>
+                              <th className="py-4 px-4 whitespace-nowrap">Arquivo Carga (Worklist)</th>
+                              <th className="py-4 px-4 whitespace-nowrap">Data / Hora</th>
+                              <th className="py-4 px-4 text-center whitespace-nowrap">Status na Esteira</th>
+                              <th className="py-4 px-4 text-center whitespace-nowrap">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/50">
+                            {pedidosFiltrados.map((pedido) => {
+                              const isNaCarga = pedido.status !== 'PROCESSADO';
+                              const primeiraAmostra = pedido.exames?.find(e => e.amostra)?.amostra;
+                              return (
+                                <tr
+                                  key={pedido.id}
+                                  className="hover:bg-slate-900/50 transition-colors duration-150 group"
+                                >
+                                  {/* PEDIDO / AMOSTRA */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 shrink-0 shadow-inner group-hover:border-teal-400/60 transition">
+                                        <Tag className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="font-extrabold text-teal-300 font-mono text-sm tracking-wide leading-tight">
+                                          #{pedido.codigo_pedido_labfacil}
                                         </span>
-                                      )}
-                                      <span className="truncate max-w-[140px] font-bold text-slate-200">
-                                        {pedido.arquivo_carga.split('\\').pop() || pedido.arquivo_carga}
+                                        {primeiraAmostra && (
+                                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                            Amostra: <strong className="text-slate-300">{primeiraAmostra}</strong>
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* PACIENTE */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-2.5 min-w-[150px]">
+                                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                                        {(pedido.paciente_nome || "P").slice(0, 2).toUpperCase()}
+                                      </div>
+                                      <div className="flex flex-col min-w-0">
+                                        <span
+                                          className="font-bold text-slate-100 text-xs truncate leading-snug group-hover:text-white transition"
+                                          title={pedido.paciente_nome}
+                                        >
+                                          {pedido.paciente_nome || "Paciente"}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                          {pedido.protocolo_autolac ? `Protocolo: ${pedido.protocolo_autolac}` : (pedido.numero_solicitacao ? `Sol: ${pedido.numero_solicitacao}` : 'LabFácil LIS')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* EQUIPAMENTO */}
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/50 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold shadow-sm">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400 animate-pulse" />
+                                      {pedido.equipamento_destino || 'SYSMEX_UF_1500'}
+                                    </div>
+                                  </td>
+
+                                  {/* EXAMES SOLICITADOS */}
+                                  <td className="py-3.5 px-4">
+                                    {pedido.exames && pedido.exames.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1.5 items-center max-w-[280px]">
+                                        {pedido.exames.map((ex, idx) => (
+                                          <div
+                                            key={idx}
+                                            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-950/60 to-indigo-950/60 hover:from-purple-950/80 hover:to-indigo-950/80 border border-purple-500/40 hover:border-purple-400/80 px-2.5 py-1 rounded-lg text-xs transition shadow-sm"
+                                            title={`Exame: ${ex.codigo} - ${ex.descricao || ''}${ex.amostra ? `\nAmostra: ${ex.amostra}` : ''}${ex.material ? `\nMaterial: ${ex.material}` : ''}`}
+                                          >
+                                            <span className="bg-purple-500/25 text-purple-200 font-mono font-black text-[10px] px-1.5 py-0.5 rounded border border-purple-400/40">
+                                              {ex.codigo}
+                                            </span>
+                                            {ex.descricao && (
+                                              <span className="text-[11px] font-medium text-slate-200 truncate max-w-[120px]">
+                                                {ex.descricao}
+                                              </span>
+                                            )}
+                                            {ex.material && (
+                                              <span className="text-[9px] uppercase font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 px-1 py-0.2 rounded">
+                                                {ex.material}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : pedido.total_exames ? (
+                                      <span className="inline-flex items-center gap-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg text-xs font-bold font-mono">
+                                        <Layers className="w-3 h-3 text-purple-400" />
+                                        {pedido.total_exames} exame(s)
                                       </span>
+                                    ) : (
+                                      <span className="text-slate-500 italic text-xs">Sem exames</span>
+                                    )}
+                                  </td>
+
+                                  {/* ARQUIVO ENTRADA */}
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <div
+                                      className="inline-flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/60 hover:border-slate-600 px-2.5 py-1 rounded-lg text-[11px] font-mono text-slate-300 max-w-[180px] shadow-sm transition"
+                                      title={pedido.arquivo_nome}
+                                    >
+                                      <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                      <span className="truncate">{pedido.arquivo_nome}</span>
+                                    </div>
+                                  </td>
+
+                                  {/* ARQUIVO CARGA (WORKLIST) */}
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    {pedido.arquivo_carga ? (
+                                      <div className="inline-flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/70 hover:border-amber-500/40 px-2.5 py-1 rounded-lg max-w-[220px] shadow-sm transition group/card">
+                                        {pedido.formato_carga && (
+                                          <span className="bg-gradient-to-r from-amber-500/25 to-orange-500/25 text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-black shrink-0 tracking-wider">
+                                            {pedido.formato_carga}
+                                          </span>
+                                        )}
+                                        <span
+                                          className="truncate text-[11px] font-mono font-semibold text-slate-200"
+                                          title={pedido.arquivo_carga}
+                                        >
+                                          {pedido.arquivo_carga.split('\\').pop() || pedido.arquivo_carga}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(pedido.arquivo_carga!);
+                                            showNotification('📋 Caminho da Carga copiado!');
+                                          }}
+                                          className="text-slate-500 hover:text-amber-300 p-0.5 cursor-pointer ml-auto shrink-0 transition"
+                                          title="Copiar caminho completo do arquivo de carga"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-500 italic text-xs flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-slate-600" /> Pendente
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* DATA / HORA */}
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <div className="flex flex-col text-[11px]">
+                                      <span className="text-slate-200 font-semibold">
+                                        {new Date(pedido.created_at).toLocaleDateString('pt-BR')}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
+                                        <Clock className="w-2.5 h-2.5 text-slate-500" />
+                                        {new Date(pedido.created_at).toLocaleTimeString('pt-BR')}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  {/* STATUS NA ESTEIRA */}
+                                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                    {isNaCarga ? (
+                                      <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-sm shadow-amber-950/20">
+                                        <span className="relative flex h-2 w-2">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                        </span>
+                                        Na Pasta Carga
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold shadow-sm shadow-emerald-950/20">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        Processado
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* AÇÕES */}
+                                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                    {isNaCarga ? (
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(pedido.arquivo_carga!);
-                                          showNotification('📋 Caminho da Carga copiado!');
-                                        }}
-                                        className="text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
-                                        title="Copiar caminho completo do arquivo de carga"
+                                        onClick={() => alternarStatusPedido(pedido.id, 'PROCESSADO')}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-emerald-200 border border-emerald-500/40 hover:border-emerald-400/70 text-xs font-bold transition-all shadow-sm hover:shadow-emerald-900/30 cursor-pointer active:scale-95"
+                                        title="Marcar como processado e arquivar"
                                       >
-                                        <Copy className="w-3 h-3" />
+                                        <Check className="w-3.5 h-3.5" /> Concluir
                                       </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-slate-500 italic">Worklist gerada</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-slate-400 font-sans text-[11px] whitespace-nowrap">
-                                  {new Date(pedido.created_at).toLocaleString('pt-BR')}
-                                </td>
-                                <td className="p-3 font-sans">
-                                  {isNaCarga ? (
-                                    <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit">
-                                      <Clock className="w-3 h-3 text-amber-400" />
-                                      Na Pasta Carga
-                                    </span>
-                                  ) : (
-                                    <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit">
-                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                      Na Pasta Processados
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center font-sans">
-                                  {isNaCarga ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => alternarStatusPedido(pedido.id, 'PROCESSADO')}
-                                      className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 mx-auto"
-                                      title="Marcar como processado e arquivado"
-                                    >
-                                      <Check className="w-3 h-3" /> Concluir
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => alternarStatusPedido(pedido.id, 'NA_CARGA')}
-                                      className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 mx-auto"
-                                      title="Mover de volta para a pasta de Carga"
-                                    >
-                                      <RotateCcw className="w-3 h-3" /> Reabrir
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => alternarStatusPedido(pedido.id, 'NA_CARGA')}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-95"
+                                        title="Mover de volta para a pasta de Carga"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5" /> Reabrir
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   );
                 })()}
