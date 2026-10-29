@@ -640,7 +640,14 @@ export default function MidwayLabDashboard() {
     arquivo_carga?: string;
     arquivo_processado?: string;
     created_at: string;
-    exames?: string[];
+    total_exames?: number;
+    exames?: Array<{
+      codigo: string;
+      descricao?: string;
+      amostra?: string;
+      material?: string;
+      codigoEquipamento?: string;
+    }>;
   }>>([]);
   const [filtroStatusFila, setFiltroStatusFila] = useState<'NA_CARGA' | 'PROCESSADO' | 'TODOS'>('NA_CARGA');
   const [buscaFila, setBuscaFila] = useState('');
@@ -3727,6 +3734,7 @@ export default function MidwayLabDashboard() {
         setPedidosFila(data.map((p: any) => {
           let arqCarga = '';
           let arqProc = '';
+          let examesList: Array<{ codigo: string; descricao?: string; amostra?: string; material?: string }> = [];
           if (p.payload_labfacil_json) {
             try {
               const parsed = typeof p.payload_labfacil_json === 'string'
@@ -3734,6 +3742,9 @@ export default function MidwayLabDashboard() {
                 : p.payload_labfacil_json;
               arqCarga = parsed.arquivo_carga || '';
               arqProc = parsed.arquivo_processado || '';
+              if (Array.isArray(parsed.exames)) {
+                examesList = parsed.exames;
+              }
             } catch (_) {}
           }
           return {
@@ -3746,12 +3757,13 @@ export default function MidwayLabDashboard() {
             status: p.status || 'NA_CARGA',
             arquivo_nome: p.arquivo_nome || p.origem_arquivo || 'pedido.xml',
             origem_arquivo: p.origem_arquivo,
-            equipamento_destino: p.equipamento_destino || (p.codigo_lote_autolac?.replace('LOTE-', '')) || 'SYSMEX_UF_1500',
+            equipamento_destino: p.modelo_equipamento || p.equipamento_destino || (p.codigo_lote_autolac?.replace('LOTE-', '')) || 'SYSMEX_UF_1500',
             codigo_lote_autolac: p.codigo_lote_autolac,
             arquivo_carga: arqCarga,
             arquivo_processado: arqProc,
             created_at: p.created_at,
-            exames: Array.isArray(p.exames) ? p.exames : []
+            total_exames: p.total_exames || examesList.length,
+            exames: examesList
           };
         }));
       }
@@ -7354,6 +7366,7 @@ export default function MidwayLabDashboard() {
                             <th className="p-3">Pedido / Amostra</th>
                             <th className="p-3">Paciente</th>
                             <th className="p-3">Equipamento</th>
+                            <th className="p-3">Exames Solicitados</th>
                             <th className="p-3">Arquivo Entrada</th>
                             <th className="p-3">Arquivo Carga (Worklist)</th>
                             <th className="p-3">Data / Hora</th>
@@ -7376,6 +7389,37 @@ export default function MidwayLabDashboard() {
                                   <span className="bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
                                     {pedido.equipamento_destino || 'SYSMEX_UF_1500'}
                                   </span>
+                                </td>
+                                <td className="p-3">
+                                  {pedido.exames && pedido.exames.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 items-center max-w-[280px]">
+                                      {pedido.exames.map((ex, idx) => (
+                                        <div
+                                          key={idx}
+                                          className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-[11px] font-bold font-mono flex items-center gap-1.5"
+                                          title={`Exame: ${ex.codigo} - ${ex.descricao || ''}${ex.amostra ? `\nAmostra: ${ex.amostra}` : ''}${ex.material ? `\nMaterial: ${ex.material}` : ''}`}
+                                        >
+                                          <span className="text-purple-400 font-extrabold">{ex.codigo}</span>
+                                          {ex.descricao && (
+                                            <span className="text-[10px] text-slate-300 font-normal font-sans truncate max-w-[120px]">
+                                              {ex.descricao}
+                                            </span>
+                                          )}
+                                          {ex.material && (
+                                            <span className="text-[9px] bg-slate-900 text-teal-300 px-1 py-0.2 rounded font-sans border border-slate-700">
+                                              {ex.material}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : pedido.total_exames ? (
+                                    <span className="bg-purple-500/10 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-[11px] font-bold">
+                                      {pedido.total_exames} exame(s)
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500 italic text-xs">Sem exames</span>
+                                  )}
                                 </td>
                                 <td className="p-3 text-slate-400 text-[11px] max-w-[180px] truncate" title={pedido.arquivo_nome}>
                                   {pedido.arquivo_nome}

@@ -254,11 +254,11 @@ export class FolderWatcherService {
                 numero_solicitacao: order.numeroPedido,
                 protocolo_autolac: `${order.numeroPedido}_${Date.now().toString().slice(-4)}`,
                 paciente_nome: order.cliente.nome,
-                exames: order.exames.map(e => e.codigoEquipamento || e.codigo),
+                total_exames: order.exames.length,
                 status: 'NA_CARGA',
                 origem_arquivo: fileName,
                 arquivo_nome: fileName,
-                equipamento_destino: this.config.equipamentoDestino,
+                modelo_equipamento: this.config.equipamentoDestino,
                 codigo_lote_autolac: `LOTE-${this.config.equipamentoDestino}`,
                 payload_labfacil_json: JSON.stringify({
                   modelo_equipamento: this.config.equipamentoDestino,
@@ -266,11 +266,15 @@ export class FolderWatcherService {
                   arquivo_carga: outputFilePath,
                   arquivo_processado: path.join(this.config.diretorioProcessados, `${path.parse(fileName).name}_${Date.now()}${path.extname(fileName)}`),
                   processado_em: new Date().toISOString(),
-                  status: 'NA_CARGA'
+                  status: 'NA_CARGA',
+                  exames: order.exames,
+                  paciente: order.cliente
                 }),
                 created_at: new Date().toISOString()
               });
-            } catch (_) {}
+            } catch (err: any) {
+              console.error('[FolderWatcher] Erro ao gravar pedido no Supabase:', err.message);
+            }
           }
 
           // Registra log de sucesso

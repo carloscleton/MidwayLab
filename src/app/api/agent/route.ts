@@ -206,11 +206,11 @@ export async function POST(request: Request) {
             numero_solicitacao: order.numeroPedido,
             protocolo_autolac: `${order.numeroPedido}_${Date.now().toString().slice(-4)}`,
             paciente_nome: order.cliente.nome,
-            exames: order.exames.map(e => e.codigoEquipamento || e.codigo),
+            total_exames: order.exames.length,
             status: 'NA_CARGA',
             origem_arquivo: nomeArquivo,
             arquivo_nome: nomeArquivo,
-            equipamento_destino: modelo,
+            modelo_equipamento: modelo,
             codigo_lote_autolac: `LOTE-${modelo}`,
             payload_labfacil_json: JSON.stringify({
               modelo_equipamento: modelo,
@@ -218,11 +218,15 @@ export async function POST(request: Request) {
               arquivo_carga: caminhoCargaSugerido,
               arquivo_processado: caminhoProcessadoSugerido,
               processado_em: new Date().toISOString(),
-              status: 'NA_CARGA'
+              status: 'NA_CARGA',
+              exames: order.exames,
+              paciente: order.cliente
             }),
             created_at: new Date().toISOString()
           });
-        } catch (_) {}
+        } catch (err: any) {
+          console.error('[agent] Erro ao gravar pedido no Supabase:', err.message);
+        }
 
         resultadosCarga.push({
           pedidoId: order.numeroPedido,
@@ -267,12 +271,14 @@ export async function POST(request: Request) {
       tenant_id: tenant.id,
       local_autolac: 'LABFACIL',
       codigo_lote_autolac: `LOTE-${modeloEquipamento || 'GERAL'}`,
+      modelo_equipamento: modeloEquipamento || 'GERAL',
       protocolo_autolac: protocoloUnico,
       numero_solicitacao: String(codigoPedido),
       paciente_nome: pacienteNome || 'PACIENTE IMPORTADO',
       codigo_pedido_labfacil: String(codigoPedido),
       origem_arquivo: origemArquivo || (String(arquivoNome).toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'),
       arquivo_nome: arquivoNome || 'arquivo_desconhecido',
+      total_exames: body.totalExames || (Array.isArray(body.exames) ? body.exames.length : 1),
       status: statusFinal,
       mensagem_erro: mensagemErro || null,
       payload_labfacil_json: JSON.stringify({
@@ -284,6 +290,7 @@ export async function POST(request: Request) {
         origem: 'MIDWAY_SECURE_AGENT',
         status: statusFinal,
         erro: mensagemErro || null,
+        exames: body.exames || [],
         etapas: etapas || [
           {
             etapa: 'ENTRADA',
