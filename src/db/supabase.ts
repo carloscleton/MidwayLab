@@ -43,6 +43,9 @@ export const supabase = isConfigured
 export interface ITenantRecord {
   id: string;
   nome: string;
+  nome_responsavel?: string;
+  email?: string;
+  cnpj?: string;
   codigo_entidade: string;
   identificacao_entidade: string;
   configuracoes?: {

@@ -35,7 +35,12 @@ export class TenantService {
         .order('nome', { ascending: true });
 
       if (error || !data) return [];
-      return data as ITenantRecord[];
+      return data.map((t: any) => ({
+        ...t,
+        cnpj: t.cnpj || t.configuracoes?.cnpj || '',
+        nome_responsavel: t.nome_responsavel || t.configuracoes?.nome_responsavel || '',
+        email: t.email || t.configuracoes?.email || (t.identificacao_entidade?.includes('@') ? t.identificacao_entidade : '')
+      })) as ITenantRecord[];
     } catch (e) {
       console.error('[TenantService] Erro ao listar tenants:', e);
       return [];
@@ -48,6 +53,9 @@ export class TenantService {
   static async salvarTenant(tenant: Partial<ITenantRecord>): Promise<ITenantRecord | null> {
     const isCustomCatalog = tenant.usar_catalogo_proprio !== undefined ? Boolean(tenant.usar_catalogo_proprio) : false;
     const existingConfigs = tenant.configuracoes || {};
+    const cnpj = tenant.cnpj || (tenant as any).cnpj || existingConfigs?.cnpj || '';
+    const nomeResponsavel = tenant.nome_responsavel || (tenant as any).nomeResponsavel || existingConfigs?.nome_responsavel || '';
+    const email = tenant.email || (tenant as any).email || existingConfigs?.email || '';
     const apiToken = existingConfigs?.api_token || `mw_agt_${(tenant.identificacao_entidade || "agt").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10)}_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 6)}`;
     
     const baseUrl = tenant.labfacil_base_url || tenant.softlab_base_url || existingConfigs?.labfacil?.base_url || existingConfigs?.softlab?.base_url || 'http://apoio.softlabsolucoes.com.br';
@@ -76,7 +84,10 @@ export class TenantService {
           login: login,
           senha: senha
         },
-        usar_catalogo_proprio: isCustomCatalog
+        usar_catalogo_proprio: isCustomCatalog,
+        cnpj,
+        nome_responsavel: nomeResponsavel,
+        email
       },
       ativo: tenant.ativo !== undefined ? tenant.ativo : true
     };
@@ -94,7 +105,10 @@ export class TenantService {
         softlab_base_url: baseUrl,
         softlab_login: login,
         softlab_senha: senha,
-        usar_catalogo_proprio: isCustomCatalog
+        usar_catalogo_proprio: isCustomCatalog,
+        ...(cnpj ? { cnpj } : {}),
+        ...(nomeResponsavel ? { nome_responsavel: nomeResponsavel } : {}),
+        ...(email ? { email } : {})
       };
       
       const { data, error } = await supabaseBrowser

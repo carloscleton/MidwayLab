@@ -2091,6 +2091,10 @@ export default function MidwayLabDashboard() {
         const mappedTenants = dbTenants.map(t => ({
           id: t.id,
           nome: t.nome,
+          nomeResponsavel: t.nome_responsavel || (t.configuracoes?.nome_responsavel) || "",
+          nome_responsavel: t.nome_responsavel || (t.configuracoes?.nome_responsavel) || "",
+          email: t.email || (t.configuracoes?.email) || "",
+          cnpj: t.cnpj || (t.configuracoes?.cnpj) || "",
           identificacaoEntidade: t.identificacao_entidade || (t.configuracoes?.autolac?.identificacao_entidade) || "",
           identificacao_entidade: t.identificacao_entidade || (t.configuracoes?.autolac?.identificacao_entidade) || "",
           senhaWs: t.senha_ws || (t.configuracoes?.autolac?.senha_ws) || "",
@@ -2099,8 +2103,8 @@ export default function MidwayLabDashboard() {
           codigo_entidade: t.codigo_entidade || "1",
           wsUrl: t.ws_url || (t.configuracoes?.autolac?.ws_url) || "http://homolog.app.lifesys.com.br:5030",
           ws_url: t.ws_url || (t.configuracoes?.autolac?.ws_url) || "http://homolog.app.lifesys.com.br:5030",
-          labfacilBaseUrl: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.labfacilsolucoes.com.br",
-          labfacil_base_url: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.labfacilsolucoes.com.br",
+          labfacilBaseUrl: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.softlabsolucoes.com.br",
+          labfacil_base_url: t.labfacil_base_url || (t.configuracoes?.labfacil?.base_url) || "http://apoio.softlabsolucoes.com.br",
           labfacilLogin: t.labfacil_login || (t.configuracoes?.labfacil?.login) || "",
           labfacil_login: t.labfacil_login || (t.configuracoes?.labfacil?.login) || "",
           labfacilSenha: t.labfacil_senha || (t.configuracoes?.labfacil?.senha) || "",
@@ -2109,6 +2113,7 @@ export default function MidwayLabDashboard() {
           usar_catalogo_proprio: Boolean(t.usar_catalogo_proprio ?? t.configuracoes?.usar_catalogo_proprio),
           configuracoes: t.configuracoes || {},
           ultimoLote: "1",
+          ativo: t.ativo !== false,
           status: t.ativo ? "ONLINE" : "OFFLINE"
         }));
         setTenants(mappedTenants);
@@ -3099,14 +3104,18 @@ export default function MidwayLabDashboard() {
   // Form states for tenant creation/editing
   const [tenantFormData, setTenantFormData] = useState({
     nome: "",
+    nomeResponsavel: "",
+    email: "",
+    cnpj: "",
     identificacaoEntidade: "",
-    senhaWs: "YXJlY2RpYWg=",
+    senhaWs: "Soft@2026",
     codigoAgente: "1",
     wsUrl: "http://homolog.app.lifesys.com.br:5030",
-    labfacilBaseUrl: "http://apoio.labfacilsolucoes.com.br",
+    labfacilBaseUrl: "http://apoio.softlabsolucoes.com.br",
     labfacilLogin: "",
     labfacilSenha: "",
-    usarCatalogoProprio: false
+    usarCatalogoProprio: false,
+    ativo: true
   });
 
   // PASSWORD VISIBILITY TOGGLES
@@ -3795,14 +3804,18 @@ export default function MidwayLabDashboard() {
         // Atualiza os dados do formulário do tenant para refletir a empresa ativa
         setTenantFormData({
           nome: activeTenant.nome || "",
+          nomeResponsavel: activeTenant.nomeResponsavel || activeTenant.nome_responsavel || "",
+          email: activeTenant.email || "",
+          cnpj: activeTenant.cnpj || "",
           identificacaoEntidade: activeTenant.identificacaoEntidade || "",
           senhaWs: activeTenant.senhaWs || "",
           codigoAgente: activeTenant.codigoAgente || "1",
           wsUrl: activeTenant.wsUrl || "http://homolog.app.lifesys.com.br:5030",
-          labfacilBaseUrl: activeTenant.labfacilBaseUrl || "http://apoio.labfacilsolucoes.com.br",
+          labfacilBaseUrl: activeTenant.labfacilBaseUrl || "http://apoio.softlabsolucoes.com.br",
           labfacilLogin: activeTenant.labfacilLogin || "",
           labfacilSenha: activeTenant.labfacilSenha || "",
-          usarCatalogoProprio: Boolean(activeTenant.usarCatalogoProprio)
+          usarCatalogoProprio: Boolean(activeTenant.usarCatalogoProprio),
+          ativo: activeTenant.ativo !== false
         });
       }
     });
@@ -4137,14 +4150,18 @@ export default function MidwayLabDashboard() {
       savedTenant = await TenantService.salvarTenant({
         id: editingTenant?.id,
         nome: tenantFormData.nome,
+        nome_responsavel: tenantFormData.nomeResponsavel,
+        email: tenantFormData.email,
+        cnpj: tenantFormData.cnpj,
         identificacao_entidade: identEntidade,
         senha_ws: tenantFormData.senhaWs,
         codigo_entidade: tenantFormData.codigoAgente || '1',
-        labfacil_base_url: tenantFormData.labfacilBaseUrl || 'http://apoio.labfacilsolucoes.com.br',
+        ws_url: tenantFormData.wsUrl,
+        labfacil_base_url: tenantFormData.labfacilBaseUrl || 'http://apoio.softlabsolucoes.com.br',
         labfacil_login: tenantFormData.labfacilLogin,
         labfacil_senha: tenantFormData.labfacilSenha,
         usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
-        ativo: true
+        ativo: tenantFormData.ativo !== false
       });
     } catch (err: any) {
       console.warn("Aviso ao salvar no Supabase:", err);
@@ -4154,6 +4171,10 @@ export default function MidwayLabDashboard() {
     const updatedTenantItem = {
       id: tenantId,
       nome: tenantFormData.nome,
+      nomeResponsavel: tenantFormData.nomeResponsavel,
+      nome_responsavel: tenantFormData.nomeResponsavel,
+      email: tenantFormData.email,
+      cnpj: tenantFormData.cnpj,
       identificacaoEntidade: tenantFormData.identificacaoEntidade,
       identificacao_entidade: tenantFormData.identificacaoEntidade,
       senhaWs: tenantFormData.senhaWs,
@@ -4171,7 +4192,8 @@ export default function MidwayLabDashboard() {
       usarCatalogoProprio: Boolean(tenantFormData.usarCatalogoProprio),
       usar_catalogo_proprio: Boolean(tenantFormData.usarCatalogoProprio),
       ultimoLote: editingTenant?.ultimoLote || "1",
-      status: "ONLINE"
+      ativo: tenantFormData.ativo !== false,
+      status: tenantFormData.ativo !== false ? "ONLINE" : "OFFLINE"
     };
 
     if (editingTenant) {
@@ -4431,14 +4453,18 @@ export default function MidwayLabDashboard() {
     setTenantTestResult(null);
     setTenantFormData({
       nome: t.nome || "",
+      nomeResponsavel: t.nomeResponsavel || t.nome_responsavel || t.configuracoes?.nome_responsavel || "",
+      email: t.email || t.configuracoes?.email || (t.identificacaoEntidade?.includes("@") ? t.identificacaoEntidade : ""),
+      cnpj: t.cnpj || t.configuracoes?.cnpj || "",
       identificacaoEntidade: t.identificacaoEntidade || t.identificacao_entidade || "",
-      senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
+      senhaWs: t.senhaWs || t.senha_ws || t.configuracoes?.autolac?.senha_ws || "Soft@2026",
       codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
-      wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
-      labfacilBaseUrl: t.labfacilBaseUrl || t.labfacil_base_url || "http://apoio.labfacilsolucoes.com.br",
-      labfacilLogin: t.labfacilLogin || t.labfacil_login || "",
-      labfacilSenha: t.labfacilSenha || t.labfacil_senha || "",
-      usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio)
+      wsUrl: t.wsUrl || t.ws_url || t.configuracoes?.autolac?.ws_url || "http://homolog.app.lifesys.com.br:5030",
+      labfacilBaseUrl: t.labfacilBaseUrl || t.labfacil_base_url || "http://apoio.softlabsolucoes.com.br",
+      labfacilLogin: t.labfacilLogin || t.labfacil_login || t.configuracoes?.labfacil?.login || "",
+      labfacilSenha: t.labfacilSenha || t.labfacil_senha || t.configuracoes?.labfacil?.senha || "",
+      usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio),
+      ativo: t.ativo !== false
     });
     setIsNewTenantModalOpen(true);
   };
@@ -4450,14 +4476,18 @@ export default function MidwayLabDashboard() {
     const clonedIdent = baseIdent ? `${baseIdent}_CLONE` : "";
     setTenantFormData({
       nome: `${t.nome || "LABORATÓRIO"} (CÓPIA)`,
+      nomeResponsavel: t.nomeResponsavel || t.nome_responsavel || t.configuracoes?.nome_responsavel || "",
+      email: t.email || t.configuracoes?.email || "",
+      cnpj: t.cnpj || t.configuracoes?.cnpj || "",
       identificacaoEntidade: clonedIdent,
       senhaWs: t.senhaWs || t.senha_ws || "Soft@2026",
       codigoAgente: t.codigoAgente || t.codigo_entidade || "1",
       wsUrl: t.wsUrl || t.ws_url || "http://homolog.app.lifesys.com.br:5030",
-      labfacilBaseUrl: t.labfacilBaseUrl || t.labfacil_base_url || "http://apoio.labfacilsolucoes.com.br",
+      labfacilBaseUrl: t.labfacilBaseUrl || t.labfacil_base_url || "http://apoio.softlabsolucoes.com.br",
       labfacilLogin: t.labfacilLogin || t.labfacil_login || "",
       labfacilSenha: t.labfacilSenha || t.labfacil_senha || "",
-      usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio)
+      usarCatalogoProprio: Boolean(t.usarCatalogoProprio || t.usar_catalogo_proprio),
+      ativo: true
     });
     setIsNewTenantModalOpen(true);
     showNotification(`📋 Configurações de "${t.nome}" clonadas para novo cadastro! Altere a Identificação e salve.`);
@@ -5613,14 +5643,18 @@ export default function MidwayLabDashboard() {
                     setEditingTenant(null);
                     setTenantFormData({
                       nome: "",
+                      nomeResponsavel: "",
+                      email: "",
+                      cnpj: "",
                       identificacaoEntidade: "",
                       senhaWs: "Soft@2026",
                       codigoAgente: "1",
-                      wsUrl: "http://177.22.36.202:8002/",
-                      labfacilBaseUrl: "http://apoio.labfacilsolucoes.com.br",
+                      wsUrl: "http://homolog.app.lifesys.com.br:5030",
+                      labfacilBaseUrl: "http://apoio.softlabsolucoes.com.br",
                       labfacilLogin: "",
                       labfacilSenha: "",
-                      usarCatalogoProprio: false
+                      usarCatalogoProprio: false,
+                      ativo: true
                     });
                     setIsNewTenantModalOpen(true);
                   }}
@@ -5659,10 +5693,17 @@ export default function MidwayLabDashboard() {
                           <tr key={t.id} className="hover:bg-slate-800/40 transition">
                             <td className="py-3.5 px-5">
                               <span className="font-bold text-slate-100 text-sm block">{t.nome}</span>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                                {t.cnpj && <span className="font-mono text-[11px] text-cyan-300 font-medium">CNPJ: {t.cnpj}</span>}
+                                {t.nomeResponsavel && <span className="text-[11px] text-slate-400">• Resp: {t.nomeResponsavel}</span>}
+                              </div>
                               <span className="font-mono text-[10px] text-slate-500">ID: {t.id}</span>
                             </td>
-                            <td className="py-3.5 px-5 font-mono text-xs text-teal-300 font-semibold">
-                              {t.identificacaoEntidade}
+                            <td className="py-3.5 px-5 font-mono text-xs">
+                              <span className="text-teal-300 font-semibold block">{t.identificacaoEntidade}</span>
+                              {t.email && t.email !== t.identificacaoEntidade && (
+                                <span className="text-[11px] text-slate-400 block">{t.email}</span>
+                              )}
                             </td>
                             <td className="py-3.5 px-5 font-mono text-xs text-slate-300 break-all max-w-[200px]">
                               {t.wsUrl}
@@ -10499,66 +10540,293 @@ export default function MidwayLabDashboard() {
             </div>
 
             <form id="form_tenant_edit" name="form_tenant_edit" action="javascript:void(0);" onSubmit={handleSaveTenant} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Nome do Laboratório</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex.: LAB. SAN MATHEUS"
-                  value={tenantFormData.nome}
-                  onChange={(e) => setTenantFormData({ ...tenantFormData, nome: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50"
-                />
-              </div>
-
-              {/* CONFIGURAÇÃO DE CATÁLOGO (GLOBAL VS CUSTOMIZADO) */}
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
-                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
-                  <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span className="font-bold text-cyan-300 text-xs tracking-wide uppercase">Configuração do Catálogo de Exames Labfacil</span>
+              {/* SEÇÃO 1: DADOS CADASTRAIS DO LABORATÓRIO */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                  <Building2 className="w-4 h-4 text-teal-400" />
+                  <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">1. Dados Cadastrais do Laboratório</span>
                 </div>
 
-                <label className="flex items-start gap-3 cursor-pointer group bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-teal-500/40 transition">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(tenantFormData.usarCatalogoProprio)}
-                    onChange={(e) => setTenantFormData({ ...tenantFormData, usarCatalogoProprio: e.target.checked })}
-                    className="mt-0.5 w-4 h-4 accent-teal-400 cursor-pointer rounded"
-                  />
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-slate-100 text-xs group-hover:text-teal-300 transition block">
-                      Usar Catálogo Customizado Próprio para este Laboratório
-                    </span>
-                    <p className="text-[11px] text-slate-400 leading-normal">
-                      {tenantFormData.usarCatalogoProprio ? (
-                        <span className="text-teal-300 font-semibold">
-                          ✨ Ativo: Permite que esta empresa consulte via API e salve um catálogo exclusivo gravado com o seu <code className="text-cyan-300">tenant_id</code>.
-                        </span>
-                      ) : (
-                        <span className="text-amber-300 font-semibold">
-                          🌐 Desativado (Padrão): Esta empresa utiliza o Catálogo Global padronizado de 1.047 exames (botões de busca/gravação ficam desabilitados no mapeador).
-                        </span>
-                      )}
-                    </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-300 font-semibold mb-1">
+                      Nome do Laboratório <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex.: LABORATÓRIO BIO VIDA"
+                      value={tenantFormData.nome}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, nome: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                    />
                   </div>
-                </label>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Nome do Responsável Técnico</label>
+                    <input
+                      type="text"
+                      placeholder="Ex.: Dra. Maria Fernanda"
+                      value={tenantFormData.nomeResponsavel || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, nomeResponsavel: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-teal-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">CNPJ do Laboratório</label>
+                    <input
+                      type="text"
+                      placeholder="00.000.000/0001-00"
+                      value={tenantFormData.cnpj || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, cnpj: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500/50"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-300 font-semibold mb-1">E-mail de Contato Principal</label>
+                    <input
+                      type="email"
+                      placeholder="contato@lab.com.br"
+                      value={tenantFormData.email || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, email: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-teal-500/50"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end pt-4 border-t border-slate-800 gap-3">
+              {/* SEÇÃO 2: PARÂMETROS AUTOLAC / FÁCIL 2024 */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <div className="flex items-center gap-2">
+                    <Server className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">2. Integração Fácil 2024 / Autolac (WebServices)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTestTenantConnection("autolac")}
+                    disabled={testingTarget === "autolac" || testingTarget === "both"}
+                    className="text-[11px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <Activity className={`w-3 h-3 ${testingTarget === "autolac" ? "animate-spin" : ""}`} />
+                    {testingTarget === "autolac" ? "Testando..." : "Testar Autolac"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">
+                      Identificação da Entidade (Código Fácil / Login WS) <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex.: 784 ou contato@lab.com.br"
+                      value={tenantFormData.identificacaoEntidade || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, identificacaoEntidade: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Código do Agente</label>
+                    <input
+                      type="text"
+                      placeholder="1"
+                      value={tenantFormData.codigoAgente || "1"}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, codigoAgente: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">URL WebService Autolac (Endpoint SOAP)</label>
+                    <input
+                      type="text"
+                      placeholder="http://homolog.app.lifesys.com.br:5030"
+                      value={tenantFormData.wsUrl || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, wsUrl: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Senha WebService Autolac</label>
+                    <div className="relative">
+                      <input
+                        type={showSenhaWs ? "text" : "password"}
+                        placeholder="Senha do WS Autolac"
+                        value={tenantFormData.senhaWs || ""}
+                        onChange={(e) => setTenantFormData({ ...tenantFormData, senhaWs: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-9 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-cyan-500/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSenhaWs(!showSenhaWs)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        {showSenhaWs ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {tenantTestResult?.autolacMsg && (
+                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center gap-2 ${tenantTestResult.autolacSuccess ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
+                    {tenantTestResult.autolacSuccess ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                    <span>{tenantTestResult.autolacMsg}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* SEÇÃO 3: CREDENCIAIS LABFACIL APOIO */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-purple-400" />
+                    <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">3. Credenciais Labfacil Apoio</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTestTenantConnection("labfacil")}
+                    disabled={testingTarget === "labfacil" || testingTarget === "both"}
+                    className="text-[11px] bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <Activity className={`w-3 h-3 ${testingTarget === "labfacil" ? "animate-spin" : ""}`} />
+                    {testingTarget === "labfacil" ? "Testando..." : "Testar Labfacil"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-300 font-semibold mb-1">URL Base Labfacil Apoio</label>
+                    <input
+                      type="text"
+                      placeholder="http://apoio.softlabsolucoes.com.br"
+                      value={tenantFormData.labfacilBaseUrl || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilBaseUrl: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Login Labfacil Apoio</label>
+                    <input
+                      type="text"
+                      placeholder="usuario@labfacil.com.br"
+                      value={tenantFormData.labfacilLogin || ""}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilLogin: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Senha Labfacil Apoio</label>
+                    <div className="relative">
+                      <input
+                        type={showLabfacilSenha ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={tenantFormData.labfacilSenha || ""}
+                        onChange={(e) => setTenantFormData({ ...tenantFormData, labfacilSenha: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-9 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-purple-500/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLabfacilSenha(!showLabfacilSenha)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        {showLabfacilSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {tenantTestResult?.labfacilMsg && (
+                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center gap-2 ${tenantTestResult.labfacilSuccess ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
+                    {tenantTestResult.labfacilSuccess ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                    <span>{tenantTestResult.labfacilMsg}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* SEÇÃO 4: CONFIGURAÇÕES EXTRAS & STATUS */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                  <Sliders className="w-4 h-4 text-amber-400" />
+                  <span className="font-bold text-slate-100 text-xs uppercase tracking-wide">4. Opções & Status do Laboratório</span>
+                </div>
+
+                <div className="space-y-2.5">
+                  <label className="flex items-start gap-3 cursor-pointer group bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-teal-500/40 transition">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(tenantFormData.usarCatalogoProprio)}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, usarCatalogoProprio: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 accent-teal-400 cursor-pointer rounded"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-slate-100 text-xs group-hover:text-teal-300 transition block">
+                        Usar Catálogo Customizado Próprio para este Laboratório
+                      </span>
+                      <p className="text-[11px] text-slate-400 leading-normal">
+                        {tenantFormData.usarCatalogoProprio ? (
+                          <span className="text-teal-300 font-semibold">
+                            ✨ Ativo: Permite salvar e consultar um catálogo exclusivo gravado com este <code className="text-cyan-300">tenant_id</code>.
+                          </span>
+                        ) : (
+                          <span className="text-amber-300 font-semibold">
+                            🌐 Desativado (Padrão): Utiliza o Catálogo Global padronizado de 1.047 exames.
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-teal-500/40 transition">
+                    <input
+                      type="checkbox"
+                      checked={tenantFormData.ativo !== false}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, ativo: e.target.checked })}
+                      className="w-4 h-4 accent-teal-400 cursor-pointer rounded"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-100 text-xs block">Laboratório Ativo no Sistema</span>
+                      <span className="text-[11px] text-slate-400">Permite sincronização de pedidos, laudos e ingestão de arquivos</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* BOTÕES DE AÇÃO */}
+              <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-slate-800 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
-                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                  onClick={() => handleTestTenantConnection("both")}
+                  disabled={testingTarget !== "none"}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-teal-500/30 text-teal-300 hover:bg-teal-500/10 font-bold text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
                 >
-                  Cancelar
+                  <Activity className={`w-3.5 h-3.5 ${testingTarget !== "none" ? "animate-spin" : ""}`} />
+                  {testingTarget !== "none" ? "Executando Diagnóstico..." : "Diagnóstico Geral de Conexões"}
                 </button>
 
-                <button
-                  type="submit"
-                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
-                >
-                  <Save className="w-4 h-4" /> Salvar Laboratório
-                </button>
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setIsNewTenantModalOpen(false); setEditingTenant(null); setTenantTestResult(null); }}
+                    className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2 text-xs"
+                  >
+                    <Save className="w-4 h-4" /> Salvar Laboratório
+                  </button>
+                </div>
               </div>
             </form>
           </div>

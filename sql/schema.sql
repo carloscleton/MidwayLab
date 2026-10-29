@@ -7,6 +7,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.tenants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nome VARCHAR(255) NOT NULL,
+    nome_responsavel VARCHAR(255),
+    email VARCHAR(255),
+    cnpj VARCHAR(50),
     codigo_entidade VARCHAR(50),
     identificacao_entidade VARCHAR(255) UNIQUE NOT NULL,
     senha_ws VARCHAR(255) NOT NULL,
