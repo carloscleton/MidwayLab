@@ -57,12 +57,12 @@ $NotifyIcon.Visible = $true
 # Menu de contexto ao clicar com botao direito no icone
 $ContextMenu = New-Object System.Windows.Forms.ContextMenuStrip
 
-$MenuItemStatus = $ContextMenu.Items.Add("STATUS: Ativo e Monitorando")
+$MenuItemStatus = $ContextMenu.Items.Add("STATUS: Ativo e Monitorando 24h")
 $MenuItemStatus.Enabled = $false
 
 $ContextMenu.Items.Add("-") | Out-Null
 
-$MenuItemAbrirPastas = $ContextMenu.Items.Add("Abrir Pastas do MidwayLab")
+$MenuItemAbrirPastas = $ContextMenu.Items.Add("Abrir Pastas (C:\MidwayLab)")
 $MenuItemAbrirPastas.add_Click({
     Start-Process "explorer.exe" $PastaRaiz
 })
@@ -90,10 +90,23 @@ $NotifyIcon.ContextMenuStrip = $ContextMenu
 # Mostra notificacao balao inicial informando ativacao
 $NotifyIcon.ShowBalloonTip(
     4000,
-    "MidwayLab Ativo!",
-    "Monitorando $Equipamento em C:\MidwayLab. Icone ativo junto ao relogio.",
+    "MidwayLab Ativo 24h!",
+    "Monitorando pastas em C:\MidwayLab. Icone ativo junto ao relogio.",
     [System.Windows.Forms.ToolTipIcon]::Info
 )
+
+# Funcao de envio de Heartbeat para o Servidor Web saber que esta online
+function Enviar-Heartbeat {
+    try {
+        $headers = @{ "Content-Type" = "application/json" }
+        if ($AgentToken) { $headers["x-agent-token"] = $AgentToken }
+        $body = @{ acao = "heartbeat"; equipamento = $Equipamento } | ConvertTo-Json
+        Invoke-RestMethod -Uri "$ApiUrl/api/agent" -Method Post -Headers $headers -Body $body -TimeoutSec 5 | Out-Null
+    } catch {}
+}
+
+# Envia o primeiro heartbeat imediatamente
+Enviar-Heartbeat
 
 # Funcao de Varredura e Processamento Multi-Equipamentos
 function Executar-Varredura {
@@ -201,10 +214,16 @@ function Executar-Varredura {
     }
 }
 
-# Timer continuo a cada 5 segundos
+# Timer continuo a cada 5 segundos (com Heartbeat a cada 30 segundos)
+$TickCounter = 0
 $Timer = New-Object System.Windows.Forms.Timer
 $Timer.Interval = 5000
 $Timer.add_Tick({
+    $script:TickCounter++
+    if ($script:TickCounter -ge 6) { # 6 x 5s = 30 segundos
+        $script:TickCounter = 0
+        Enviar-Heartbeat
+    }
     Executar-Varredura
 })
 $Timer.Start()
