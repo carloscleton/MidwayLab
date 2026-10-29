@@ -69,6 +69,12 @@ export function SetupLocalRoboModal({
   const [copiedCarga, setCopiedCarga] = useState(false);
   const [copiedResultados, setCopiedResultados] = useState(false);
   const [scriptWindowsGerado, setScriptWindowsGerado] = useState<string | null>(null);
+  const [ultimoTeste, setUltimoTeste] = useState<{
+    arquivo: string;
+    xml: string;
+    batScript?: string;
+    gravadoDireto: boolean;
+  } | null>(null);
   const [scriptInfo, setScriptInfo] = useState<{
     batPath: string;
     batContent: string;
@@ -219,16 +225,39 @@ export function SetupLocalRoboModal({
       });
       const data = await res.json();
       if (data.success) {
-        if (acao === 'iniciar') {
+        if (acao === 'gerar_pedido_teste') {
+          setUltimoTeste({
+            arquivo: data.arquivoGerado,
+            xml: data.xmlConteudo,
+            batScript: data.batScript,
+            gravadoDireto: Boolean(data.gravadoDireto)
+          });
+
+          if (data.gravadoDireto) {
+            showNotification(data.message || `🧪 Pedido '${data.arquivoGerado}' gravado na pasta Entrada e processado!`);
+          } else {
+            // Em ambiente de nuvem (Vercel), baixa o arquivo XML e também o BAT de 1 clique
+            if (data.xmlConteudo && data.arquivoGerado) {
+              downloadArquivo(data.xmlConteudo, data.arquivoGerado);
+            }
+            if (data.batScript) {
+              downloadArquivo(data.batScript, 'GERAR_PEDIDO_TESTE.bat');
+            }
+            showNotification(`📥 Pedido '${data.arquivoGerado}' e script BAT baixados! Execute o BAT ou coloque o XML na pasta Entrada.`);
+          }
+        } else if (acao === 'iniciar') {
           try { localStorage.setItem('midway_robot_auto_start', 'true'); } catch (_) {}
+          showNotification(data.message || 'Robô iniciado com sucesso!');
         } else if (acao === 'parar') {
           try { localStorage.setItem('midway_robot_auto_start', 'false'); } catch (_) {}
+          showNotification(data.message || 'Robô pausado.');
+        } else {
+          showNotification(data.message || 'Comando do robô executado!');
         }
-        showNotification(data.message || 'Comando do robô executado!');
         await carregarStatusRobo();
         if (onConfigAtualizada) onConfigAtualizada();
       } else {
-        showNotification(`⚠️ Erro: ${data.error}`);
+        showNotification(`⚠️ Erro: ${data.error || 'Falha ao processar solicitação'}`);
       }
     } catch (err: any) {
       showNotification(`⚠️ Erro ao comunicar com o robô: ${err.message}`);
@@ -640,6 +669,48 @@ export function SetupLocalRoboModal({
             <p className="text-xs text-slate-300 leading-relaxed">
               Clique em <strong className="text-amber-300">"Executar Teste"</strong> para que o sistema gere um pedido XML real na pasta <code className="text-teal-300 font-mono font-bold">{pastaRaiz}\Labfacil\{modeloAtivo}\Entrada</code>. O robô irá processá-lo instantaneamente, gerando o arquivo de carga para o analisador em <code className="text-cyan-300 font-mono font-bold">{pastaRaiz}\Equipamentos\{modeloAtivo}\Carga</code> e movendo o original para <code className="text-slate-400 font-mono font-bold">Processados</code>.
             </p>
+
+            {/* FEEDBACK DO PEDIDO DE TESTE GERADO */}
+            {ultimoTeste && (
+              <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="text-amber-200 font-bold font-mono">
+                      {ultimoTeste.arquivo}
+                    </span>
+                    <p className="text-[11px] text-slate-300 m-0">
+                      {ultimoTeste.gravadoDireto
+                        ? '✓ Gravado diretamente na pasta Entrada e enviado para o robô!'
+                        : '✓ Arquivo de teste gerado com sucesso! Arquivos prontos para uso no seu computador.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  {ultimoTeste.xml && (
+                    <button
+                      type="button"
+                      onClick={() => downloadArquivo(ultimoTeste.xml, ultimoTeste.arquivo)}
+                      className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold px-3 py-1.5 rounded-lg text-xs border border-amber-500/30 flex items-center gap-1.5 cursor-pointer transition"
+                      title="Baixar o arquivo XML do pedido"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Baixar XML
+                    </button>
+                  )}
+                  {ultimoTeste.batScript && (
+                    <button
+                      type="button"
+                      onClick={() => downloadArquivo(ultimoTeste.batScript!, 'GERAR_PEDIDO_TESTE.bat')}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition"
+                      title="Baixar script BAT de 1 clique que grava o pedido na pasta Entrada"
+                    >
+                      <Zap className="w-3.5 h-3.5" /> Baixar Script BAT (1-Clique)
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* TERMINAL DE LOGS EM TEMPO REAL */}
             <div className="space-y-1.5">

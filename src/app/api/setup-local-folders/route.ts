@@ -227,10 +227,50 @@ export async function POST(request: Request) {
 
       // 5.4 Atalhos rápidos numerados na raiz de C:\MidwayLab
       try {
+        const testBatPath = path.join(dirRobo, 'gerar-pedido-teste.bat');
+        const testBatContent = [
+          '@echo off',
+          'title MidwayLab - Gerador de Pedido de Teste',
+          'color 0E',
+          'echo ========================================================',
+          'echo    MIDWAYLAB - GERADOR DE PEDIDO DE TESTE NA ENTRADA     ',
+          'echo ========================================================',
+          `set "DIR_ENTRADA=${path.join(baseDir, 'Labfacil', primeiroModelo, 'Entrada')}"`,
+          'if not exist "%DIR_ENTRADA%" mkdir "%DIR_ENTRADA%"',
+          'set "NUM=%RANDOM%"',
+          'set "NOME_ARQ=TESTE_PEDIDO_%NUM%.xml"',
+          '(',
+          'echo ^<?xml version="1.0" encoding="UTF-8"?^>',
+          'echo ^<Principal^>',
+          'echo   ^<Paciente^>',
+          'echo     ^<Codigo^>%NUM%^</Codigo^>',
+          'echo     ^<Nome^>PACIENTE TESTE INTEGRACAO^</Nome^>',
+          'echo     ^<Amostra^>%NUM%^</Amostra^>',
+          'echo     ^<Data^>%DATE%^</Data^>',
+          'echo   ^</Paciente^>',
+          'echo   ^<Exames^>',
+          'echo     ^<Exame^>',
+          'echo       ^<Codigo^>EAS^</Codigo^>',
+          'echo       ^<Descricao^>SEDIMENTOSCOPIA / URINA^</Descricao^>',
+          'echo     ^</Exame^>',
+          'echo   ^</Exames^>',
+          'echo ^</Principal^>',
+          ') > "%DIR_ENTRADA%\\%NOME_ARQ%"',
+          'echo.',
+          'echo [OK] Pedido de teste %NOME_ARQ% gerado com sucesso em:',
+          'echo %DIR_ENTRADA%',
+          'echo.',
+          'echo O Robo do MidwayLab ira processar o arquivo nos proximos 5 segundos.',
+          'timeout /t 4 >nul',
+          'exit'
+        ].join('\r\n');
+        fs.writeFileSync(testBatPath, testBatContent, 'utf8');
+
         fs.writeFileSync(path.join(baseDir, '1_INSTALAR_ROBO_24H.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\instalar-servico-windows.bat"\r\n', 'utf8');
         fs.writeFileSync(path.join(baseDir, '2_INICIAR_ROBO_BANDEJA.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\iniciar-robo-tray.bat"\r\n', 'utf8');
         fs.writeFileSync(path.join(baseDir, '3_VER_STATUS_ROBO.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\verificar-status-robo.bat"\r\n', 'utf8');
         fs.writeFileSync(path.join(baseDir, '4_PARAR_ROBO.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\parar-robo.bat"\r\n', 'utf8');
+        fs.writeFileSync(path.join(baseDir, '5_GERAR_PEDIDO_TESTE.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\gerar-pedido-teste.bat"\r\n', 'utf8');
       } catch (_) {}
 
       // 5.5 Atalho para iniciar com o Windows no Startup do usuário logado
@@ -313,6 +353,17 @@ export async function POST(request: Request) {
     batCommands.push(`(echo MIDWAY_API_URL=${appUrl}& echo MIDWAY_AGENT_TOKEN=${agentToken}& echo EQUIPAMENTO=${primeiroModelo}& echo PASTA_RAIZ=${baseDir}) > "${path.join(dirRobo, '.env')}"`);
     batCommands.push(`(echo @echo off & echo title MidwayLab - Agente de Bandeja & echo cd /d "%%~dp0" & echo powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "%%~dp0midwaylab-robo-tray.ps1" & echo exit) > "${path.join(dirRobo, 'iniciar-robo-tray.bat')}"`);
     batCommands.push(`powershell -Command "try { Invoke-WebRequest -Uri '${appUrl}/midwaylab-robo-tray.ps1' -OutFile '${path.join(dirRobo, 'midwaylab-robo-tray.ps1')}' } catch {}"`);
+    
+    // Atalhos 1 a 5 na raiz C:\MidwayLab
+    batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo call "%%~dp0Robo\\iniciar-robo-tray.bat") > "${path.join(baseDir, '1_INSTALAR_ROBO_24H.bat')}"`);
+    batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo call "%%~dp0Robo\\iniciar-robo-tray.bat") > "${path.join(baseDir, '2_INICIAR_ROBO_BANDEJA.bat')}"`);
+    batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo pause) > "${path.join(baseDir, '3_VER_STATUS_ROBO.bat')}"`);
+    batCommands.push(`(echo @echo off & echo taskkill /F /IM powershell.exe /FI "WINDOWTITLE eq Midway*" 2^>nul) > "${path.join(baseDir, '4_PARAR_ROBO.bat')}"`);
+    
+    // Gerador de Pedido de Teste em C:\MidwayLab\5_GERAR_PEDIDO_TESTE.bat
+    const dirEntradaPrimeiro = path.join(baseDir, 'Labfacil', primeiroModelo, 'Entrada');
+    batCommands.push(`(echo @echo off & echo title Gerador de Teste & echo set "DIR_E=${dirEntradaPrimeiro}" & echo if not exist "%%DIR_E%%" mkdir "%%DIR_E%%" & echo set "NUM=%%RANDOM%%" & echo (echo ^^^<?xml version="1.0" encoding="UTF-8"?^^^> ^& echo ^^^<Principal^^^> ^& echo   ^^^<Paciente^^^> ^& echo     ^^^<Codigo^^^>%%NUM%%^^^</Codigo^^^> ^& echo     ^^^<Nome^^^>PACIENTE TESTE INTEGRACAO^^^</Nome^^^> ^& echo     ^^^<Amostra^^^>%%NUM%%^^^</Amostra^^^> ^& echo     ^^^<Data^^^>%%DATE%%^^^</Data^^^> ^& echo   ^^^</Paciente^^^> ^& echo   ^^^<Exames^^^> ^& echo     ^^^<Exame^^^> ^& echo       ^^^<Codigo^^^>EAS^^^</Codigo^^^> ^& echo       ^^^<Descricao^^^>SEDIMENTOSCOPIA / URINA^^^</Descricao^^^> ^& echo     ^^^</Exame^^^> ^& echo   ^^^</Exames^^^> ^& echo ^^^</Principal^^^>) ^> "%%DIR_E%%\\TESTE_PEDIDO_%%NUM%%.xml" & echo [OK] Pedido gerado em %%DIR_E%%! & echo timeout /t 3 ^>nul) > "${path.join(baseDir, '5_GERAR_PEDIDO_TESTE.bat')}"`);
+
     batCommands.push('echo.');
     batCommands.push('echo [3/3] Configurando inicializacao automatica com o Windows...');
     batCommands.push(`set STARTUP_DIR=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup`);

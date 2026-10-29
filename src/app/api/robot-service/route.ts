@@ -145,9 +145,6 @@ export async function POST(request: Request) {
       if (!modeloEscolhido) modeloEscolhido = 'SYSMEX_UF_1500';
 
       const dirEntrada = path.join(baseDir, 'Labfacil', modeloEscolhido, 'Entrada');
-      if (!fs.existsSync(dirEntrada)) {
-        fs.mkdirSync(dirEntrada, { recursive: true });
-      }
       const sampleCode = Date.now().toString().slice(-6);
       const sampleFileName = `TESTE_PEDIDO_${sampleCode}.xml`;
       const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -165,21 +162,74 @@ export async function POST(request: Request) {
     </Exame>
   </Exames>
 </Principal>`;
-      const samplePath = path.join(dirEntrada, sampleFileName);
-      fs.writeFileSync(samplePath, sampleXml, 'utf8');
 
+      const samplePath = path.join(dirEntrada, sampleFileName);
+      let gravadoDireto = false;
       let processadosAgora = 0;
+
+      // Tenta gravar diretamente no disco (caso o servidor esteja rodando localmente no Windows)
       try {
-        processadosAgora = await FolderWatcherService.executarVarredura();
-      } catch (_) {}
+        if (!fs.existsSync(dirEntrada)) {
+          fs.mkdirSync(dirEntrada, { recursive: true });
+        }
+        fs.writeFileSync(samplePath, sampleXml, 'utf8');
+        gravadoDireto = true;
+
+        try {
+          processadosAgora = await FolderWatcherService.executarVarredura();
+        } catch (_) {}
+      } catch (diskErr: any) {
+        // Ambiente de nuvem / Vercel: filesystem C: não existe no servidor Linux
+        console.warn('[API robot-service] Disco local C: não disponível no servidor Vercel/Cloud:', diskErr?.message);
+      }
+
+      // Script BAT de 1 clique para gerar o arquivo na pasta de Entrada no Windows do cliente
+      const batScript = [
+        '@echo off',
+        'title MidwayLab - Gerador de Pedido de Teste',
+        'color 0E',
+        'echo ========================================================',
+        'echo    MIDWAYLAB - GERADOR DE PEDIDO DE TESTE NA ENTRADA     ',
+        'echo ========================================================',
+        `set "DIR_ENTRADA=${dirEntrada}"`,
+        'if not exist "%DIR_ENTRADA%" mkdir "%DIR_ENTRADA%"',
+        '(',
+        'echo ^<?xml version="1.0" encoding="UTF-8"?^>',
+        'echo ^<Principal^>',
+        'echo   ^<Paciente^>',
+        `echo     ^<Codigo^>${sampleCode}^</Codigo^>`,
+        'echo     ^<Nome^>PACIENTE TESTE INTEGRACAO^</Nome^>',
+        `echo     ^<Amostra^>${sampleCode}^</Amostra^>`,
+        `echo     ^<Data^>${new Date().toISOString().split('T')[0]}^</Data^>`,
+        'echo   ^</Paciente^>',
+        'echo   ^<Exames^>',
+        'echo     ^<Exame^>',
+        'echo       ^<Codigo^>EAS^</Codigo^>',
+        'echo       ^<Descricao^>SEDIMENTOSCOPIA / URINA^</Descricao^>',
+        'echo     ^</Exame^>',
+        'echo   ^</Exames^>',
+        'echo ^</Principal^>',
+        `) > "%DIR_ENTRADA%\\${sampleFileName}"`,
+        'echo.',
+        `echo [OK] Arquivo ${sampleFileName} gerado com sucesso em:`,
+        'echo %DIR_ENTRADA%',
+        'echo.',
+        'echo O Robo do MidwayLab ira processa-lo e entregar ao analisador.',
+        'timeout /t 4 >nul',
+        'exit'
+      ].join('\r\n');
 
       return NextResponse.json({
         success: true,
+        gravadoDireto,
         arquivoGerado: sampleFileName,
         caminho: samplePath,
+        xmlConteudo: sampleXml,
+        batScript,
         processadosAgora,
-        message: `🧪 Pedido de teste '${sampleFileName}' gerado na pasta Entrada e processado com sucesso!`,
-        status: FolderWatcherService.obterStatus()
+        message: gravadoDireto
+          ? `🧪 Pedido de teste '${sampleFileName}' gerado na pasta Entrada e processado com sucesso!`
+          : `🧪 Pedido de teste '${sampleFileName}' gerado com sucesso!`
       });
     }
 
