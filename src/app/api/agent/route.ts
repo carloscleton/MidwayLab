@@ -195,17 +195,31 @@ export async function POST(request: Request) {
 
       for (const order of parsedOrders) {
         const result = LabfacilParserService.gerarCargaEquipamento(order, modelo, mapaDePara);
+        const caminhoCargaSugerido = `C:\\MidwayLab\\Equipamentos\\${modelo}\\Carga\\${result.nomeArquivoSugerido}`;
+        const caminhoProcessadoSugerido = `C:\\MidwayLab\\Labfacil\\${modelo}\\Processados\\${nomeArquivo}`;
         
-        // Grava no banco Supabase em tempo real
+        // Grava no banco Supabase em tempo real com status NA_CARGA (aguardando o equipamento processar)
         try {
           await supabase.from('pedidos').insert({
             tenant_id: tenant.id,
             codigo_pedido_labfacil: order.numeroPedido,
+            numero_solicitacao: order.numeroPedido,
+            protocolo_autolac: `${order.numeroPedido}_${Date.now().toString().slice(-4)}`,
             paciente_nome: order.cliente.nome,
             exames: order.exames.map(e => e.codigoEquipamento || e.codigo),
-            status: 'PROCESSADO',
+            status: 'NA_CARGA',
             origem_arquivo: nomeArquivo,
+            arquivo_nome: nomeArquivo,
             equipamento_destino: modelo,
+            codigo_lote_autolac: `LOTE-${modelo}`,
+            payload_labfacil_json: JSON.stringify({
+              modelo_equipamento: modelo,
+              arquivo_origem: nomeArquivo,
+              arquivo_carga: caminhoCargaSugerido,
+              arquivo_processado: caminhoProcessadoSugerido,
+              processado_em: new Date().toISOString(),
+              status: 'NA_CARGA'
+            }),
             created_at: new Date().toISOString()
           });
         } catch (_) {}

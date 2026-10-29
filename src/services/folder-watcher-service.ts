@@ -245,17 +245,29 @@ export class FolderWatcherService {
           const outputFilePath = path.join(equipDir, result.nomeArquivoSugerido);
           fs.writeFileSync(outputFilePath, result.conteudoArquivo, 'utf8');
 
-          // Grava o pedido processado no Supabase para acompanhamento na Web
+          // Grava o pedido com status NA_CARGA no Supabase para acompanhamento na Web
           if (this.config.tenantId) {
             try {
               await supabase.from('pedidos').insert({
                 tenant_id: this.config.tenantId,
                 codigo_pedido_labfacil: order.numeroPedido,
+                numero_solicitacao: order.numeroPedido,
+                protocolo_autolac: `${order.numeroPedido}_${Date.now().toString().slice(-4)}`,
                 paciente_nome: order.cliente.nome,
                 exames: order.exames.map(e => e.codigoEquipamento || e.codigo),
-                status: 'PROCESSADO',
+                status: 'NA_CARGA',
                 origem_arquivo: fileName,
+                arquivo_nome: fileName,
                 equipamento_destino: this.config.equipamentoDestino,
+                codigo_lote_autolac: `LOTE-${this.config.equipamentoDestino}`,
+                payload_labfacil_json: JSON.stringify({
+                  modelo_equipamento: this.config.equipamentoDestino,
+                  arquivo_origem: fileName,
+                  arquivo_carga: outputFilePath,
+                  arquivo_processado: path.join(this.config.diretorioProcessados, `${path.parse(fileName).name}_${Date.now()}${path.extname(fileName)}`),
+                  processado_em: new Date().toISOString(),
+                  status: 'NA_CARGA'
+                }),
                 created_at: new Date().toISOString()
               });
             } catch (_) {}

@@ -624,6 +624,28 @@ export default function MidwayLabDashboard() {
   const [savedWorklistsToDisk, setSavedWorklistsToDisk] = useState<Record<string, string>>({});
   const [isSavingDirectWorklist, setIsSavingDirectWorklist] = useState<boolean>(false);
 
+  // FILA DE PEDIDOS & CARGAS (TABELA PEDIDOS DO SUPABASE)
+  const [pedidosFila, setPedidosFila] = useState<Array<{
+    id: string;
+    tenant_id: string;
+    codigo_pedido_labfacil?: string;
+    numero_solicitacao?: string;
+    protocolo_autolac?: string;
+    paciente_nome: string;
+    status: string; // 'NA_CARGA' | 'PROCESSADO' | 'ERRO'
+    arquivo_nome?: string;
+    origem_arquivo?: string;
+    equipamento_destino?: string;
+    codigo_lote_autolac?: string;
+    arquivo_carga?: string;
+    arquivo_processado?: string;
+    created_at: string;
+    exames?: string[];
+  }>>([]);
+  const [filtroStatusFila, setFiltroStatusFila] = useState<'NA_CARGA' | 'PROCESSADO' | 'TODOS'>('NA_CARGA');
+  const [buscaFila, setBuscaFila] = useState('');
+  const [isLoadingFila, setIsLoadingFila] = useState(false);
+
   const [activeTab, setActiveTab] = useState<"depara" | "dashboard" | "operacoes" | "tenants" | "logs" | "security" | "printers" | "equipamentos" | "ingestao" | "simulador">("equipamentos");
 
   // SIMULADOR DE EQUIPAMENTOS (MOCK DE IDA & RETORNO)
@@ -2218,38 +2240,41 @@ export default function MidwayLabDashboard() {
     // 5. Supabase Realtime Channel
     const channel = supabaseBrowser
       .channel('realtime_pedidos_channel')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, (payload) => {
-        const newRecord = payload.new as any;
-        showNotification(`⚡ Novo Pedido Processado pelo Robô: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || 'PROTO'} (${newRecord.paciente_nome || 'Paciente'})`);
-        const now = new Date();
-        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-        
-        // Alimenta em tempo real o histórico da aba Ingestão de Pastas
-        setWatcherLogs(prev => [
-          {
-            id: newRecord.id || `log-${Date.now()}`,
-            timestamp: timeStr,
-            arquivo: newRecord.arquivo_nome || `ARQUIVO_${newRecord.protocolo_autolac || '001'}`,
-            status: newRecord.status || "PROCESSADO",
-            mensagem: `Paciente: ${newRecord.paciente_nome || 'N/I'} | Pedido: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || '-'} (Lido pelo Robô)`
-          },
-          ...prev
-        ]);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (payload) => {
+        carregarPedidosFila();
+        if (payload.eventType === 'INSERT') {
+          const newRecord = payload.new as any;
+          showNotification(`⚡ Novo Pedido Processado pelo Robô: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || 'PROTO'} (${newRecord.paciente_nome || 'Paciente'})`);
+          const now = new Date();
+          const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+          
+          // Alimenta em tempo real o histórico da aba Ingestão de Pastas
+          setWatcherLogs(prev => [
+            {
+              id: newRecord.id || `log-${Date.now()}`,
+              timestamp: timeStr,
+              arquivo: newRecord.arquivo_nome || `ARQUIVO_${newRecord.protocolo_autolac || '001'}`,
+              status: newRecord.status || "PROCESSADO",
+              mensagem: `Paciente: ${newRecord.paciente_nome || 'N/I'} | Pedido: ${newRecord.codigo_pedido_labfacil || newRecord.protocolo_autolac || '-'} (Lido pelo Robô)`
+            },
+            ...prev
+          ]);
 
-        setLogs(prev => [
-          {
-            id: `LOG-${Date.now().toString().slice(-4)}`,
-            tipo: "IDA (Autolac ➔ Labfacil)",
-            protocolo: newRecord.protocolo_autolac || "PROTO-LIVE",
-            paciente: newRecord.paciente_nome || "PACIENTE SUPABASE REALTIME",
-            exames: "GLICOSE, HEMOGRAMA",
-            status: "SUCESSO (ETIQUETAS EPL GERADAS)",
-            horario: timeStr,
-            tenant: "San Mathews"
-          },
-          ...prev
-        ]);
-        setStats(prev => ({ ...prev, pedidosIda: prev.pedidosIda + 1 }));
+          setLogs(prev => [
+            {
+              id: `LOG-${Date.now().toString().slice(-4)}`,
+              tipo: "IDA (Autolac ➔ Labfacil)",
+              protocolo: newRecord.protocolo_autolac || "PROTO-LIVE",
+              paciente: newRecord.paciente_nome || "PACIENTE SUPABASE REALTIME",
+              exames: "GLICOSE, HEMOGRAMA",
+              status: "SUCESSO (ETIQUETAS EPL GERADAS)",
+              horario: timeStr,
+              tenant: "San Mathews"
+            },
+            ...prev
+          ]);
+          setStats(prev => ({ ...prev, pedidosIda: prev.pedidosIda + 1 }));
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_acesso' }, async () => {
         try {
@@ -2334,6 +2359,17 @@ export default function MidwayLabDashboard() {
       clearInterval(interval);
     };
   }, []);
+
+  // ATUALIZAÇÃO AUTOMÁTICA DA FILA DE PEDIDOS NA ABA INGESTÃO (A CADA 4S)
+  useEffect(() => {
+    if (activeTab === "ingestao") {
+      carregarPedidosFila();
+      const interval = setInterval(() => {
+        carregarPedidosFila();
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, selectedTenant]);
 
   // LOGIN HANDLERS
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -3672,6 +3708,81 @@ export default function MidwayLabDashboard() {
     };
   }, [isWatcherRunning, handleEntrada, handleProcessados, watcherConfig.diretorioEntrada, watcherConfig.diretorioProcessados, watcherConfig.diretorioErros, processedFileNames, selectedTargetEquipamento, labfacilExames]);
 
+  // CARREGAR PEDIDOS DA TABELA 'PEDIDOS' DO SUPABASE PARA A FILA
+  const carregarPedidosFila = async (targetTenantId?: string) => {
+    const activeTenantObj = tenants.find(t => t.nome === selectedTenant);
+    const tId = targetTenantId || activeTenantObj?.id;
+    if (!tId) return;
+
+    setIsLoadingFila(true);
+    try {
+      const { data, error } = await supabaseBrowser
+        .from('pedidos')
+        .select('*')
+        .eq('tenant_id', tId)
+        .order('created_at', { ascending: false })
+        .limit(150);
+
+      if (data && !error) {
+        setPedidosFila(data.map((p: any) => {
+          let arqCarga = '';
+          let arqProc = '';
+          if (p.payload_labfacil_json) {
+            try {
+              const parsed = typeof p.payload_labfacil_json === 'string'
+                ? JSON.parse(p.payload_labfacil_json)
+                : p.payload_labfacil_json;
+              arqCarga = parsed.arquivo_carga || '';
+              arqProc = parsed.arquivo_processado || '';
+            } catch (_) {}
+          }
+          return {
+            id: p.id,
+            tenant_id: p.tenant_id,
+            codigo_pedido_labfacil: p.codigo_pedido_labfacil || p.numero_solicitacao || p.protocolo_autolac || 'N/A',
+            numero_solicitacao: p.numero_solicitacao,
+            protocolo_autolac: p.protocolo_autolac,
+            paciente_nome: p.paciente_nome || 'N/I',
+            status: p.status || 'NA_CARGA',
+            arquivo_nome: p.arquivo_nome || p.origem_arquivo || 'pedido.xml',
+            origem_arquivo: p.origem_arquivo,
+            equipamento_destino: p.equipamento_destino || (p.codigo_lote_autolac?.replace('LOTE-', '')) || 'SYSMEX_UF_1500',
+            codigo_lote_autolac: p.codigo_lote_autolac,
+            arquivo_carga: arqCarga,
+            arquivo_processado: arqProc,
+            created_at: p.created_at,
+            exames: Array.isArray(p.exames) ? p.exames : []
+          };
+        }));
+      }
+    } catch (err) {
+      console.warn('[PedidosFila] Falha ao carregar pedidos:', err);
+    } finally {
+      setIsLoadingFila(false);
+    }
+  };
+
+  // ALTERNAR STATUS DO PEDIDO (NA_CARGA <-> PROCESSADO)
+  const alternarStatusPedido = async (pedidoId: string, novoStatus: 'NA_CARGA' | 'PROCESSADO') => {
+    try {
+      const { error } = await supabaseBrowser
+        .from('pedidos')
+        .update({ status: novoStatus, updated_at: new Date().toISOString() })
+        .eq('id', pedidoId);
+
+      if (!error) {
+        setPedidosFila(prev => prev.map(p => p.id === pedidoId ? { ...p, status: novoStatus } : p));
+        showNotification(novoStatus === 'PROCESSADO'
+          ? '✓ Pedido marcado como PROCESSADO (Movido para pasta Processados)!'
+          : '✓ Pedido marcado como NÃO PROCESSADO (Disponível na pasta de Carga)!');
+      } else {
+        showNotification('Erro ao atualizar status do pedido no banco.');
+      }
+    } catch (err: any) {
+      showNotification('Falha ao atualizar pedido: ' + err.message);
+    }
+  };
+
   // CARREGAR CONFIGURAÇÃO DE PASTAS DO CAMPO JSONB DA EMPRESA (TENANT) POR EQUIPAMENTO
   const loadWatcherConfigForTenant = async (tenantObj: any, targetEquipModelo?: string) => {
     if (!tenantObj) return;
@@ -3719,6 +3830,8 @@ export default function MidwayLabDashboard() {
 
     // Carregar pedidos reais processados pelo Robô no Supabase para exibir no Histórico da Web
     if (tenantObj.id) {
+      await carregarPedidosFila(tenantObj.id);
+
       try {
         const { data: dbPedidos } = await supabaseBrowser
           .from('pedidos')
@@ -7094,6 +7207,244 @@ export default function MidwayLabDashboard() {
                     Pedidos com exames não mapeados no De-Para caem aqui.
                   </span>
                 </div>
+              </div>
+
+              {/* FILA DE PEDIDOS & CARGAS POR EQUIPAMENTO (TABELA PEDIDOS DO SUPABASE) */}
+              <div className="bg-slate-950/90 border border-teal-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
+                {/* CABEÇALHO DA FILA */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Layers className="w-5 h-5 text-teal-400" />
+                      <h4 className="text-base font-bold text-slate-100">
+                        Fila de Pedidos & Cargas do Analisador (Tabela Pedidos)
+                      </h4>
+                      <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Tempo Real
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Acompanhamento dos arquivos importados na pasta <code className="text-teal-300 font-mono font-bold">Entrada</code> e convertidos para o analisador em <code className="text-cyan-300 font-mono font-bold">Carga</code>.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isLoadingFila}
+                      onClick={() => carregarPedidosFila()}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                      title="Atualizar lista de pedidos do banco Supabase"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingFila ? 'animate-spin text-teal-400' : ''}`} />
+                      Atualizar Lista
+                    </button>
+                  </div>
+                </div>
+
+                {/* FILTROS DE STATUS: NÃO PROCESSADO (NA CARGA) vs PROCESSADO (EM PROCESSADOS) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* BOTÃO NÃO PROCESSADO / NA CARGA */}
+                    <button
+                      type="button"
+                      onClick={() => setFiltroStatusFila('NA_CARGA')}
+                      className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
+                        filtroStatusFila === 'NA_CARGA'
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      Não Processados (Na Pasta Carga)
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-black ${
+                        filtroStatusFila === 'NA_CARGA' ? 'bg-slate-950 text-amber-300' : 'bg-amber-500/20 text-amber-200'
+                      }`}>
+                        {pedidosFila.filter(p => p.status !== 'PROCESSADO').length}
+                      </span>
+                    </button>
+
+                    {/* BOTÃO PROCESSADO / EM PROCESSADOS */}
+                    <button
+                      type="button"
+                      onClick={() => setFiltroStatusFila('PROCESSADO')}
+                      className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
+                        filtroStatusFila === 'PROCESSADO'
+                          ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                          : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Processados (Na Pasta Processados)
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-black ${
+                        filtroStatusFila === 'PROCESSADO' ? 'bg-slate-950 text-emerald-300' : 'bg-emerald-500/20 text-emerald-200'
+                      }`}>
+                        {pedidosFila.filter(p => p.status === 'PROCESSADO').length}
+                      </span>
+                    </button>
+
+                    {/* BOTÃO TODOS */}
+                    <button
+                      type="button"
+                      onClick={() => setFiltroStatusFila('TODOS')}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                        filtroStatusFila === 'TODOS'
+                          ? 'bg-slate-700 text-white'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      Todos ({pedidosFila.length})
+                    </button>
+                  </div>
+
+                  {/* CAMPO DE BUSCA */}
+                  <div className="relative min-w-[240px]">
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar pedido, paciente, arquivo..."
+                      value={buscaFila}
+                      onChange={(e) => setBuscaFila(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                </div>
+
+                {/* TABELA DE PEDIDOS */}
+                {(() => {
+                  const pedidosFiltrados = pedidosFila.filter(p => {
+                    if (filtroStatusFila === 'NA_CARGA' && p.status === 'PROCESSADO') return false;
+                    if (filtroStatusFila === 'PROCESSADO' && p.status !== 'PROCESSADO') return false;
+                    if (buscaFila.trim()) {
+                      const term = buscaFila.toLowerCase().trim();
+                      const matchCod = (p.codigo_pedido_labfacil || '').toLowerCase().includes(term);
+                      const matchPac = (p.paciente_nome || '').toLowerCase().includes(term);
+                      const matchArq = (p.arquivo_nome || '').toLowerCase().includes(term);
+                      if (!matchCod && !matchPac && !matchArq) return false;
+                    }
+                    return true;
+                  });
+
+                  if (pedidosFiltrados.length === 0) {
+                    return (
+                      <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-8 text-center space-y-2">
+                        <Clock className="w-8 h-8 text-slate-600 mx-auto" />
+                        <h5 className="text-sm font-bold text-slate-300">
+                          {filtroStatusFila === 'NA_CARGA'
+                            ? 'Nenhum pedido pendente na pasta de Carga'
+                            : filtroStatusFila === 'PROCESSADO'
+                            ? 'Nenhum pedido marcado como processado ainda'
+                            : 'Nenhum pedido encontrado'}
+                        </h5>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto">
+                          {filtroStatusFila === 'NA_CARGA'
+                            ? 'Coloque um arquivo XML ou JSON na pasta Entrada. O robô irá convertê-lo e ele aparecerá aqui com status "Na Pasta Carga" para o analisador.'
+                            : 'Quando as amostras forem executadas no analisador, elas serão marcadas como Processadas e arquivadas.'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto rounded-xl border border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+                          <tr>
+                            <th className="p-3">Pedido / Amostra</th>
+                            <th className="p-3">Paciente</th>
+                            <th className="p-3">Equipamento</th>
+                            <th className="p-3">Arquivo Entrada</th>
+                            <th className="p-3">Arquivo Carga (Worklist)</th>
+                            <th className="p-3">Data / Hora</th>
+                            <th className="p-3">Status na Esteira</th>
+                            <th className="p-3 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 bg-slate-950 font-mono">
+                          {pedidosFiltrados.map((pedido) => {
+                            const isNaCarga = pedido.status !== 'PROCESSADO';
+                            return (
+                              <tr key={pedido.id} className="hover:bg-slate-900/40 transition">
+                                <td className="p-3 font-bold text-teal-300">
+                                  {pedido.codigo_pedido_labfacil}
+                                </td>
+                                <td className="p-3 font-sans font-semibold text-slate-100">
+                                  {pedido.paciente_nome}
+                                </td>
+                                <td className="p-3">
+                                  <span className="bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                    {pedido.equipamento_destino || 'SYSMEX_UF_1500'}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-slate-400 text-[11px] max-w-[180px] truncate" title={pedido.arquivo_nome}>
+                                  {pedido.arquivo_nome}
+                                </td>
+                                <td className="p-3 text-indigo-300 text-[11px] max-w-[200px] truncate" title={pedido.arquivo_carga || 'Gerado na pasta Carga'}>
+                                  {pedido.arquivo_carga ? (
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="truncate">{pedido.arquivo_carga.split('\\').pop() || pedido.arquivo_carga}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(pedido.arquivo_carga!);
+                                          showNotification('📋 Caminho da Carga copiado!');
+                                        }}
+                                        className="text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
+                                        title="Copiar caminho completo do arquivo de carga"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                      </button>
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500 italic">Worklist gerada</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-slate-400 font-sans text-[11px] whitespace-nowrap">
+                                  {new Date(pedido.created_at).toLocaleString('pt-BR')}
+                                </td>
+                                <td className="p-3 font-sans">
+                                  {isNaCarga ? (
+                                    <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit">
+                                      <Clock className="w-3 h-3 text-amber-400" />
+                                      Na Pasta Carga
+                                    </span>
+                                  ) : (
+                                    <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                      Na Pasta Processados
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center font-sans">
+                                  {isNaCarga ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarStatusPedido(pedido.id, 'PROCESSADO')}
+                                      className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 mx-auto"
+                                      title="Marcar como processado e arquivado"
+                                    >
+                                      <Check className="w-3 h-3" /> Concluir
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarStatusPedido(pedido.id, 'NA_CARGA')}
+                                      className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 mx-auto"
+                                      title="Mover de volta para a pasta de Carga"
+                                    >
+                                      <RotateCcw className="w-3 h-3" /> Reabrir
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* GUIA VISUAL: ESTRUTURA OFICIAL DE PASTAS PARA CRIAÇÃO MANUAL */}
