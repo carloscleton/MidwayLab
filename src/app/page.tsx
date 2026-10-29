@@ -901,6 +901,7 @@ export default function MidwayLabDashboard() {
           tipoComunicacao: equipamentoConfiguradoReal.tipo_comunicacao || "TCP_IP",
           ipHost: equipamentoConfiguradoReal.ip_host,
           porta: equipamentoConfiguradoReal.porta,
+          timeoutSec: equipamentoConfiguradoReal.timeout_conexao || 15,
           diretorioCarga: equipamentoConfiguradoReal.diretorio_carga,
           diretorioResultados: equipamentoConfiguradoReal.diretorio_resultados,
           enviarCarga: true,
@@ -1089,6 +1090,7 @@ export default function MidwayLabDashboard() {
           tipoComunicacao: equipamentoConfiguradoReal.tipo_comunicacao || "TCP_IP",
           ipHost: equipamentoConfiguradoReal.ip_host,
           porta: equipamentoConfiguradoReal.porta,
+          timeoutSec: equipamentoConfiguradoReal.timeout_conexao || 15,
           diretorioCarga: equipamentoConfiguradoReal.diretorio_carga,
           diretorioResultados: equipamentoConfiguradoReal.diretorio_resultados,
           enviarCarga: true,
@@ -6405,6 +6407,14 @@ export default function MidwayLabDashboard() {
                         </div>
 
                         <div className="space-y-1.5 bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono">
+                          {eq.tipo_comunicacao === 'TCP_IP' && (
+                            <div className="flex items-baseline gap-1.5 min-w-0 text-cyan-300">
+                              <span className="text-cyan-400 font-semibold shrink-0">🌐 TCP/IP:</span>
+                              <span className="font-medium truncate select-all">
+                                {eq.ip_host || '192.168.0.16'}:{eq.porta || 7101} ({eq.timeout_conexao || 15}s timeout)
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-baseline gap-1.5 min-w-0">
                             <span className="text-slate-400 shrink-0">Pasta Carga:</span>
                             <span className="text-slate-200 font-medium truncate select-all" title={pastaCarga}>
@@ -12593,6 +12603,7 @@ P1`}
             tipoComunicacao: equipamentoConfiguradoReal.tipo_comunicacao,
             ipHost: equipamentoConfiguradoReal.ip_host,
             porta: equipamentoConfiguradoReal.porta,
+            timeout_conexao: equipamentoConfiguradoReal.timeout_conexao,
             diretorioCarga: equipamentoConfiguradoReal.diretorio_carga,
             diretorioResultados: equipamentoConfiguradoReal.diretorio_resultados,
           } : null}

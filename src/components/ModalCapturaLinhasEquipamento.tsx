@@ -32,6 +32,7 @@ interface Props {
     tipoComunicacao?: string;
     ipHost?: string;
     porta?: number | string;
+    timeout_conexao?: number;
     diretorioCarga?: string;
     diretorioResultados?: string;
   } | null;
@@ -106,6 +107,7 @@ export default function ModalCapturaLinhasEquipamento({
         tipoComunicacao: tipo,
         ipHost: configComunicacao?.ipHost,
         porta: configComunicacao?.porta,
+        timeoutSec: (configComunicacao as any)?.timeout_conexao || 15,
         diretorioCarga: configComunicacao?.diretorioCarga,
         diretorioResultados: configComunicacao?.diretorioResultados,
         escutarResultados: true,
