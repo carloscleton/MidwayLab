@@ -69,6 +69,7 @@ import {
   Unlock,
   LogOut,
   UserCheck,
+  UserX,
   UserPlus,
   Key,
   Shield,
@@ -184,16 +185,9 @@ export default function MidwayLabDashboard() {
     senha: "",
     cnpj: ""
   });
-  const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; nomeLab: string; nomeResponsavel: string; email: string; cnpj: string; data: string }>>([
-    {
-      id: "req-1",
-      nomeLab: "LABORATÓRIO BIO VIDA APÓIO",
-      nomeResponsavel: "Dra. Maria Fernanda",
-      email: "contato@biovidaapoio.com.br",
-      cnpj: "12.345.678/0001-90",
-      data: "23/09/2026 09:30"
-    }
-  ]);
+  const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; nomeLab: string; nomeResponsavel: string; email: string; cnpj: string; senha?: string; data: string }>>([]);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [isApprovingUser, setIsApprovingUser] = useState(false);
 
   // EQUIPAMENTOS (CB350, YUMIZEN) STATE
   const [equipamentosList, setEquipamentosList] = useState<IEquipamentoRecord[]>([
@@ -2126,17 +2120,22 @@ export default function MidwayLabDashboard() {
         // 2. Fetch Users
         const dbUsers = await UserService.listarUsuarios();
         if (dbUsers.length > 0) {
-          const mappedUsers: IUserItem[] = dbUsers.map(u => ({
-            id: u.id,
-            nome: u.nome,
-            email: u.email,
-            senha: u.senha || "123",
-            role: u.role,
-            tenantId: u.tenant_id || null,
-            tenantNome: u.role === 'admin' ? "Super Admin (Ares)" : "Laboratório Cliente",
-            status: u.status,
-            criadoEm: u.created_at ? u.created_at.slice(0, 10) : "2026-09-23"
-          }));
+          const mappedUsers: IUserItem[] = dbUsers
+            .filter(u => u.status !== 'pendente')
+            .map(u => {
+              const matchedTenant = mappedTenants.find(t => t.id === u.tenant_id);
+              return {
+                id: u.id,
+                nome: u.nome,
+                email: u.email,
+                senha: u.senha || "123",
+                role: u.role,
+                tenantId: u.tenant_id || null,
+                tenantNome: u.role === 'admin' ? "Super Admin (Ares)" : (matchedTenant?.nome || "Laboratório Cliente"),
+                status: u.status,
+                criadoEm: u.created_at ? u.created_at.slice(0, 10) : "2026-09-23"
+              };
+            });
           setUsersList(mappedUsers);
         }
 
@@ -2165,16 +2164,15 @@ export default function MidwayLabDashboard() {
 
         // 6. Fetch Pending Requests
         const dbRequests = await UserService.listarSolicitacoesPendentes();
-        if (dbRequests.length > 0) {
-          setPendingRequests(dbRequests.map(r => ({
-            id: r.id || String(Date.now()),
-            nomeLab: r.nome_lab,
-            nomeResponsavel: r.nome_responsavel,
-            email: r.email || "",
-            cnpj: r.cnpj || "",
-            data: r.created_at ? new Date(r.created_at).toLocaleString("pt-BR") : new Date().toLocaleString("pt-BR")
-          })));
-        }
+        setPendingRequests(dbRequests.map(r => ({
+          id: r.id || String(Date.now()),
+          nomeLab: r.nome_lab,
+          nomeResponsavel: r.nome_responsavel,
+          email: r.email || "",
+          cnpj: r.cnpj || "",
+          senha: r.senha || "",
+          data: r.created_at ? new Date(r.created_at).toLocaleString("pt-BR") : new Date().toLocaleString("pt-BR")
+        })));
 
         // 7. Fetch Real Live Counts from Supabase Tables for Dashboard Stat Cards
         try {
@@ -2247,6 +2245,38 @@ export default function MidwayLabDashboard() {
           ...prev
         ]);
         setStats(prev => ({ ...prev, pedidosIda: prev.pedidosIda + 1 }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_acesso' }, async () => {
+        try {
+          const reqs = await UserService.listarSolicitacoesPendentes();
+          setPendingRequests(reqs.map(r => ({
+            id: r.id || String(Date.now()),
+            nomeLab: r.nome_lab,
+            nomeResponsavel: r.nome_responsavel,
+            email: r.email || "",
+            cnpj: r.cnpj || "",
+            senha: r.senha || "",
+            data: r.created_at ? new Date(r.created_at).toLocaleString("pt-BR") : new Date().toLocaleString("pt-BR")
+          })));
+        } catch (_) {}
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, async () => {
+        try {
+          const dbUsers = await UserService.listarUsuarios();
+          if (dbUsers.length > 0) {
+            setUsersList(dbUsers.filter(u => u.status !== 'pendente').map(u => ({
+              id: u.id,
+              nome: u.nome,
+              email: u.email,
+              senha: u.senha || "123",
+              role: u.role,
+              tenantId: u.tenant_id || null,
+              tenantNome: u.role === 'admin' ? "Super Admin (Ares)" : "Laboratório Cliente",
+              status: u.status,
+              criadoEm: u.created_at ? u.created_at.slice(0, 10) : "2026-09-23"
+            })));
+          }
+        } catch (_) {}
       })
       .subscribe();
 
@@ -2340,29 +2370,47 @@ export default function MidwayLabDashboard() {
 
   const handleRequestAccessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await UserService.solicitarAcesso({
-        nome_lab: requestFormData.nomeLab,
-        nome_responsavel: requestFormData.nomeResponsavel,
-        email: requestFormData.email,
-        cnpj: requestFormData.cnpj
-      });
-    } catch (err) {
-      console.warn("Persistência local mantida para o formulário.");
+    if (!requestFormData.nomeLab?.trim() || !requestFormData.nomeResponsavel?.trim() || !requestFormData.email?.trim() || !requestFormData.senha?.trim()) {
+      showNotification("⚠️ Por favor, preencha todos os campos obrigatórios (incluindo a senha).");
+      return;
     }
 
-    const newReq = {
-      id: `req-${Date.now()}`,
-      nomeLab: requestFormData.nomeLab,
-      nomeResponsavel: requestFormData.nomeResponsavel,
-      email: requestFormData.email,
-      cnpj: requestFormData.cnpj,
-      data: new Date().toLocaleString("pt-BR")
-    };
-    setPendingRequests(prev => [newReq, ...prev]);
-    setRequestFormData({ nomeLab: "", nomeResponsavel: "", email: "", senha: "", cnpj: "" });
-    setLoginTab("login");
-    showNotification(`📩 E-mail de notificação enviado para carloscleton.nat@gmail.com! Nova solicitação de cadastro do '${newReq.nomeLab}' aguardando aprovação.`);
+    setIsSubmittingRequest(true);
+    try {
+      const cleanEmail = requestFormData.email.trim().toLowerCase();
+      const cleanCnpj = requestFormData.cnpj?.trim() || "";
+      const cleanLab = requestFormData.nomeLab.trim();
+      const cleanResp = requestFormData.nomeResponsavel.trim();
+      const requestedSenha = requestFormData.senha;
+
+      const saved = await UserService.solicitarAcesso({
+        nome_lab: cleanLab,
+        nome_responsavel: cleanResp,
+        email: cleanEmail,
+        cnpj: cleanCnpj,
+        senha: requestedSenha
+      });
+
+      const newReq = {
+        id: saved?.id || `req-${Date.now()}`,
+        nomeLab: cleanLab,
+        nomeResponsavel: cleanResp,
+        email: cleanEmail,
+        cnpj: cleanCnpj,
+        senha: requestedSenha,
+        data: new Date().toLocaleString("pt-BR")
+      };
+
+      setPendingRequests(prev => [newReq, ...prev.filter(r => r.email.toLowerCase() !== cleanEmail)]);
+      setRequestFormData({ nomeLab: "", nomeResponsavel: "", email: "", senha: "", cnpj: "" });
+      setLoginTab("login");
+      showNotification(`✅ Solicitação de cadastro do '${newReq.nomeLab}' gravada no banco de dados! Aguardando ativação.`);
+    } catch (err) {
+      console.error("Erro ao solicitar acesso:", err);
+      showNotification("❌ Erro ao gravar solicitação no banco de dados.");
+    } finally {
+      setIsSubmittingRequest(false);
+    }
   };
 
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
@@ -2419,7 +2467,8 @@ export default function MidwayLabDashboard() {
     setApprovingRequest(req);
     const matchingTenant = tenants.find(t => 
       t.nome.toLowerCase() === req.nomeLab.toLowerCase() || 
-      t.identificacaoEntidade.toLowerCase() === req.email.toLowerCase()
+      t.identificacaoEntidade.toLowerCase() === req.email.toLowerCase() ||
+      (req.cnpj && t.identificacaoEntidade.toLowerCase() === req.cnpj.toLowerCase())
     );
     setApprovalFormData({
       tenantId: matchingTenant ? matchingTenant.id : "NEW_TENANT",
@@ -2432,75 +2481,129 @@ export default function MidwayLabDashboard() {
     e.preventDefault();
     if (!approvingRequest) return;
 
+    setIsApprovingUser(true);
     let selectedTenantId = approvalFormData.tenantId;
     let selectedTenantNome = approvingRequest.nomeLab;
+    const userPassword = approvingRequest.senha || "123456";
 
-    if (selectedTenantId === "NEW_TENANT") {
-      try {
+    try {
+      // 1. Gravar novo laboratório / tenant no banco se for NEW_TENANT
+      if (selectedTenantId === "NEW_TENANT") {
+        const cleanIdent = (approvingRequest.cnpj || approvingRequest.email).trim().slice(0, 90);
         const savedTenant = await TenantService.salvarTenant({
           nome: approvingRequest.nomeLab,
-          identificacao_entidade: approvingRequest.email,
+          identificacao_entidade: cleanIdent,
+          codigo_entidade: "1",
           senha_ws: "Soft@2026",
           labfacil_login: approvingRequest.email,
-          labfacil_senha: "Carlos@2026",
-          labfacil_base_url: "http://apoio.labfacilsolucoes.com.br"
+          labfacil_senha: userPassword,
+          labfacil_base_url: "http://apoio.softlabsolucoes.com.br",
+          ativo: true
         });
-        if (savedTenant) {
+
+        if (savedTenant && savedTenant.id) {
           selectedTenantId = savedTenant.id;
           selectedTenantNome = savedTenant.nome;
 
-          setTenants(prev => [...prev, {
+          setTenants(prev => [...prev.filter(t => t.id !== savedTenant.id), {
             id: savedTenant.id,
             nome: savedTenant.nome,
-            identificacaoEntidade: approvingRequest.email,
+            identificacaoEntidade: cleanIdent,
             senhaWs: "Soft@2026",
             codigoAgente: "1",
             wsUrl: "http://homolog.app.lifesys.com.br:5030",
-            labfacilBaseUrl: "http://apoio.labfacilsolucoes.com.br",
+            labfacilBaseUrl: "http://apoio.softlabsolucoes.com.br",
             labfacilLogin: approvingRequest.email,
-            labfacilSenha: "Carlos@2026",
+            labfacilSenha: userPassword,
             ultimoLote: "0",
             status: "ONLINE"
           }]);
         }
-      } catch (err) {
-        selectedTenantId = `tenant-${Date.now()}`;
+      } else {
+        const foundTenant = tenants.find(t => t.id === selectedTenantId);
+        if (foundTenant) {
+          selectedTenantNome = foundTenant.nome;
+        }
       }
-    } else {
-      const foundTenant = tenants.find(t => t.id === selectedTenantId);
-      if (foundTenant) {
-        selectedTenantNome = foundTenant.nome;
-      }
-    }
 
-    try {
+      // 2. Gravar e Criar Usuário de Acesso no Banco de Dados com a Senha Desejada
       await UserService.criarUsuarioNatito(
         approvingRequest.nomeResponsavel,
         approvingRequest.email,
-        "123",
+        userPassword,
         approvalFormData.role,
-        selectedTenantId
+        selectedTenantId !== "NEW_TENANT" ? selectedTenantId : undefined
       );
-    } catch (err) {
-      console.warn("Erro ao salvar usuario em Supabase:", err);
+
+      // 3. Atualizar status da solicitação para APROVADO no banco de dados
+      await UserService.aprovarSolicitacao(approvingRequest.id || approvingRequest.email);
+
+      // 4. Atualizar lista de usuários na tela
+      const newUser: IUserItem = {
+        id: `u-${Date.now()}`,
+        nome: approvingRequest.nomeResponsavel,
+        email: approvingRequest.email,
+        senha: userPassword,
+        role: approvalFormData.role,
+        tenantId: selectedTenantId,
+        tenantNome: selectedTenantNome,
+        status: "ativo",
+        criadoEm: new Date().toISOString().slice(0, 10)
+      };
+
+      setUsersList(prev => [newUser, ...prev.filter(u => u.email.toLowerCase() !== approvingRequest.email.toLowerCase())]);
+      setPendingRequests(prev => prev.filter(r => r.id !== approvingRequest.id && r.email.toLowerCase() !== approvingRequest.email.toLowerCase()));
+      setIsApprovalModalOpen(false);
+      showNotification(`🎉 Laboratório "${selectedTenantNome}" ativado com sucesso! Usuário "${approvingRequest.nomeResponsavel}" criado com acesso liberado.`);
+    } catch (err: any) {
+      console.error("Erro na confirmação da aprovação:", err);
+      showNotification("❌ Ocorreu um erro ao gravar a aprovação no banco de dados.");
+    } finally {
+      setIsApprovingUser(false);
+    }
+  };
+
+  const handleRejectRequest = async (req: typeof pendingRequests[0]) => {
+    if (!window.confirm(`Tem certeza que deseja DESAPROVAR / RECUSAR a solicitação de acesso do laboratório "${req.nomeLab}" (${req.email})?`)) {
+      return;
     }
 
-    const newUser = {
-      id: `u-${Date.now()}`,
-      nome: approvingRequest.nomeResponsavel,
-      email: approvingRequest.email,
-      senha: "123",
-      role: approvalFormData.role,
-      tenantId: selectedTenantId,
-      tenantNome: selectedTenantNome,
-      status: "ativo" as const,
-      criadoEm: new Date().toISOString().slice(0, 10)
-    };
+    try {
+      await UserService.rejeitarSolicitacao(req.id || req.email);
+      setPendingRequests(prev => prev.filter(r => r.id !== req.id && r.email.toLowerCase() !== req.email.toLowerCase()));
+      showNotification(`🚫 Solicitação de "${req.nomeLab}" (${req.email}) desaprovada e arquivada.`);
+    } catch (err) {
+      console.error("Erro ao desaprovar solicitação:", err);
+      showNotification("❌ Erro ao desaprovar solicitação no banco de dados.");
+    }
+  };
 
-    setUsersList(prev => [newUser, ...prev.filter(u => u.email !== approvingRequest.email)]);
-    setPendingRequests(prev => prev.filter(r => r.id !== approvingRequest.id));
-    setIsApprovalModalOpen(false);
-    showNotification(`🎉 Solicitante "${approvingRequest.nomeResponsavel}" aprovado e vinculado à empresa "${selectedTenantNome}"!`);
+  const handleToggleUserStatus = async (user: IUserItem, novoStatus: 'ativo' | 'bloqueado') => {
+    if (user.email.toLowerCase() === 'carloscleton.nat@gmail.com') {
+      showNotification("⚠️ O Proprietário / Super Admin do sistema não pode ser bloqueado.");
+      return;
+    }
+
+    const actionLabel = novoStatus === 'bloqueado' ? 'desaprovar/bloquear' : 'reativar/aprovar';
+    if (!window.confirm(`Deseja realmente ${actionLabel} o acesso de "${user.nome}" (${user.email}) ao sistema?`)) {
+      return;
+    }
+
+    try {
+      const ok = await UserService.alterarStatusUsuario(user.email, novoStatus);
+      if (ok) {
+        setUsersList(prev => prev.map(u => u.email.toLowerCase() === user.email.toLowerCase() ? { ...u, status: novoStatus } : u));
+        showNotification(novoStatus === 'bloqueado'
+          ? `🔒 Acesso do usuário "${user.nome}" foi desaprovado e bloqueado!`
+          : `✅ Acesso do usuário "${user.nome}" reativado e aprovado com sucesso!`
+        );
+      } else {
+        showNotification("❌ Não foi possível atualizar o status no banco.");
+      }
+    } catch (err) {
+      console.error("Erro ao alterar status do usuário:", err);
+      showNotification("❌ Erro ao alterar status no banco de dados.");
+    }
   };
 
 
@@ -4731,9 +4834,10 @@ export default function MidwayLabDashboard() {
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer mt-1"
+                  disabled={isSubmittingRequest}
+                  className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer mt-1 disabled:opacity-50"
                 >
-                  <UserPlus className="w-4 h-4" /> Enviar Solicitação de Cadastro
+                  <UserPlus className="w-4 h-4" /> {isSubmittingRequest ? "Gravando Solicitação..." : "Enviar Solicitação de Cadastro"}
                 </button>
               </form>
             )}
@@ -8428,13 +8532,23 @@ export default function MidwayLabDashboard() {
                           <td className="py-3.5 px-5 font-mono text-cyan-300 font-bold">{req.email}</td>
                           <td className="py-3.5 px-5 text-slate-400">{req.data}</td>
                           <td className="py-3.5 px-5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenApprovalModal(req)}
-                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-lg transition shadow-md shadow-emerald-500/20 cursor-pointer flex items-center gap-1.5 ml-auto text-xs"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" /> Aprovar & Ativar Laboratório
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                title="Desaprovar / Recusar Solicitação"
+                                onClick={() => handleRejectRequest(req)}
+                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold px-2.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 text-xs"
+                              >
+                                <UserX className="w-3.5 h-3.5" /> Desaprovar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenApprovalModal(req)}
+                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-lg transition shadow-md shadow-emerald-500/20 cursor-pointer flex items-center gap-1.5 text-xs"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" /> Aprovar & Ativar Laboratório
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -8451,7 +8565,7 @@ export default function MidwayLabDashboard() {
                   <h3 className="font-bold text-slate-100 flex items-center gap-2 text-sm">
                     <UserCheck className="w-4 h-4 text-teal-400" /> Usuários com Acesso Cadastrados ({usersList.length})
                   </h3>
-                  <p className="text-xs text-slate-400">Contas ativas com credenciais de login no MidwayLab</p>
+                  <p className="text-xs text-slate-400">Contas do sistema com controle de ativação e bloqueio</p>
                 </div>
               </div>
 
@@ -8464,6 +8578,7 @@ export default function MidwayLabDashboard() {
                       <th className="py-3.5 px-5">Perfil (Role)</th>
                       <th className="py-3.5 px-5">Laboratório Vinculado</th>
                       <th className="py-3.5 px-5">Status</th>
+                      <th className="py-3.5 px-5 text-right">Ação</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
@@ -8486,9 +8601,40 @@ export default function MidwayLabDashboard() {
                         </td>
                         <td className="py-3.5 px-5 text-slate-300">{u.tenantNome || "Todos os Laboratórios (Global)"}</td>
                         <td className="py-3.5 px-5">
-                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                            {u.status.toUpperCase()}
-                          </span>
+                          {u.status === "ativo" ? (
+                            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                              ATIVO
+                            </span>
+                          ) : (
+                            <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                              {u.status.toUpperCase()}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-5 text-right">
+                          {u.email.toLowerCase() !== "carloscleton.nat@gmail.com" ? (
+                            u.status === "ativo" ? (
+                              <button
+                                type="button"
+                                title="Desaprovar / Bloquear Acesso"
+                                onClick={() => handleToggleUserStatus(u, 'bloqueado')}
+                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                              >
+                                <UserX className="w-3 h-3" /> Desaprovar
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                title="Reativar / Aprovar Acesso"
+                                onClick={() => handleToggleUserStatus(u, 'ativo')}
+                                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                              >
+                                <UserCheck className="w-3 h-3" /> Reativar Acesso
+                              </button>
+                            )
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-mono italic">Proprietário</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -10555,6 +10701,12 @@ export default function MidwayLabDashboard() {
                   <span>CNPJ:</span>
                   <span className="text-slate-300">{approvingRequest.cnpj}</span>
                 </div>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Senha de Acesso:</span>
+                  <span className="font-mono text-emerald-400 font-bold">
+                    {approvingRequest.senha ? "•••••••• (Definida pelo Solicitante)" : "123456 (Padrão Provisória)"}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between text-slate-400 pt-1 border-t border-slate-900">
                   <span>Laboratório Solicitado:</span>
                   <span className="font-bold text-teal-300">{approvingRequest.nomeLab}</span>
@@ -10605,21 +10757,36 @@ export default function MidwayLabDashboard() {
               </div>
 
               {/* ACTIONS */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsApprovalModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                  onClick={() => {
+                    const reqToReject = approvingRequest;
+                    setIsApprovalModalOpen(false);
+                    handleRejectRequest(reqToReject);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 transition cursor-pointer text-xs flex items-center justify-center gap-1.5 font-bold"
                 >
-                  Cancelar
+                  <UserX className="w-3.5 h-3.5" /> Desaprovar Solicitação
                 </button>
 
-                <button
-                  type="submit"
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center gap-2 text-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Confirmar Aprovação & Gravar
-                </button>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsApprovalModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer text-xs"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isApprovingUser}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center gap-2 text-xs disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> {isApprovingUser ? "Gravando no Banco..." : "Confirmar Aprovação & Gravar"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

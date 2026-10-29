@@ -99,7 +99,7 @@ export class TenantService {
       
       const { data, error } = await supabaseBrowser
         .from('tenants')
-        .upsert(fullPayload)
+        .upsert(fullPayload, { onConflict: payload.id ? 'id' : 'identificacao_entidade' })
         .select('*')
         .single();
 
@@ -109,7 +109,7 @@ export class TenantService {
 
       const { data: fallbackData, error: fallbackError } = await supabaseBrowser
         .from('tenants')
-        .upsert(payload)
+        .upsert(payload, { onConflict: payload.id ? 'id' : 'identificacao_entidade' })
         .select('*')
         .single();
 
