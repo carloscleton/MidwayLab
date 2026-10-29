@@ -2295,12 +2295,30 @@ export default function MidwayLabDashboard() {
     let isMounted = true;
     const checkRobot = async () => {
       try {
-        const res = await fetch("/api/robot-service");
+        const activeT = tenants.find(t => t.nome === selectedTenant);
+        const tenantQuery = activeT?.id ? `?tenantId=${activeT.id}` : '';
+        const res = await fetch(`/api/robot-service${tenantQuery}`);
         const data = await res.json();
         if (isMounted) {
-          if (data.success && data.isRunning) {
+          if (data.success && (data.isRunning || data.ativo)) {
             setLocalRobotStatus("ATIVO");
           } else {
+            // Tenta auto-iniciar caso o usuário já tenha marcado auto-start no navegador
+            const autoStartSaved = typeof window !== 'undefined' && localStorage.getItem('midway_robot_auto_start') === 'true';
+            if (autoStartSaved && activeT?.id) {
+              try {
+                const autoRes = await fetch('/api/robot-service', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ acao: 'iniciar', tenantId: activeT.id })
+                });
+                const autoData = await autoRes.json();
+                if (autoData.success) {
+                  setLocalRobotStatus("ATIVO");
+                  return;
+                }
+              } catch (_) {}
+            }
             setLocalRobotStatus("INATIVO");
           }
         }

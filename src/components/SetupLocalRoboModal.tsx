@@ -168,6 +168,11 @@ export function SetupLocalRoboModal({
       });
       const data = await res.json();
       if (data.success) {
+        if (acao === 'iniciar') {
+          try { localStorage.setItem('midway_robot_auto_start', 'true'); } catch (_) {}
+        } else if (acao === 'parar') {
+          try { localStorage.setItem('midway_robot_auto_start', 'false'); } catch (_) {}
+        }
         showNotification(data.message || 'Comando do robô executado!');
         await carregarStatusRobo();
         if (onConfigAtualizada) onConfigAtualizada();

@@ -5,12 +5,48 @@ import os from 'os';
 import { FolderWatcherService } from '../../../services/folder-watcher-service';
 import { supabase } from '../../../db/supabase';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const status = FolderWatcherService.obterStatus();
+    let isRunning = status.isRunning;
+    let ultimoHeartbeat: string | null = null;
+    let modoExecucao: 'interno' | 'agente_windows' | 'inativo' = isRunning ? 'interno' : 'inativo';
+
+    // Se o watcher interno em memória não estiver rodando, verifica se há agente Windows ativo no Supabase
+    try {
+      const url = new URL(request.url);
+      const tenantId = url.searchParams.get('tenantId');
+
+      const { data: tenants } = await supabase
+        .from('tenants')
+        .select('id, nome, configuracoes')
+        .eq('ativo', true);
+
+      if (tenants && tenants.length > 0) {
+        for (const t of tenants) {
+          if (tenantId && t.id !== tenantId) continue;
+          const hb = t.configuracoes?.ultimo_heartbeat_agente;
+          if (hb) {
+            const diffMs = Date.now() - new Date(hb).getTime();
+            // Considera online se enviou ping nos últimos 3 minutos (180s)
+            if (diffMs < 180000) {
+              isRunning = true;
+              ultimoHeartbeat = hb;
+              modoExecucao = 'agente_windows';
+              break;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
     return NextResponse.json({
       success: true,
-      ...status
+      ...status,
+      isRunning,
+      ativo: isRunning,
+      modoExecucao,
+      ultimoHeartbeat
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

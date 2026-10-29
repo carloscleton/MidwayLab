@@ -185,9 +185,9 @@ async function carregarAlvosMonitoramento() {
                             tenantId: t.id,
                             modeloEquipamento: modelo,
                             diretorioEntrada: cfg.diretorio_entrada,
-                            diretorioProcessados: cfg.diretorio_processados || path.join(cfg.diretorio_entrada, 'Processados'),
-                            diretorioErros: cfg.diretorio_erros || 'C:\\Labfacil\\Erros',
-                            diretorioCarga: cfg.diretorio_carga
+                            diretorioProcessados: cfg.diretorio_processados || path.join('C:\\MidwayLab', 'Labfacil', modelo, 'Processados'),
+                            diretorioErros: cfg.diretorio_erros || path.join('C:\\MidwayLab', 'Labfacil', modelo, 'Erros'),
+                            diretorioCarga: cfg.diretorio_carga || path.join('C:\\MidwayLab', 'Equipamentos', modelo, 'Carga')
                         });
                     }
                 }
