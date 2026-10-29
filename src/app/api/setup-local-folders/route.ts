@@ -225,6 +225,47 @@ export async function POST(request: Request) {
       ].join('\r\n');
       fs.writeFileSync(dstInstalarBat, instalarBatContent, 'utf8');
 
+      // 5.3.1 Scripts de status e parada
+      const srcStatusPs1 = path.join(process.cwd(), 'verificar-status.ps1');
+      const dstStatusPs1 = path.join(dirRobo, 'verificar-status.ps1');
+      if (fs.existsSync(srcStatusPs1)) {
+        fs.copyFileSync(srcStatusPs1, dstStatusPs1);
+      }
+
+      const dstStatusBat = path.join(dirRobo, 'verificar-status-robo.bat');
+      const statusBatContent = [
+        '@echo off',
+        'title MidwayLab - Status do Robo',
+        'chcp 65001 >nul',
+        'cd /d "%~dp0"',
+        'cls',
+        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0verificar-status.ps1"',
+        'echo ========================================================',
+        'echo   OPCOES RAPIDAS:',
+        'echo   [1] Iniciar o Robo Agora na Bandeja (relogio)',
+        'echo   [2] Parar o Robo',
+        'echo   [3] Abrir Pasta C:\\MidwayLab',
+        'echo   [4] Sair',
+        'echo ========================================================',
+        'echo.',
+        'set /p opt="Escolha uma opcao (1-4): "',
+        'if "%opt%"=="1" ( start "" powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0midwaylab-robo-tray.ps1" & echo Robo iniciado! & timeout /t 3 >nul & exit /b 0 )',
+        'if "%opt%"=="2" ( powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \'*midwaylab-robo-tray*\' -or $_.CommandLine -like \'*agent-service*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" & echo Robo parado. & timeout /t 3 >nul & exit /b 0 )',
+        'if "%opt%"=="3" ( start explorer "C:\\MidwayLab" & exit /b 0 )'
+      ].join('\r\n');
+      fs.writeFileSync(dstStatusBat, statusBatContent, 'utf8');
+
+      const dstPararBat = path.join(dirRobo, 'parar-robo.bat');
+      const pararBatContent = [
+        '@echo off',
+        'title MidwayLab - Parar Robo',
+        'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \'*midwaylab-robo-tray*\' -or $_.CommandLine -like \'*agent-service*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"',
+        'echo [OK] Robo parado com sucesso.',
+        'timeout /t 3 >nul',
+        'exit'
+      ].join('\r\n');
+      fs.writeFileSync(dstPararBat, pararBatContent, 'utf8');
+
       // 5.4 Atalhos rápidos numerados na raiz de C:\MidwayLab
       try {
         const testBatPath = path.join(dirRobo, 'gerar-pedido-teste.bat');
@@ -353,11 +394,15 @@ export async function POST(request: Request) {
     batCommands.push(`(echo MIDWAY_API_URL=${appUrl}& echo MIDWAY_AGENT_TOKEN=${agentToken}& echo EQUIPAMENTO=${primeiroModelo}& echo PASTA_RAIZ=${baseDir}) > "${path.join(dirRobo, '.env')}"`);
     batCommands.push(`(echo @echo off & echo title MidwayLab - Agente de Bandeja & echo cd /d "%%~dp0" & echo powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "%%~dp0midwaylab-robo-tray.ps1" & echo exit) > "${path.join(dirRobo, 'iniciar-robo-tray.bat')}"`);
     batCommands.push(`powershell -Command "try { Invoke-WebRequest -Uri '${appUrl}/midwaylab-robo-tray.ps1' -OutFile '${path.join(dirRobo, 'midwaylab-robo-tray.ps1')}' } catch {}"`);
+    batCommands.push(`powershell -Command "try { Invoke-WebRequest -Uri '${appUrl}/verificar-status.ps1' -OutFile '${path.join(dirRobo, 'verificar-status.ps1')}' } catch {}"`);
     
+    // Script de status do robô dentro de Robo
+    batCommands.push(`(echo @echo off & echo title MidwayLab - Status do Robo & echo chcp 65001 ^>nul & echo cd /d "%%~dp0" & echo cls & echo powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%%~dp0verificar-status.ps1" & echo pause) > "${path.join(dirRobo, 'verificar-status-robo.bat')}"`);
+
     // Atalhos 1 a 5 na raiz C:\MidwayLab
     batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo call "%%~dp0Robo\\iniciar-robo-tray.bat") > "${path.join(baseDir, '1_INSTALAR_ROBO_24H.bat')}"`);
     batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo call "%%~dp0Robo\\iniciar-robo-tray.bat") > "${path.join(baseDir, '2_INICIAR_ROBO_BANDEJA.bat')}"`);
-    batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo pause) > "${path.join(baseDir, '3_VER_STATUS_ROBO.bat')}"`);
+    batCommands.push(`(echo @echo off & echo cd /d "%%~dp0Robo" & echo call "%%~dp0Robo\\verificar-status-robo.bat") > "${path.join(baseDir, '3_VER_STATUS_ROBO.bat')}"`);
     batCommands.push(`(echo @echo off & echo taskkill /F /IM powershell.exe /FI "WINDOWTITLE eq Midway*" 2^>nul) > "${path.join(baseDir, '4_PARAR_ROBO.bat')}"`);
     
     // Gerador de Pedido de Teste em C:\MidwayLab\5_GERAR_PEDIDO_TESTE.bat
