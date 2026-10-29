@@ -17,7 +17,8 @@ import {
   HardDrive,
   Copy,
   Check,
-  Download
+  Download,
+  ListChecks
 } from 'lucide-react';
 
 interface ISetupLocalRoboModalProps {
@@ -83,6 +84,45 @@ export function SetupLocalRoboModal({
     } catch (e) {
       console.warn("Falha ao disparar download automático:", e);
     }
+  };
+
+  const copiarChecklistInstalacao = () => {
+    const equipNome = equipsFiltrados[0]?.modelo || 'SYSMEX_UF_1500';
+    const texto = [
+      `========================================================================`,
+      `MIDWAYLAB - ROTEIRO DE INSTALAÇÃO DO ZERO NO CLIENTE`,
+      `Empresa: ${activeTenant?.nome || 'Laboratório Cliente'}`,
+      `Equipamento: ${equipNome}`,
+      `Pasta Raiz: ${pastaRaiz || 'C:\\MidwayLab'}`,
+      `========================================================================`,
+      ``,
+      `PASSO 1: CRIAR ESTRUTURA NO C:\\`,
+      `* No assistente da tela, clique em "Gerar Pastas com 1 Clique".`,
+      `* Será criada a pasta ${pastaRaiz || 'C:\\MidwayLab'} com subpastas e atalhos prontos.`,
+      ``,
+      `PASSO 2: CONFIGURAR O LABFÁCIL (LIS DO CLIENTE)`,
+      `* No sistema Labfácil / Apoio, configure a exportação de pedidos para:`,
+      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Labfacil\\${equipNome}\\Entrada`,
+      ``,
+      `PASSO 3: CONFIGURAR O ANALISADOR (SOFTWARE DO EQUIPAMENTO)`,
+      `* Pasta de Leitura de Carga (Worklist):`,
+      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Equipamentos\\${equipNome}\\Carga`,
+      `* Pasta de Gravação de Resultados (Laudos):`,
+      `  -> ${pastaRaiz || 'C:\\MidwayLab'}\\Equipamentos\\${equipNome}\\Resultados`,
+      ``,
+      `PASSO 4: ATIVAR O ROBÔ PERMANENTE 24H NO WINDOWS`,
+      `* Abra a pasta ${pastaRaiz || 'C:\\MidwayLab'} no Windows Explorer.`,
+      `* Clique com botão direito em "1_INSTALAR_ROBO_24H.bat" e selecione "Executar como Administrador".`,
+      `* O robô iniciará automaticamente no boot do Windows e ficará monitorando na bandeja do relógio.`,
+      ``,
+      `PASSO 5: TESTE DE COMUNICAÇÃO DE PONTA A PONTA`,
+      `* Exporte um pedido de teste no Labfácil.`,
+      `* O robô consumirá o arquivo de Entrada, gerará a Carga para o analisador e notificará no relógio do Windows.`,
+      `========================================================================`
+    ].join('\r\n');
+
+    navigator.clipboard.writeText(texto);
+    showNotification('📋 Roteiro de instalação copiado! Pronto para colar no WhatsApp ou Bloco de Notas.');
   };
 
   // Carrega status atual do robô ao abrir o modal
@@ -258,6 +298,181 @@ export function SetupLocalRoboModal({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* RECOMENDAÇÕES: PASSO A PASSO PARA IMPLANTAÇÃO DO ZERO NO CLIENTE */}
+        <div className="bg-gradient-to-br from-slate-950 via-teal-950/25 to-slate-950 border-2 border-teal-500/40 rounded-2xl p-4.5 space-y-3.5 shadow-xl shadow-teal-500/5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-teal-500/20 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-300 flex items-center justify-center shrink-0">
+                <ListChecks className="w-4 h-4 text-teal-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  📋 Recomendações: Passo a Passo para Instalar do Zero no Cliente
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">
+                    5 Etapas
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Sequência oficial recomendada para colocar a integração 100% no ar em qualquer computador novo de laboratório.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={copiarChecklistInstalacao}
+              className="bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 text-[11px] font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0 shadow-sm"
+              title="Copiar instruções completas para enviar ao técnico ou cliente via WhatsApp"
+            >
+              <Copy className="w-3.5 h-3.5" /> Copiar Roteiro (WhatsApp / Técnico)
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5 text-xs">
+            {/* ETAPA 1 */}
+            <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-teal-500/30 transition">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
+                    ETAPA 1
+                  </span>
+                  <FolderCheck className="w-3.5 h-3.5 text-teal-400" />
+                </div>
+                <h5 className="font-bold text-slate-100 text-xs mt-1">Gerar Pastas no C:\</h5>
+                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                  No Passo 1 abaixo, clique em <strong className="text-teal-300">"📁 Gerar Pastas com 1 Clique"</strong> para criar <code className="text-cyan-300 font-mono">C:\MidwayLab</code> e as subpastas.
+                </p>
+              </div>
+              <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 mt-1">
+                <CheckCircle2 className="w-3 h-3" /> Criação automática
+              </span>
+            </div>
+
+            {/* ETAPA 2 */}
+            <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-cyan-500/30 transition">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                    ETAPA 2
+                  </span>
+                  <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
+                </div>
+                <h5 className="font-bold text-slate-100 text-xs mt-1">Configurar Labfácil</h5>
+                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                  No LIS do laboratório, aponte a exportação de pedidos (XML/JSON) para:
+                </p>
+                <div className="bg-slate-950 p-1.5 rounded-lg border border-slate-800 font-mono text-[10px] text-teal-300 mt-1 break-all">
+                  C:\MidwayLab\Labfacil\{equipsFiltrados[0]?.modelo || 'MODELO'}\Entrada
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`C:\\MidwayLab\\Labfacil\\${equipsFiltrados[0]?.modelo || 'MODELO'}\\Entrada`);
+                  showNotification('📋 Caminho de Entrada do Labfácil copiado!');
+                }}
+                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-mono flex items-center gap-1 cursor-pointer mt-1"
+              >
+                <Copy className="w-2.5 h-2.5" /> Copiar caminho
+              </button>
+            </div>
+
+            {/* ETAPA 3 */}
+            <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-indigo-500/30 transition">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                    ETAPA 3
+                  </span>
+                  <Server className="w-3.5 h-3.5 text-indigo-400" />
+                </div>
+                <h5 className="font-bold text-slate-100 text-xs mt-1">Configurar Analisador</h5>
+                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                  No software do aparelho, configure as pastas:
+                </p>
+                <div className="space-y-1 mt-1 text-[10px] font-mono">
+                  <div className="bg-slate-950 p-1.5 rounded border border-slate-800 text-indigo-300 break-all">
+                    <strong>Carga:</strong> ...\Equipamentos\{equipsFiltrados[0]?.modelo || 'MODELO'}\Carga
+                  </div>
+                  <div className="bg-slate-950 p-1.5 rounded border border-slate-800 text-amber-300 break-all">
+                    <strong>Resultados:</strong> ...\Resultados
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`C:\\MidwayLab\\Equipamentos\\${equipsFiltrados[0]?.modelo || 'MODELO'}\\Carga`);
+                  showNotification('📋 Caminho de Carga do analisador copiado!');
+                }}
+                className="text-[10px] text-indigo-400 hover:text-indigo-300 underline font-mono flex items-center gap-1 cursor-pointer mt-1"
+              >
+                <Copy className="w-2.5 h-2.5" /> Copiar Carga
+              </button>
+            </div>
+
+            {/* ETAPA 4 */}
+            <div className="bg-slate-900/90 border border-emerald-500/30 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-emerald-500/50 transition">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    ETAPA 4
+                  </span>
+                  <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <h5 className="font-bold text-slate-100 text-xs mt-1">Ativar Robô 24h</h5>
+                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                  Abra <code className="text-teal-300 font-mono">C:\MidwayLab</code> no Explorer e execute como Administrador:
+                </p>
+                <div className="bg-slate-950 p-1.5 rounded-lg border border-emerald-500/30 font-mono text-[10px] text-emerald-300 font-bold mt-1 break-all">
+                  👉 1_INSTALAR_ROBO_24H.bat
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Inicia sozinho toda vez que o Windows ligar.
+                </p>
+              </div>
+              <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 mt-1">
+                <CheckCircle2 className="w-3 h-3" /> Fica ativo no relógio
+              </span>
+            </div>
+
+            {/* ETAPA 5 */}
+            <div className="bg-slate-900/90 border border-amber-500/30 p-3 rounded-xl space-y-1.5 flex flex-col justify-between hover:border-amber-500/50 transition">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    ETAPA 5
+                  </span>
+                  <CheckCircle2 className="w-3 h-3 text-amber-400" />
+                </div>
+                <h5 className="font-bold text-slate-100 text-xs mt-1">Testar e Validar</h5>
+                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                  Exporte um pedido de teste no Labfácil e confirme a entrega imediata na pasta do analisador com notificação no Windows.
+                </p>
+              </div>
+              <span className="text-[10px] font-bold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded text-center block mt-1">
+                ✨ Produção 100% Pronta
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-300">
+            <span className="flex items-center gap-2">
+              💡 <strong className="text-teal-300">Dica Prática:</strong> Os atalhos <code className="text-cyan-300 font-mono">1_INSTALAR_ROBO_24H.bat</code>, <code className="text-cyan-300 font-mono">2_INICIAR_ROBO_BANDEJA.bat</code> e <code className="text-cyan-300 font-mono">3_VER_STATUS_ROBO.bat</code> ficam salvos diretamente na raiz de <code className="text-teal-300 font-mono">C:\MidwayLab</code> para não precisar abrir pastas internas do sistema.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText('C:\\MidwayLab');
+                showNotification('📋 Caminho C:\\MidwayLab copiado!');
+              }}
+              className="text-cyan-400 hover:text-cyan-300 underline font-mono text-[10px] shrink-0 cursor-pointer"
+            >
+              Copiar "C:\MidwayLab"
+            </button>
+          </div>
         </div>
 
         {/* PASSO 1: DADOS DA INSTALAÇÃO LOCAL */}

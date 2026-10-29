@@ -198,7 +198,42 @@ export async function POST(request: Request) {
       ].join('\r\n');
       fs.writeFileSync(dstTrayBat, trayBatContent, 'utf8');
 
-      // 5.3 Atalho para iniciar com o Windows
+      // 5.3 Scripts adicionais de gestão do robô
+      const dstInstalarBat = path.join(dirRobo, 'instalar-servico-windows.bat');
+      const instalarBatContent = [
+        '@echo off',
+        'title MidwayLab - Configurar Inicializacao Automatica 24h',
+        'color 0B',
+        'cd /d "%~dp0"',
+        'echo ========================================================',
+        'echo   MIDWAYLAB - INSTALADOR DO ROBO 24H NO WINDOWS',
+        'echo ========================================================',
+        'echo.',
+        'echo [1/2] Registrando o Robo no Agendador de Tarefas...',
+        'schtasks /create /tn "MidwayAgent" /tr "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File \\"%~dp0midwaylab-robo-tray.ps1\\"" /sc onlogon /rl highest /f >nul 2>&1',
+        'echo [2/2] Configurando inicializacao na pasta Startup...',
+        'set "STARTUP_BAT=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\MidwayLab_Robo.bat"',
+        '(echo @echo off & echo start "" powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0midwaylab-robo-tray.ps1") > "%STARTUP_BAT%"',
+        'echo.',
+        'echo Iniciando o Robo na bandeja do Windows (junto ao relogio)...',
+        'start "" powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0midwaylab-robo-tray.ps1"',
+        'echo.',
+        'echo ========================================================',
+        'echo   INSTALACAO CONCLUIDA COM SUCESSO! ROBO 24H ATIVO!',
+        'echo ========================================================',
+        'pause'
+      ].join('\r\n');
+      fs.writeFileSync(dstInstalarBat, instalarBatContent, 'utf8');
+
+      // 5.4 Atalhos rápidos numerados na raiz de C:\MidwayLab
+      try {
+        fs.writeFileSync(path.join(baseDir, '1_INSTALAR_ROBO_24H.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\instalar-servico-windows.bat"\r\n', 'utf8');
+        fs.writeFileSync(path.join(baseDir, '2_INICIAR_ROBO_BANDEJA.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\iniciar-robo-tray.bat"\r\n', 'utf8');
+        fs.writeFileSync(path.join(baseDir, '3_VER_STATUS_ROBO.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\verificar-status-robo.bat"\r\n', 'utf8');
+        fs.writeFileSync(path.join(baseDir, '4_PARAR_ROBO.bat'), '@echo off\r\ncd /d "%~dp0Robo"\r\ncall "%~dp0Robo\\parar-robo.bat"\r\n', 'utf8');
+      } catch (_) {}
+
+      // 5.5 Atalho para iniciar com o Windows no Startup do usuário logado
       try {
         const userProfile = process.env.USERPROFILE || 'C:\\Users\\Default';
         const startupDir = path.join(userProfile, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
