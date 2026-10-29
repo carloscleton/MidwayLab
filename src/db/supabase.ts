@@ -91,6 +91,7 @@ export interface IEquipamentoRecord {
   tipo_comunicacao?: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' | 'API';
   ip_host?: string;
   porta?: number;
+  timeout_conexao?: number;
   diretorio_carga?: string;   // Pasta de entrada onde o equipamento lê JSON/XML/ASTM
   diretorio_resultados?: string; // Pasta onde o equipamento cospe resultados
   ativo: boolean;

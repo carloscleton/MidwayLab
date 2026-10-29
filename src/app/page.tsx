@@ -9558,19 +9558,19 @@ export default function MidwayLabDashboard() {
                 {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP */}
                 {equipamentoForm.tipo_comunicacao === "TCP_IP" && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="block text-teal-300 font-semibold mb-1 text-xs">
-                        Endereço IP do Analisador na Rede (Host IP)
+                        Endereço IP (Host IP)
                       </label>
                       <input
                         type="text"
-                        placeholder="Ex: 192.168.1.150"
+                        placeholder="Ex: 192.168.0.16"
                         value={equipamentoForm.ip_host || ""}
                         onChange={(e) => setEquipamentoForm({ ...equipamentoForm, ip_host: e.target.value })}
                         className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
                       />
                       <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        Endereço IPv4 atribuído na placa de rede do analisador para conexão de socket TCP.
+                        IPv4 da placa de rede do analisador.
                       </span>
                     </div>
 
@@ -9578,13 +9578,32 @@ export default function MidwayLabDashboard() {
                       <label className="block text-teal-300 font-semibold mb-1 text-xs">Porta TCP</label>
                       <input
                         type="number"
-                        placeholder="Ex: 5100"
-                        value={equipamentoForm.porta ?? 5100}
-                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || 5100 })}
+                        placeholder="Ex: 7101"
+                        value={equipamentoForm.porta ?? 7101}
+                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || 7101 })}
                         className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
                       />
                       <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        Porta padrão de escuta/transmissão.
+                        Porta de escuta ASTM/HL7.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-teal-300 font-semibold mb-1 text-xs">Timeout Conexão</label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={3}
+                          max={60}
+                          placeholder="15"
+                          value={equipamentoForm.timeout_conexao ?? 15}
+                          onChange={(e) => setEquipamentoForm({ ...equipamentoForm, timeout_conexao: Math.max(3, Math.min(60, parseInt(e.target.value, 10) || 15)) })}
+                          className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                        />
+                        <span className="text-xs text-slate-400 font-mono font-bold">seg</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        Tempo de espera do handshake (padrão: 15s).
                       </span>
                     </div>
                   </div>
@@ -9692,6 +9711,7 @@ export default function MidwayLabDashboard() {
                             tipoComunicacao: equipamentoForm.tipo_comunicacao || "TCP_IP",
                             ipHost: equipamentoForm.ip_host,
                             porta: equipamentoForm.porta,
+                            timeoutSec: equipamentoForm.timeout_conexao || 15,
                             diretorioCarga: equipamentoForm.diretorio_carga,
                             diretorioResultados: equipamentoForm.diretorio_resultados
                           })

@@ -38,6 +38,10 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
+      // Timeout configurável dinâmico (padrão 15 segundos, mínimo 3s, máximo 60s)
+      const timeoutSec = Math.max(3, Math.min(60, parseInt(String(body.timeoutSec || body.timeout_conexao || body.timeout || 15), 10) || 15));
+      const timeoutMs = timeoutSec * 1000;
+
       const result = await new Promise<{
         success: boolean;
         message: string;
@@ -46,7 +50,7 @@ export async function POST(request: Request) {
         detalhesTecnicos?: string;
       }>((resolve) => {
         const socket = new net.Socket();
-        socket.setTimeout(4500);
+        socket.setTimeout(timeoutMs);
 
         let respostaRecebida = '';
         let bytesEnviados = 0;
@@ -81,7 +85,7 @@ export async function POST(request: Request) {
             bytesEnviados = bufferParaEnviar.length;
             socket.write(bufferParaEnviar);
 
-            // Aguarda até 2.5s por resposta do analisador antes de fechar o socket
+            // Aguarda resposta do analisador antes de fechar o socket
             setTimeout(() => {
               socket.end();
               resolve({
@@ -91,10 +95,9 @@ export async function POST(request: Request) {
                 message: `✓ Pacote transmitido com sucesso via TCP/IP para ${ipHost}:${portNumber}! (${bytesEnviados} bytes enviados)${respostaRecebida ? ' • Analisador respondeu: ' + respostaRecebida.slice(0, 80) : ' • Analisador aceitou o socket.'}`,
                 detalhesTecnicos: `Destino: ${ipHost}:${portNumber}\nBytes transmitidos: ${bytesEnviados}\nResposta do equipamento: ${respostaRecebida || 'ACK de recepção OK'}`
               });
-            }, 2000);
+            }, Math.min(4000, timeoutMs));
           } else if (escutarResultados) {
             // Modo Escuta / Captura ativa de retorno do analisador
-            // Envia um caractere ENQ (0x05) padrão para solicitar se o analisador tem mensagens pendentes no buffer
             try {
               socket.write(Buffer.from([0x05]));
             } catch (_) {}
@@ -109,7 +112,7 @@ export async function POST(request: Request) {
                   : `✓ Conexão com ${ipHost}:${portNumber} ativa e pronta para receber resultados. (Dispare o envio no painel da máquina)`,
                 detalhesTecnicos: respostaRecebida || 'Nenhum dado pendente no buffer do equipamento.'
               });
-            }, 3000);
+            }, Math.min(5000, timeoutMs));
           } else {
             // Apenas handshake de teste
             socket.destroy();
@@ -126,9 +129,14 @@ export async function POST(request: Request) {
 
         socket.on('timeout', () => {
           socket.destroy();
+          const isIpPrivado = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ipHost);
+          let extraMsg = '';
+          if (isIpPrivado) {
+            extraMsg = `\n\n💡 Observação de Rede Local: O IP ${ipHost} é um endereço interno da sua rede local (LAN). Como este teste está sendo disparado pela nuvem (Vercel), a nuvem não consegue acessar o IP interno do laboratório diretamente através da internet.\nPara testar a porta diretamente na rede local do laboratório, utilize o script "TESTAR_CONEXAO_ANALISADOR.bat" na pasta C:\\MidwayLab ou execute no PowerShell local:\nTest-NetConnection -ComputerName ${ipHost} -Port ${portNumber}`;
+          }
           resolve({
             success: false,
-            message: `⏱️ Timeout (4.5s): O analisador em ${ipHost}:${portNumber} não respondeu. Verifique se o equipamento está ligado e conectado na mesma rede.`
+            message: `⏱️ Timeout (${timeoutSec}s): O analisador em ${ipHost}:${portNumber} não respondeu no tempo limite de ${timeoutSec}s.${extraMsg}`
           });
         });
 
