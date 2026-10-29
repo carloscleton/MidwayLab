@@ -281,7 +281,9 @@ export class FolderWatcherService {
                 paciente_nome: order.cliente.nome,
                 total_exames: order.exames.length,
                 status: 'NA_CARGA',
-                origem_arquivo: fileName,
+                origem_arquivo: (fileName && fileName.length <= 50)
+                  ? fileName
+                  : (fileName.toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'),
                 arquivo_nome: fileName,
                 modelo_equipamento: this.config.equipamentoDestino,
                 codigo_lote_autolac: `LOTE-${this.config.equipamentoDestino}`,

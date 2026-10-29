@@ -233,7 +233,11 @@ export async function POST(request: Request) {
         
         // Grava no banco Supabase em tempo real com status NA_CARGA (aguardando o equipamento processar)
         try {
-          await supabase.from('pedidos').insert({
+          const origemSegura = (nomeArquivo && nomeArquivo.length <= 50)
+            ? nomeArquivo
+            : (nomeArquivo.toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML');
+
+          const { error: insErr } = await supabase.from('pedidos').insert({
             tenant_id: tenant.id,
             codigo_pedido_labfacil: order.numeroPedido,
             numero_solicitacao: order.numeroPedido,
@@ -241,10 +245,10 @@ export async function POST(request: Request) {
             paciente_nome: order.cliente.nome,
             total_exames: order.exames.length,
             status: 'NA_CARGA',
-            origem_arquivo: nomeArquivo,
+            origem_arquivo: origemSegura,
             arquivo_nome: nomeArquivo,
             modelo_equipamento: modelo,
-            codigo_lote_autolac: `LOTE-${modelo}`,
+            codigo_lote_autolac: `LOTE-${modelo}`.slice(0, 50),
             payload_labfacil_json: JSON.stringify({
               modelo_equipamento: modelo,
               formato_carga: result.formato,
@@ -258,6 +262,10 @@ export async function POST(request: Request) {
             }),
             created_at: new Date().toISOString()
           });
+
+          if (insErr) {
+            console.error('[agent] Erro ao gravar pedido no Supabase:', insErr);
+          }
         } catch (err: any) {
           console.error('[agent] Erro ao gravar pedido no Supabase:', err.message);
         }
@@ -310,7 +318,7 @@ export async function POST(request: Request) {
       numero_solicitacao: String(codigoPedido),
       paciente_nome: pacienteNome || 'PACIENTE IMPORTADO',
       codigo_pedido_labfacil: String(codigoPedido),
-      origem_arquivo: origemArquivo || (String(arquivoNome).toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML'),
+      origem_arquivo: String(origemArquivo || (String(arquivoNome).toLowerCase().endsWith('.json') ? 'LABFACIL_JSON' : 'LABFACIL_XML')).slice(0, 50),
       arquivo_nome: arquivoNome || 'arquivo_desconhecido',
       total_exames: body.totalExames || (Array.isArray(body.exames) ? body.exames.length : 1),
       status: statusFinal,
