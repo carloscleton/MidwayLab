@@ -154,7 +154,70 @@ export async function POST(request: Request) {
       })
       .eq('id', tenantId);
 
-    // 5. Cria arquivo README de instruções na raiz C:\MidwayLab se o disco permitir
+    // 5. Cria a pasta do Robô (C:\MidwayLab\Robo) e coloca os arquivos de execução dentro
+    const dirRobo = path.join(baseDir, 'Robo');
+    const host = request.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+    const appUrl = `${protocol}://${host}`;
+    const agentToken = existingConfigs.api_token || '';
+    const primeiroModelo = resultados[0]?.modelo || 'SYSMEX_UF_1500';
+
+    try {
+      if (!fs.existsSync(dirRobo)) {
+        fs.mkdirSync(dirRobo, { recursive: true });
+      }
+
+      // 5.1 Arquivo .env
+      const envPath = path.join(dirRobo, '.env');
+      const envContent = [
+        '# =====================================================================',
+        '# MIDWAYLAB - CONFIGURACAO AUTOMATICA DO ROBO AGENTE',
+        '# =====================================================================',
+        `MIDWAY_API_URL=${appUrl}`,
+        `MIDWAY_AGENT_TOKEN=${agentToken}`,
+        `EQUIPAMENTO=${primeiroModelo}`,
+        `PASTA_RAIZ=${baseDir}`,
+        ''
+      ].join('\r\n');
+      fs.writeFileSync(envPath, envContent, 'utf8');
+
+      // 5.2 Copia / grava os scripts do robô na pasta C:\MidwayLab\Robo
+      const srcTrayPs1 = path.join(process.cwd(), 'midwaylab-robo-tray.ps1');
+      const dstTrayPs1 = path.join(dirRobo, 'midwaylab-robo-tray.ps1');
+      if (fs.existsSync(srcTrayPs1)) {
+        fs.copyFileSync(srcTrayPs1, dstTrayPs1);
+      }
+
+      const dstTrayBat = path.join(dirRobo, 'iniciar-robo-tray.bat');
+      const trayBatContent = [
+        '@echo off',
+        'title MidwayLab - Agente de Bandeja',
+        'cd /d "%~dp0"',
+        'powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0midwaylab-robo-tray.ps1"',
+        'exit'
+      ].join('\r\n');
+      fs.writeFileSync(dstTrayBat, trayBatContent, 'utf8');
+
+      // 5.3 Atalho para iniciar com o Windows
+      try {
+        const userProfile = process.env.USERPROFILE || 'C:\\Users\\Default';
+        const startupDir = path.join(userProfile, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
+        if (fs.existsSync(startupDir)) {
+          const startupBat = path.join(startupDir, 'MidwayLab_Robo.bat');
+          const startupCmd = [
+            '@echo off',
+            `start "" "${dstTrayBat}"`,
+            'exit'
+          ].join('\r\n');
+          fs.writeFileSync(startupBat, startupCmd, 'utf8');
+        }
+      } catch (_) {}
+
+    } catch (roboErr: any) {
+      console.warn('[API setup-local-folders] Aviso ao preparar pasta Robo:', roboErr.message);
+    }
+
+    // 5.4 Cria arquivo README de instruções na raiz C:\MidwayLab se o disco permitir
     try {
       const readmePath = path.join(baseDir, 'COMO_FUNCIONA_O_ROBO_MIDWAY.txt');
       const readmeContent = [
@@ -163,7 +226,11 @@ export async function POST(request: Request) {
         '========================================================================',
         `Data da Instalação: ${new Date().toLocaleString('pt-BR')}`,
         `Pasta Raiz: ${baseDir}`,
+        `Pasta do Robô: ${dirRobo}`,
         `Empresa: ${tenantId}`,
+        '',
+        'PASTA DO ROBÔ (EXECUÇÃO 24H JUNTO AO RELÓGIO):',
+        `-> ${dirRobo}\\iniciar-robo-tray.bat`,
         '',
         'COMO FUNCIONA O FLUXO DE PEDIDOS:',
         '1. O sistema Labfácil grava os arquivos XML ou JSON na pasta:',
@@ -184,16 +251,16 @@ export async function POST(request: Request) {
       fs.writeFileSync(readmePath, readmeContent, 'utf8');
     } catch (_) {}
 
-    // 6. Monta script Batch para execução no Windows
+    // 6. Monta script Batch para execução no Windows (instalador de 1 clique)
     const batCommands: string[] = [
       '@echo off',
-      'title MIDWAY LAB - GERADOR OFICIAL DE PASTAS',
+      'title MIDWAY LAB - INSTALADOR DE PASTAS E ROBO DE BANDEJA',
       'color 0A',
       'echo ========================================================',
-      'echo       MIDWAY LAB - GERADOR DE PASTAS NO DISCO LOCAL      ',
+      'echo     MIDWAY LAB - INSTALADOR DE PASTAS E ROBO 24 HORAS   ',
       'echo ========================================================',
       'echo.',
-      `echo Criando a estrutura oficial de pastas em ${baseDir}...`,
+      `echo [1/3] Criando a estrutura oficial de pastas em ${baseDir}...`,
       'echo.'
     ];
 
@@ -205,10 +272,20 @@ export async function POST(request: Request) {
       batCommands.push(`if not exist "${r.diretorioResultados}" mkdir "${r.diretorioResultados}"`);
     }
 
+    batCommands.push(`if not exist "${dirRobo}" mkdir "${dirRobo}"`);
     batCommands.push('echo.');
-    batCommands.push(`echo [OK] Estrutura oficial criada com sucesso em ${baseDir}!`);
+    batCommands.push('echo [2/3] Configurando o Robo do MidwayLab com Token de seguranca...');
+    batCommands.push(`(echo MIDWAY_API_URL=${appUrl}& echo MIDWAY_AGENT_TOKEN=${agentToken}& echo EQUIPAMENTO=${primeiroModelo}& echo PASTA_RAIZ=${baseDir}) > "${path.join(dirRobo, '.env')}"`);
+    batCommands.push(`(echo @echo off & echo title MidwayLab - Agente de Bandeja & echo cd /d "%%~dp0" & echo powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "%%~dp0midwaylab-robo-tray.ps1" & echo exit) > "${path.join(dirRobo, 'iniciar-robo-tray.bat')}"`);
+    batCommands.push(`powershell -Command "try { Invoke-WebRequest -Uri '${appUrl}/midwaylab-robo-tray.ps1' -OutFile '${path.join(dirRobo, 'midwaylab-robo-tray.ps1')}' } catch {}"`);
     batCommands.push('echo.');
-    batCommands.push('timeout /t 5 >nul');
+    batCommands.push('echo [3/3] Configurando inicializacao automatica com o Windows...');
+    batCommands.push(`set STARTUP_DIR=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup`);
+    batCommands.push(`(echo @echo off & echo start "" "${path.join(dirRobo, 'iniciar-robo-tray.bat')}" & echo exit) > "%STARTUP_DIR%\\MidwayLab_Robo.bat"`);
+    batCommands.push('echo.');
+    batCommands.push(`echo [OK] Instalacao concluida! Iniciando o robo na bandeja do relogio...`);
+    batCommands.push(`start "" "${path.join(dirRobo, 'iniciar-robo-tray.bat')}"`);
+    batCommands.push('timeout /t 3 >nul');
     batCommands.push('exit');
 
     const batScript = batCommands.join('\r\n');

@@ -95,81 +95,108 @@ $NotifyIcon.ShowBalloonTip(
     [System.Windows.Forms.ToolTipIcon]::Info
 )
 
-# Funcao de Varredura e Processamento
+# Funcao de Varredura e Processamento Multi-Equipamentos
 function Executar-Varredura {
-    if (!(Test-Path $DirEntrada)) { return }
+    $dirBaseLabfacil = Join-Path $PastaRaiz "Labfacil"
+    if (!(Test-Path $dirBaseLabfacil)) { return }
 
-    $arquivos = Get-ChildItem -Path $DirEntrada -Filter "*.*" | Where-Object { 
-        $ext = $_.Extension.ToLower()
-        ($ext -eq ".xml" -or $ext -eq ".json") -and !$_.Name.StartsWith("tmp_")
+    # Descobre dinamicamente todos os equipamentos configurados no disco
+    $pastasEquips = Get-ChildItem -Path $dirBaseLabfacil -Directory -ErrorAction SilentlyContinue
+    if (!$pastasEquips -or $pastasEquips.Count -eq 0) {
+        $pastasEquips = @([PSCustomObject]@{ Name = $Equipamento })
     }
 
-    foreach ($arq in $arquivos) {
-        $caminhoArquivo = $arq.FullName
-        $nomeArquivo = $arq.Name
+    foreach ($eqDir in $pastasEquips) {
+        $modeloAtual = $eqDir.Name
+        $dirEntradaEq = Join-Path $PastaRaiz "Labfacil\$modeloAtual\Entrada"
+        $dirProcessadosEq = Join-Path $PastaRaiz "Labfacil\$modeloAtual\Processados"
+        $dirErrosEq = Join-Path $PastaRaiz "Labfacil\$modeloAtual\Erros"
+        $dirCargaEq = Join-Path $PastaRaiz "Equipamentos\$modeloAtual\Carga"
 
-        try {
-            # Le conteudo do arquivo com encoding UTF-8
-            $conteudo = [System.IO.File]::ReadAllText($caminhoArquivo, [System.Text.Encoding]::UTF8)
-            if ([string]::IsNullOrWhiteSpace($conteudo)) { continue }
+        if (!(Test-Path $dirEntradaEq)) { continue }
 
-            # Envia para a API do MidwayLab processar e converter
-            $headers = @{
-                "Content-Type" = "application/json"
-            }
-            if ($AgentToken) {
-                $headers["x-agent-token"] = $AgentToken
-            }
+        $arquivos = Get-ChildItem -Path $dirEntradaEq -Filter "*.*" -ErrorAction SilentlyContinue | Where-Object { 
+            $ext = $_.Extension.ToLower()
+            ($ext -eq ".xml" -or $ext -eq ".json") -and !$_.Name.StartsWith("tmp_")
+        }
 
-            $bodyJson = @{
-                acao = "processar_arquivo"
-                modeloEquipamento = $Equipamento
-                nomeArquivo = $nomeArquivo
-                conteudoArquivo = $conteudo
-            } | ConvertTo-Json -Depth 5
+        foreach ($arq in $arquivos) {
+            $caminhoArquivo = $arq.FullName
+            $nomeArquivo = $arq.Name
 
-            $res = Invoke-RestMethod -Uri "$ApiUrl/api/agent" -Method Post -Headers $headers -Body $bodyJson -TimeoutSec 15
+            try {
+                # Le conteudo do arquivo com encoding UTF-8
+                $conteudo = [System.IO.File]::ReadAllText($caminhoArquivo, [System.Text.Encoding]::UTF8)
+                if ([string]::IsNullOrWhiteSpace($conteudo)) { continue }
 
-            if ($res.ok -eq $true -and $res.cargas) {
-                foreach ($c in $res.cargas) {
-                    $nomeCarga = $c.nomeArquivoSugerido
-                    if (!$nomeCarga) { $nomeCarga = "CARGA_" + $c.pedidoId + ".txt" }
-                    $destinoCarga = Join-Path $DirCarga $nomeCarga
-
-                    # Grava arquivo de carga no formato do equipamento
-                    [System.IO.File]::WriteAllText($destinoCarga, $c.conteudoArquivo, [System.Text.Encoding]::UTF8)
-
-                    # Mostra balao do Windows
-                    $NotifyIcon.ShowBalloonTip(
-                        3000,
-                        "MidwayLab: Pedido Processado!",
-                        "Pedido $($c.pedidoId) ($($c.paciente)) entregue ao analisador $Equipamento.",
-                        [System.Windows.Forms.ToolTipIcon]::Info
-                    )
+                # Envia para a API do MidwayLab processar e converter
+                $headers = @{
+                    "Content-Type" = "application/json"
+                }
+                if ($AgentToken) {
+                    $headers["x-agent-token"] = $AgentToken
                 }
 
-                # Move para Processados com carimbo de data
+                $bodyJson = @{
+                    acao = "processar_arquivo"
+                    modeloEquipamento = $modeloAtual
+                    nomeArquivo = $nomeArquivo
+                    conteudoArquivo = $conteudo
+                } | ConvertTo-Json -Depth 5
+
+                $res = Invoke-RestMethod -Uri "$ApiUrl/api/agent" -Method Post -Headers $headers -Body $bodyJson -TimeoutSec 15
+
+                if ($res.ok -eq $true -and $res.cargas) {
+                    foreach ($c in $res.cargas) {
+                        $nomeCarga = $c.nomeArquivoSugerido
+                        if (!$nomeCarga) { $nomeCarga = "CARGA_" + $c.pedidoId + ".txt" }
+                        
+                        if (!(Test-Path $dirCargaEq)) {
+                            New-Item -ItemType Directory -Path $dirCargaEq -Force | Out-Null
+                        }
+                        $destinoCarga = Join-Path $dirCargaEq $nomeCarga
+
+                        # Grava arquivo de carga no formato do analisador
+                        [System.IO.File]::WriteAllText($destinoCarga, $c.conteudoArquivo, [System.Text.Encoding]::UTF8)
+
+                        # Mostra balao do Windows
+                        $NotifyIcon.ShowBalloonTip(
+                            3000,
+                            "MidwayLab: Pedido Processado!",
+                            "Pedido $($c.pedidoId) ($($c.paciente)) entregue ao analisador $modeloAtual.",
+                            [System.Windows.Forms.ToolTipIcon]::Info
+                        )
+                    }
+
+                    # Move para Processados com carimbo de data
+                    if (!(Test-Path $dirProcessadosEq)) {
+                        New-Item -ItemType Directory -Path $dirProcessadosEq -Force | Out-Null
+                    }
+                    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+                    $destinoProc = Join-Path $dirProcessadosEq "$($arq.BaseName)_$timestamp$($arq.Extension)"
+                    Move-Item -Path $caminhoArquivo -Destination $destinoProc -Force
+                } else {
+                    throw "API retornou erro: $($res.erro)"
+                }
+
+            } catch {
+                # Move para pasta de Erros para nao travar a esteira
+                if (!(Test-Path $dirErrosEq)) {
+                    New-Item -ItemType Directory -Path $dirErrosEq -Force | Out-Null
+                }
                 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-                $destinoProc = Join-Path $DirProcessados "$($arq.BaseName)_$timestamp$($arq.Extension)"
-                Move-Item -Path $caminhoArquivo -Destination $destinoProc -Force
-            } else {
-                throw "API retornou erro: $($res.erro)"
+                $destinoErro = Join-Path $dirErrosEq "$($arq.BaseName)_ERRO_$timestamp$($arq.Extension)"
+                try {
+                    Move-Item -Path $caminhoArquivo -Destination $destinoErro -Force
+                } catch {}
+
+                $NotifyIcon.ShowBalloonTip(
+                    4000,
+                    "MidwayLab: Atencao!",
+                    "Arquivo $nomeArquivo com divergencia ($modeloAtual). Movido para Erros.",
+                    [System.Windows.Forms.ToolTipIcon]::Warning
+                )
             }
-
-        } catch {
-            # Move para pasta de Erros para nao travar a esteira
-            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-            $destinoErro = Join-Path $DirErros "$($arq.BaseName)_ERRO_$timestamp$($arq.Extension)"
-            try {
-                Move-Item -Path $caminhoArquivo -Destination $destinoErro -Force
-            } catch {}
-
-            $NotifyIcon.ShowBalloonTip(
-                4000,
-                "MidwayLab: Atencao!",
-                "Arquivo $nomeArquivo com divergencia. Movido para pasta Erros.",
-                [System.Windows.Forms.ToolTipIcon]::Warning
-            )
         }
     }
 }
