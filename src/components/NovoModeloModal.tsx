@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Search, RefreshCw, Cpu, Tag, Globe, Save, X, Image as ImageIcon } from "lucide-react";
+import { Sparkles, Search, RefreshCw, Cpu, Tag, Globe, Save, X, Image as ImageIcon, UploadCloud, Link as LinkIcon, FileText, CheckCircle2 } from "lucide-react";
 import { ModelosEquipamentosService, IModeloEquipamentoRecord } from "../services/modelos-equipamentos-service";
 import ExamesModeloCrud from "./ExamesModeloCrud";
 
@@ -22,6 +22,54 @@ export default function NovoModeloModal({
   const [isSearchingDoc, setIsSearchingDoc] = useState(false);
   const [searchedModeloResult, setSearchedModeloResult] = useState<IModeloEquipamentoRecord | null>(null);
   const [isSavingNovoModelo, setIsSavingNovoModelo] = useState(false);
+  const [modoEntrada, setModoEntrada] = useState<"PESQUISA" | "PDF" | "LINK">("PESQUISA");
+  const [manualUrl, setManualUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isProcessingManual, setIsProcessingManual] = useState(false);
+  const [feedbackManual, setFeedbackManual] = useState<string | null>(null);
+
+  const handleProcessarManual = async () => {
+    if (modoEntrada === "PDF" && !selectedFile) {
+      showNotification("Selecione um arquivo PDF ou documento do manual.");
+      return;
+    }
+    if (modoEntrada === "LINK" && !manualUrl.trim()) {
+      showNotification("Informe o link da documentação técnica na internet.");
+      return;
+    }
+
+    setIsProcessingManual(true);
+    setFeedbackManual(null);
+
+    try {
+      const formData = new FormData();
+      if (modoEntrada === "PDF" && selectedFile) {
+        formData.append("manualFile", selectedFile);
+      } else if (modoEntrada === "LINK") {
+        formData.append("urlLink", manualUrl.trim());
+      }
+
+      const res = await fetch("/api/parse-equipment-manual", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.success && data.modelo) {
+        setSearchedModeloResult(data.modelo);
+        setFeedbackManual(`✓ ${data.totalExamesExtraidos} exames e parâmetros extraídos com sucesso do documento!`);
+        showNotification(`🎉 Manual lido com sucesso! ${data.modelo.nome_completo} configurado.`);
+      } else {
+        setFeedbackManual(`⚠️ ${data.message || "Não foi possível extrair os dados do documento."}`);
+        showNotification(`⚠️ Falha ao ler manual: ${data.message || "Erro"}`);
+      }
+    } catch (err: any) {
+      setFeedbackManual(`❌ Erro ao analisar manual: ${err.message}`);
+      showNotification(`❌ Erro ao processar documento: ${err.message}`);
+    } finally {
+      setIsProcessingManual(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -96,38 +144,150 @@ export default function NovoModeloModal({
           </button>
         </div>
 
-        {/* CAMPO DE PESQUISA NA WEB / DOCUMENTAÇÃO */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-300">
-            Nome ou Modelo do Equipamento (Ex.: Sysmex UF-1500, Cobas c311, Snibe Maglumi 800, Dymind DH36):
-          </label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                placeholder="Ex.: Sysmex UF-1500 / Roche Cobas c311 / Mindray BS-380 / Snibe Maglumi..."
-                value={searchDocQuery}
-                onChange={(e) => setSearchDocQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handlePesquisar();
-                  }
-                }}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
+        {/* SELETOR DE MÉTODO DE IDENTIFICAÇÃO DO ANALISADOR */}
+        <div className="space-y-2.5 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
             <button
               type="button"
-              disabled={isSearchingDoc || !searchDocQuery.trim()}
-              onClick={handlePesquisar}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition"
+              onClick={() => setModoEntrada("PESQUISA")}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                modoEntrada === "PESQUISA"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
             >
-              {isSearchingDoc ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              {isSearchingDoc ? "Pesquisando Doc..." : "Pesquisar Web"}
+              <Search className="w-3.5 h-3.5" /> Pesquisar na Web / IA
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoEntrada("PDF")}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                modoEntrada === "PDF"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <UploadCloud className="w-3.5 h-3.5" /> Enviar Manual em PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoEntrada("LINK")}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                modoEntrada === "LINK"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <LinkIcon className="w-3.5 h-3.5" /> Colar Link Oficial
             </button>
           </div>
+
+          {/* MODO 1: PESQUISA WEB */}
+          {modoEntrada === "PESQUISA" && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-300">
+                Digite o nome ou modelo do equipamento (Ex.: Thermo Indiko, Sysmex UF-1500, Cobas c311):
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    placeholder="Ex.: Thermo Indiko / Sysmex UF-1500 / Cobas c311 / Snibe Maglumi..."
+                    value={searchDocQuery}
+                    onChange={(e) => setSearchDocQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handlePesquisar();
+                      }
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={isSearchingDoc || !searchDocQuery.trim()}
+                  onClick={handlePesquisar}
+                  className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition"
+                >
+                  {isSearchingDoc ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                  {isSearchingDoc ? "Buscando..." : "Pesquisar Web"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MODO 2: UPLOAD DO MANUAL EM PDF */}
+          {modoEntrada === "PDF" && (
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold text-slate-300">
+                Selecione o Manual Técnico / Host Interface Guide do Equipamento (.pdf, .txt, .docx):
+              </label>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <label className="w-full flex-1 border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900/80 rounded-xl p-3 text-center cursor-pointer transition">
+                  <input
+                    type="file"
+                    accept=".pdf,.txt,.json,.xml"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  <div className="flex items-center justify-center gap-2 text-xs text-slate-300">
+                    <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate font-semibold">
+                      {selectedFile ? selectedFile.name : "Clique para selecionar o PDF do manual do equipamento"}
+                    </span>
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  disabled={isProcessingManual || !selectedFile}
+                  onClick={handleProcessarManual}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-4 py-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition shrink-0"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isProcessingManual ? "animate-spin" : ""}`} />
+                  {isProcessingManual ? "Lendo Manual..." : "Processar Manual"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MODO 3: LINK DA DOCUMENTAÇÃO NA WEB */}
+          {modoEntrada === "LINK" && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-300">
+                Cole a URL oficial do manual ou página de especificações do fabricante:
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="url"
+                    placeholder="https://exemplo.com/manual_interface_equipamento.pdf"
+                    value={manualUrl}
+                    onChange={(e) => setManualUrl(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={isProcessingManual || !manualUrl.trim()}
+                  onClick={handleProcessarManual}
+                  className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isProcessingManual ? "animate-spin" : ""}`} />
+                  {isProcessingManual ? "Acessando..." : "Extrair do Link"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {feedbackManual && (
+            <div className="text-[11px] font-mono p-2 rounded-lg bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span>{feedbackManual}</span>
+            </div>
+          )}
         </div>
 
         {/* RESULTADO PRELIMINAR / FORMULÁRIO DO NOVO MODELO */}
