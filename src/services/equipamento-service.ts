@@ -25,9 +25,18 @@ export class EquipamentoService {
         if (!formato) {
           formato = item.modelo === "CB350" ? "JSON" : (item.modelo === "YUMIZEN" || item.modelo === "ACCESS") ? "ASTM" : "HL7";
         }
+        const cfg = item.configuracoes || {};
         return {
           ...item,
-          formato_arquivo: formato
+          formato_arquivo: formato,
+          ip_host: item.ip_host || cfg.ip_host || '',
+          porta: item.porta ?? cfg.porta ?? null,
+          porta_resultados: item.porta_resultados ?? cfg.porta_resultados ?? 7101,
+          modo_operacao: item.modo_operacao || cfg.modo_operacao || 'QUERY',
+          timeout_conexao: item.timeout_conexao ?? cfg.timeout_conexao ?? 15,
+          diretorio_carga: item.diretorio_carga || cfg.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\' + (item.modelo || 'MODELO') + '\\Carga',
+          diretorio_resultados: item.diretorio_resultados || cfg.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\' + (item.modelo || 'MODELO') + '\\Resultados',
+          configuracoes: cfg
         };
       }) as IEquipamentoRecord[];
     } catch (e: any) {
@@ -41,6 +50,18 @@ export class EquipamentoService {
    */
   static async salvarEquipamento(equipamento: Partial<IEquipamentoRecord>): Promise<IEquipamentoRecord | null> {
     try {
+      // Monta configurações dinâmicas no formato JSONB
+      const configuracoesJsonb: any = {
+        ...(equipamento.configuracoes || {}),
+        ip_host: equipamento.ip_host || equipamento.configuracoes?.ip_host || '',
+        porta: equipamento.porta ?? equipamento.configuracoes?.porta ?? null,
+        porta_resultados: equipamento.porta_resultados ?? equipamento.configuracoes?.porta_resultados ?? 7101,
+        modo_operacao: equipamento.modo_operacao || equipamento.configuracoes?.modo_operacao || 'QUERY',
+        timeout_conexao: equipamento.timeout_conexao ?? equipamento.configuracoes?.timeout_conexao ?? 15,
+        diretorio_carga: equipamento.diretorio_carga || equipamento.configuracoes?.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\' + (equipamento.modelo || 'MODELO') + '\\Carga',
+        diretorio_resultados: equipamento.diretorio_resultados || equipamento.configuracoes?.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\' + (equipamento.modelo || 'MODELO') + '\\Resultados',
+      };
+
       const payload: any = {
         tenant_id: equipamento.tenant_id,
         nome: equipamento.nome,
@@ -49,13 +70,14 @@ export class EquipamentoService {
         formato_arquivo: equipamento.formato_arquivo || "JSON",
         fabricante: equipamento.fabricante || (equipamento.modelo?.includes('YUMIZEN') ? 'Horiba' : 'Cormay'),
         tipo_comunicacao: equipamento.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
-        ip_host: equipamento.ip_host || '',
-        porta: equipamento.porta || null,
-        porta_resultados: equipamento.porta_resultados || null,
-        modo_operacao: equipamento.modo_operacao || 'QUERY',
-        timeout_conexao: equipamento.timeout_conexao || 15,
-        diretorio_carga: equipamento.diretorio_carga || 'C:\\Equipamentos\\Carga',
-        diretorio_resultados: equipamento.diretorio_resultados || 'C:\\Equipamentos\\Resultados',
+        ip_host: configuracoesJsonb.ip_host,
+        porta: configuracoesJsonb.porta,
+        porta_resultados: configuracoesJsonb.porta_resultados,
+        modo_operacao: configuracoesJsonb.modo_operacao,
+        timeout_conexao: configuracoesJsonb.timeout_conexao,
+        diretorio_carga: configuracoesJsonb.diretorio_carga,
+        diretorio_resultados: configuracoesJsonb.diretorio_resultados,
+        configuracoes: configuracoesJsonb,
         ativo: equipamento.ativo !== undefined ? equipamento.ativo : true,
       };
 

@@ -96,6 +96,20 @@ export interface IEquipamentoRecord {
   timeout_conexao?: number;
   diretorio_carga?: string;   // Pasta de entrada onde o equipamento lê JSON/XML/ASTM
   diretorio_resultados?: string; // Pasta onde o equipamento cospe resultados
+  configuracoes?: {
+    ip_host?: string;
+    porta?: number;
+    porta_resultados?: number;
+    modo_operacao?: 'DOWNLOAD' | 'QUERY';
+    timeout_conexao?: number;
+    diretorio_carga?: string;
+    diretorio_resultados?: string;
+    baud_rate?: number;
+    data_bits?: number;
+    stop_bits?: number;
+    parity?: string;
+    [key: string]: any;
+  };
   ativo: boolean;
   created_at?: string;
   updated_at?: string;
