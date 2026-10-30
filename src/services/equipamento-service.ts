@@ -50,7 +50,7 @@ export class EquipamentoService {
    */
   static async salvarEquipamento(equipamento: Partial<IEquipamentoRecord>): Promise<IEquipamentoRecord | null> {
     try {
-      // Monta configurações dinâmicas no formato JSONB
+      // Monta configurações dinâmicas no formato JSONB (elimina a necessidade de colunas extras no banco)
       const configuracoesJsonb: any = {
         ...(equipamento.configuracoes || {}),
         ip_host: equipamento.ip_host || equipamento.configuracoes?.ip_host || '',
@@ -70,13 +70,6 @@ export class EquipamentoService {
         formato_arquivo: equipamento.formato_arquivo || "JSON",
         fabricante: equipamento.fabricante || (equipamento.modelo?.includes('YUMIZEN') ? 'Horiba' : 'Cormay'),
         tipo_comunicacao: equipamento.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
-        ip_host: configuracoesJsonb.ip_host,
-        porta: configuracoesJsonb.porta,
-        porta_resultados: configuracoesJsonb.porta_resultados,
-        modo_operacao: configuracoesJsonb.modo_operacao,
-        timeout_conexao: configuracoesJsonb.timeout_conexao,
-        diretorio_carga: configuracoesJsonb.diretorio_carga,
-        diretorio_resultados: configuracoesJsonb.diretorio_resultados,
         configuracoes: configuracoesJsonb,
         ativo: equipamento.ativo !== undefined ? equipamento.ativo : true,
       };
