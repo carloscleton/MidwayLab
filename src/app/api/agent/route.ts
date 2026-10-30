@@ -280,7 +280,9 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         pedidosProcessados: resultadosCarga.length,
-        cargas: resultadosCarga
+        cargas: resultadosCarga,
+        conteudoConvertido: resultadosCarga[0]?.conteudoArquivo || '',
+        nomeArquivoCarga: resultadosCarga[0]?.nomeArquivoSugerido || ''
       });
     }
 
