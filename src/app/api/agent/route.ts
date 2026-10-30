@@ -164,8 +164,8 @@ export async function POST(request: Request) {
     }
 
     // Processamento remoto direto de arquivo do Labfacil (XML ou JSON)
-    if (body.acao === 'processar_arquivo' || body.conteudoArquivo) {
-      const conteudo = body.conteudoArquivo || '';
+    if (body.acao === 'processar_arquivo' || body.conteudoArquivo || body.conteudo) {
+      const conteudo = body.conteudoArquivo || body.conteudo || '';
       const nomeArquivo = body.nomeArquivo || 'pedido.xml';
       const modelo = body.modeloEquipamento || 'SYSMEX_UF_1500';
 
