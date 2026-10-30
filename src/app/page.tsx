@@ -9639,56 +9639,123 @@ export default function MidwayLabDashboard() {
                   </span>
                 </div>
 
-                {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP */}
+                {/* CAMPOS ESPECÍFICOS DE REDE TCP/IP COM SELEÇÃO QUERY vs DOWNLOAD */}
                 {equipamentoForm.tipo_comunicacao === "TCP_IP" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
-                    <div>
-                      <label className="block text-teal-300 font-semibold mb-1 text-xs">
-                        Endereço IP (Host IP)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 192.168.0.16"
-                        value={equipamentoForm.ip_host || ""}
-                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, ip_host: e.target.value })}
-                        className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
-                      />
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        IPv4 da placa de rede do analisador.
-                      </span>
+                  <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                    {/* SELETOR MODO DE OPERAÇÃO ASTM (QUERY vs DOWNLOAD) */}
+                    <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-cyan-300 font-bold flex items-center gap-1.5 text-xs">
+                          ⚡ Modo de Operação ASTM / U-WAM
+                        </label>
+                        <span className="text-[10px] bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
+                          {equipamentoForm.modo_operacao === "DOWNLOAD" ? "MODO DOWNLOAD (CARGA PRÉVIA)" : "MODO QUERY (TEMPO REAL - PADRÃO U-WAM)"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEquipamentoForm({ ...equipamentoForm, modo_operacao: "QUERY" })}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-1 ${
+                            equipamentoForm.modo_operacao !== "DOWNLOAD"
+                              ? "bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-sm"
+                              : "bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-300"
+                          }`}
+                        >
+                          <span className="font-bold text-xs flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                            Modo Query (Tempo Real - Recomendado)
+                          </span>
+                          <span className="text-[10px] text-slate-300 font-normal leading-relaxed">
+                            O operador lê o código de barras no Sysmex. O equipamento consulta o LIS via porta TCP e recebe os exames na hora.
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEquipamentoForm({ ...equipamentoForm, modo_operacao: "DOWNLOAD" })}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-1 ${
+                            equipamentoForm.modo_operacao === "DOWNLOAD"
+                              ? "bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-sm"
+                              : "bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-300"
+                          }`}
+                        >
+                          <span className="font-bold text-xs flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-amber-400" />
+                            Modo Download (Batch / Carga Prévia)
+                          </span>
+                          <span className="text-[10px] text-slate-300 font-normal leading-relaxed">
+                            O LIS descarrega a lista de pedidos no Sysmex com antecedência, antes dos tubos chegarem ao equipamento.
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-teal-300 font-semibold mb-1 text-xs">Porta TCP</label>
-                      <input
-                        type="number"
-                        placeholder="Ex: 7101"
-                        value={equipamentoForm.porta ?? 7101}
-                        onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || 7101 })}
-                        className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
-                      />
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        Porta de escuta ASTM/HL7.
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="block text-teal-300 font-semibold mb-1 text-xs">Timeout Conexão</label>
-                      <div className="flex items-center gap-1.5">
+                    {/* DADOS DE REDE E PORTAS */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-1">
+                        <label className="block text-teal-300 font-semibold mb-1 text-xs">
+                          Endereço IP (Host IP)
+                        </label>
                         <input
-                          type="number"
-                          min={3}
-                          max={60}
-                          placeholder="15"
-                          value={equipamentoForm.timeout_conexao ?? 15}
-                          onChange={(e) => setEquipamentoForm({ ...equipamentoForm, timeout_conexao: Math.max(3, Math.min(60, parseInt(e.target.value, 10) || 15)) })}
+                          type="text"
+                          placeholder="Ex: 192.168.0.16"
+                          value={equipamentoForm.ip_host || ""}
+                          onChange={(e) => setEquipamentoForm({ ...equipamentoForm, ip_host: e.target.value })}
                           className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
                         />
-                        <span className="text-xs text-slate-400 font-mono font-bold">seg</span>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          IP da placa de rede.
+                        </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
-                        Tempo de espera do handshake (padrão: 15s).
-                      </span>
+
+                      <div>
+                        <label className="block text-teal-300 font-semibold mb-1 text-xs">Porta TCP (Query / Worklist)</label>
+                        <input
+                          type="number"
+                          placeholder="Ex: 7070"
+                          value={equipamentoForm.porta ?? 7070}
+                          onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta: parseInt(e.target.value, 10) || 7070 })}
+                          className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          Porta onde o Sysmex consulta.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-teal-300 font-semibold mb-1 text-xs">2ª Porta (Resultados U-WAM)</label>
+                        <input
+                          type="number"
+                          placeholder="Ex: 7101"
+                          value={equipamentoForm.porta_resultados ?? 7101}
+                          onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta_resultados: parseInt(e.target.value, 10) || 7101 })}
+                          className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          Envio de resultados (Opcional).
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-teal-300 font-semibold mb-1 text-xs">Timeout Conexão</label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={3}
+                            max={60}
+                            placeholder="15"
+                            value={equipamentoForm.timeout_conexao ?? 15}
+                            onChange={(e) => setEquipamentoForm({ ...equipamentoForm, timeout_conexao: Math.max(3, Math.min(60, parseInt(e.target.value, 10) || 15)) })}
+                            className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                          />
+                          <span className="text-xs text-slate-400 font-mono font-bold">seg</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          Espera de handshake.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
