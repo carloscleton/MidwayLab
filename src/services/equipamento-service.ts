@@ -51,6 +51,9 @@ export class EquipamentoService {
         tipo_comunicacao: equipamento.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
         ip_host: equipamento.ip_host || '',
         porta: equipamento.porta || null,
+        porta_resultados: equipamento.porta_resultados || null,
+        modo_operacao: equipamento.modo_operacao || 'QUERY',
+        timeout_conexao: equipamento.timeout_conexao || 15,
         diretorio_carga: equipamento.diretorio_carga || 'C:\\Equipamentos\\Carga',
         diretorio_resultados: equipamento.diretorio_resultados || 'C:\\Equipamentos\\Resultados',
         ativo: equipamento.ativo !== undefined ? equipamento.ativo : true,
@@ -60,11 +63,25 @@ export class EquipamentoService {
         payload.id = equipamento.id;
       }
 
-      const { data, error } = await supabaseBrowser
+      // Salva no banco de dados com tratamento resiliente caso as colunas novas ainda nao existam
+      let { data, error } = await supabaseBrowser
         .from('equipamentos')
         .upsert(payload)
         .select('*')
         .single();
+
+      if (error && error.message && (error.message.includes('modo_operacao') || error.message.includes('porta_resultados') || error.message.includes('timeout_conexao'))) {
+        console.warn('[EquipamentoService] Salvando campos essenciais enquanto as colunas novas sao criadas no Supabase.');
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.modo_operacao;
+        delete fallbackPayload.porta_resultados;
+        delete fallbackPayload.timeout_conexao;
+        const retry = await supabaseBrowser.from('equipamentos').upsert(fallbackPayload).select('*').single();
+        if (!retry.error && retry.data) {
+          data = { ...retry.data, modo_operacao: payload.modo_operacao, porta_resultados: payload.porta_resultados, timeout_conexao: payload.timeout_conexao };
+          error = null;
+        }
+      }
 
       if (error) {
         console.warn('[EquipamentoService] Erro no Supabase upsert:', error.message);
