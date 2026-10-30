@@ -9787,15 +9787,37 @@ export default function MidwayLabDashboard() {
                     onClick={async () => {
                       setIsTestingEquipConnection(true);
                       setEquipTestResult(null);
+                      const ipAlvo = equipamentoForm.ip_host || "192.168.0.16";
+                      const portaAlvo = equipamentoForm.porta || 7070;
+                      const timeoutSec = equipamentoForm.timeout_conexao || 15;
+                      const isIpLocal = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ipAlvo);
+
+                      // Se for IP privado de rede local (LAN), tenta testar primeiro pelo Robô Local (Bridge na porta 4545)
+                      if (equipamentoForm.tipo_comunicacao === "TCP_IP" && isIpLocal) {
+                        try {
+                          const bridgeRes = await fetch(`http://127.0.0.1:4545/test-socket?ip=${encodeURIComponent(ipAlvo)}&porta=${portaAlvo}&timeout=${timeoutSec}`, {
+                            signal: AbortSignal.timeout(Math.min(timeoutSec * 1000 + 1000, 20000))
+                          });
+                          if (bridgeRes.ok) {
+                            const bridgeData = await bridgeRes.json();
+                            setEquipTestResult(bridgeData);
+                            setIsTestingEquipConnection(false);
+                            return;
+                          }
+                        } catch (_) {
+                          // Se o bridge local nao responder, segue para a API normal da nuvem
+                        }
+                      }
+
                       try {
                         const res = await fetch("/api/test-equipment-connection", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             tipoComunicacao: equipamentoForm.tipo_comunicacao || "TCP_IP",
-                            ipHost: equipamentoForm.ip_host,
-                            porta: equipamentoForm.porta,
-                            timeoutSec: equipamentoForm.timeout_conexao || 15,
+                            ipHost: ipAlvo,
+                            porta: portaAlvo,
+                            timeoutSec: timeoutSec,
                             diretorioCarga: equipamentoForm.diretorio_carga,
                             diretorioResultados: equipamentoForm.diretorio_resultados
                           })
