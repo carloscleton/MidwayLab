@@ -9792,7 +9792,26 @@ export default function MidwayLabDashboard() {
                       const timeoutSec = equipamentoForm.timeout_conexao || 15;
                       const isIpLocal = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ipAlvo);
 
-                      // Se for IP privado de rede local (LAN), tenta testar primeiro pelo Robô Local (Bridge na porta 4545)
+                      // 1. Se for Pasta Compartilhada/Local (ex: C:\MidwayLab\...), valida pelo Robô Local (Bridge)
+                      if (equipamentoForm.tipo_comunicacao === "ARQUIVO_COMPARTILHADO" || (!equipamentoForm.tipo_comunicacao && equipamentoForm.diretorio_carga)) {
+                        try {
+                          const pastaCarga = encodeURIComponent(equipamentoForm.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\SYSMEX_UF_1500\\Carga');
+                          const pastaRes = encodeURIComponent(equipamentoForm.diretorio_resultados || 'C:\\MidwayLab\\Equipamentos\\SYSMEX_UF_1500\\Resultados');
+                          const bridgeRes = await fetch(`http://127.0.0.1:4545/test-folder?diretorioCarga=${pastaCarga}&diretorioResultados=${pastaRes}`, {
+                            signal: AbortSignal.timeout(5000)
+                          });
+                          if (bridgeRes.ok) {
+                            const bridgeData = await bridgeRes.json();
+                            setEquipTestResult(bridgeData);
+                            setIsTestingEquipConnection(false);
+                            return;
+                          }
+                        } catch (_) {
+                          // Se o bridge local nao responder, segue para a API normal da nuvem
+                        }
+                      }
+
+                      // 2. Se for IP privado de rede local (LAN), tenta testar pelo Robô Local (Bridge na porta 4545)
                       if (equipamentoForm.tipo_comunicacao === "TCP_IP" && isIpLocal) {
                         try {
                           const bridgeRes = await fetch(`http://127.0.0.1:4545/test-socket?ip=${encodeURIComponent(ipAlvo)}&porta=${portaAlvo}&timeout=${timeoutSec}`, {
