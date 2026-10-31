@@ -26,12 +26,23 @@ export class EquipamentoService {
           formato = item.modelo === "CB350" ? "JSON" : (item.modelo === "YUMIZEN" || item.modelo === "ACCESS") ? "ASTM" : "HL7";
         }
         const cfg = item.configuracoes || {};
+        const usarSegundaPorta = item.usar_segunda_porta !== undefined
+          ? Boolean(item.usar_segunda_porta)
+          : (cfg.usar_segunda_porta !== undefined
+              ? Boolean(cfg.usar_segunda_porta)
+              : Boolean(item.porta_resultados || cfg.porta_resultados));
+
+        const portaResultados = usarSegundaPorta
+          ? (item.porta_resultados ?? cfg.porta_resultados ?? 7102)
+          : null;
+
         return {
           ...item,
           formato_arquivo: formato,
           ip_host: item.ip_host || cfg.ip_host || '',
           porta: item.porta ?? cfg.porta ?? null,
-          porta_resultados: item.porta_resultados ?? cfg.porta_resultados ?? 7101,
+          porta_resultados: portaResultados,
+          usar_segunda_porta: usarSegundaPorta,
           modo_operacao: item.modo_operacao || cfg.modo_operacao || 'QUERY',
           timeout_conexao: item.timeout_conexao ?? cfg.timeout_conexao ?? 15,
           diretorio_carga: item.diretorio_carga || cfg.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\' + (item.modelo || 'MODELO') + '\\Carga',
@@ -51,11 +62,22 @@ export class EquipamentoService {
   static async salvarEquipamento(equipamento: Partial<IEquipamentoRecord>): Promise<IEquipamentoRecord | null> {
     try {
       // Monta configurações dinâmicas no formato JSONB e preenche colunas explícitas
+      const usarSegundaPorta = equipamento.usar_segunda_porta !== undefined
+        ? Boolean(equipamento.usar_segunda_porta)
+        : (equipamento.configuracoes?.usar_segunda_porta !== undefined
+            ? Boolean(equipamento.configuracoes?.usar_segunda_porta)
+            : Boolean(equipamento.porta_resultados || equipamento.configuracoes?.porta_resultados));
+
+      const portaResultadosFinal = usarSegundaPorta
+        ? (equipamento.porta_resultados ?? equipamento.configuracoes?.porta_resultados ?? 7102)
+        : null;
+
       const configuracoesJsonb: any = {
         ...(equipamento.configuracoes || {}),
         ip_host: equipamento.ip_host || equipamento.configuracoes?.ip_host || '',
         porta: equipamento.porta ?? equipamento.configuracoes?.porta ?? null,
-        porta_resultados: equipamento.porta_resultados ?? equipamento.configuracoes?.porta_resultados ?? 7101,
+        porta_resultados: portaResultadosFinal,
+        usar_segunda_porta: usarSegundaPorta,
         modo_operacao: equipamento.modo_operacao || equipamento.configuracoes?.modo_operacao || 'QUERY',
         timeout_conexao: equipamento.timeout_conexao ?? equipamento.configuracoes?.timeout_conexao ?? 15,
         diretorio_carga: equipamento.diretorio_carga || equipamento.configuracoes?.diretorio_carga || 'C:\\MidwayLab\\Equipamentos\\' + (equipamento.modelo || 'MODELO') + '\\Carga',
@@ -73,6 +95,7 @@ export class EquipamentoService {
         ip_host: configuracoesJsonb.ip_host,
         porta: configuracoesJsonb.porta,
         porta_resultados: configuracoesJsonb.porta_resultados,
+        usar_segunda_porta: configuracoesJsonb.usar_segunda_porta,
         modo_operacao: configuracoesJsonb.modo_operacao,
         timeout_conexao: configuracoesJsonb.timeout_conexao,
         diretorio_carga: configuracoesJsonb.diretorio_carga,
@@ -92,15 +115,16 @@ export class EquipamentoService {
         .select('*')
         .single();
 
-      if (error && error.message && (error.message.includes('modo_operacao') || error.message.includes('porta_resultados') || error.message.includes('timeout_conexao'))) {
+      if (error && error.message && (error.message.includes('modo_operacao') || error.message.includes('porta_resultados') || error.message.includes('usar_segunda_porta') || error.message.includes('timeout_conexao'))) {
         console.warn('[EquipamentoService] Salvando campos essenciais enquanto as colunas novas sao criadas no Supabase.');
         const fallbackPayload = { ...payload };
         delete fallbackPayload.modo_operacao;
         delete fallbackPayload.porta_resultados;
+        delete fallbackPayload.usar_segunda_porta;
         delete fallbackPayload.timeout_conexao;
         const retry = await supabaseBrowser.from('equipamentos').upsert(fallbackPayload).select('*').single();
         if (!retry.error && retry.data) {
-          data = { ...retry.data, modo_operacao: payload.modo_operacao, porta_resultados: payload.porta_resultados, timeout_conexao: payload.timeout_conexao };
+          data = { ...retry.data, modo_operacao: payload.modo_operacao, porta_resultados: payload.porta_resultados, usar_segunda_porta: payload.usar_segunda_porta, timeout_conexao: payload.timeout_conexao };
           error = null;
         }
       }

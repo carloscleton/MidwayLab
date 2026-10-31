@@ -9720,21 +9720,68 @@ export default function MidwayLabDashboard() {
                           className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
                         />
                         <span className="text-[10px] text-slate-400 mt-0.5 block">
-                          Porta onde o Sysmex consulta.
+                          {(equipamentoForm.usar_segunda_porta === false || !equipamentoForm.porta_resultados)
+                            ? "Porta única (Query e Resultados na mesma porta)."
+                            : "Porta de consulta da Worklist pelo analisador."}
                         </span>
                       </div>
 
                       <div>
-                        <label className="block text-teal-300 font-semibold mb-1 text-xs">2ª Porta (Resultados U-WAM)</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-teal-300 font-semibold text-xs">2ª Porta (Resultados)</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const estaAtivo = equipamentoForm.usar_segunda_porta !== undefined
+                                ? Boolean(equipamentoForm.usar_segunda_porta)
+                                : Boolean(equipamentoForm.porta_resultados);
+                              const novoEstado = !estaAtivo;
+                              setEquipamentoForm({
+                                ...equipamentoForm,
+                                usar_segunda_porta: novoEstado,
+                                porta_resultados: novoEstado ? (equipamentoForm.porta_resultados || 7102) : null
+                              });
+                            }}
+                            className={`text-[9px] px-2 py-0.5 rounded-full font-bold transition flex items-center gap-1 cursor-pointer ${
+                              (equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados))
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30"
+                                : "bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200"
+                            }`}
+                            title="Clique para habilitar ou desabilitar a 2ª porta"
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              (equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados))
+                                ? "bg-emerald-400"
+                                : "bg-slate-500"
+                            }`} />
+                            {(equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados))
+                              ? "Ativada"
+                              : "Desabilitada"}
+                          </button>
+                        </div>
                         <input
                           type="number"
-                          placeholder="Ex: 7101"
-                          value={equipamentoForm.porta_resultados ?? 7101}
-                          onChange={(e) => setEquipamentoForm({ ...equipamentoForm, porta_resultados: parseInt(e.target.value, 10) || 7101 })}
-                          className="w-full bg-slate-950 border border-teal-500/40 rounded-xl px-3 py-2 text-teal-300 font-mono text-xs focus:outline-none focus:border-teal-500"
+                          disabled={equipamentoForm.usar_segunda_porta === false || (!equipamentoForm.usar_segunda_porta && !equipamentoForm.porta_resultados)}
+                          placeholder={(equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados)) ? "Ex: 7102" : "Desabilitada (Porta Única)"}
+                          value={(equipamentoForm.usar_segunda_porta !== false && equipamentoForm.porta_resultados !== null && equipamentoForm.porta_resultados !== undefined) ? equipamentoForm.porta_resultados : ""}
+                          onChange={(e) => {
+                            const val = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                            setEquipamentoForm({
+                              ...equipamentoForm,
+                              porta_resultados: val,
+                              usar_segunda_porta: val !== null
+                            });
+                          }}
+                          className={`w-full rounded-xl px-3 py-2 font-mono text-xs focus:outline-none transition ${
+                            (equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados))
+                              ? "bg-slate-950 border border-teal-500/40 text-teal-300 focus:border-teal-500"
+                              : "bg-slate-900/40 border border-slate-800 text-slate-500 cursor-not-allowed"
+                          }`}
                         />
                         <span className="text-[10px] text-slate-400 mt-0.5 block">
-                          Envio de resultados (Opcional).
+                          {(equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados))
+                            ? "Canal separado para resultados (Sysmex U-WAM)."
+                            : "Desabilitada: equipamento opera em porta única."}
                         </span>
                       </div>
 
@@ -9856,6 +9903,8 @@ export default function MidwayLabDashboard() {
                       setEquipTestResult(null);
                       const ipAlvo = equipamentoForm.ip_host || "192.168.0.16";
                       const portaAlvo = equipamentoForm.porta || 7070;
+                      const tem2Portas = equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados);
+                      const porta2Alvo = tem2Portas ? equipamentoForm.porta_resultados : null;
                       const timeoutSec = equipamentoForm.timeout_conexao || 15;
                       const isIpLocal = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ipAlvo);
 
@@ -9881,7 +9930,8 @@ export default function MidwayLabDashboard() {
                       // 2. Se for IP privado de rede local (LAN), tenta testar pelo Robô Local (Bridge na porta 4545)
                       if (equipamentoForm.tipo_comunicacao === "TCP_IP" && isIpLocal) {
                         try {
-                          const bridgeRes = await fetch(`http://127.0.0.1:4545/test-socket?ip=${encodeURIComponent(ipAlvo)}&porta=${portaAlvo}&timeout=${timeoutSec}`, {
+                          const paramPorta2 = porta2Alvo ? `&porta2=${porta2Alvo}` : '';
+                          const bridgeRes = await fetch(`http://127.0.0.1:4545/test-socket?ip=${encodeURIComponent(ipAlvo)}&porta=${portaAlvo}${paramPorta2}&timeout=${timeoutSec}`, {
                             signal: AbortSignal.timeout(Math.min(timeoutSec * 1000 + 1000, 20000))
                           });
                           if (bridgeRes.ok) {
@@ -9903,6 +9953,8 @@ export default function MidwayLabDashboard() {
                             tipoComunicacao: equipamentoForm.tipo_comunicacao || "TCP_IP",
                             ipHost: ipAlvo,
                             porta: portaAlvo,
+                            portaResultados: porta2Alvo,
+                            usarSegundaPorta: tem2Portas,
                             timeoutSec: timeoutSec,
                             diretorioCarga: equipamentoForm.diretorio_carga,
                             diretorioResultados: equipamentoForm.diretorio_resultados
@@ -9923,7 +9975,9 @@ export default function MidwayLabDashboard() {
                   </button>
 
                   <span className="text-[10px] text-slate-400 font-mono text-center sm:text-right">
-                    Protocolo: {equipamentoForm.tipo_comunicacao === "TCP_IP" ? `TCP/IP (${equipamentoForm.ip_host || '192.168.1.150'}:${equipamentoForm.porta || 5100})` : (equipamentoForm.tipo_comunicacao === "SERIAL" ? `Serial RS-232 (${equipamentoForm.ip_host || 'COM1'} @ ${equipamentoForm.porta || 9600}bps)` : "Pasta Compartilhada")}
+                    Protocolo: {equipamentoForm.tipo_comunicacao === "TCP_IP"
+                      ? `TCP/IP (${equipamentoForm.ip_host || '192.168.1.150'}:${equipamentoForm.porta || 5100}${(equipamentoForm.usar_segunda_porta !== false && Boolean(equipamentoForm.porta_resultados)) ? ` + P2:${equipamentoForm.porta_resultados}` : ' [Porta Única]'})`
+                      : (equipamentoForm.tipo_comunicacao === "SERIAL" ? `Serial RS-232 (${equipamentoForm.ip_host || 'COM1'} @ ${equipamentoForm.porta || 9600}bps)` : "Pasta Compartilhada")}
                   </span>
                 </div>
 

@@ -91,7 +91,8 @@ export interface IEquipamentoRecord {
   tipo_comunicacao?: 'SERIAL' | 'TCP_IP' | 'ARQUIVO_COMPARTILHADO' | 'API';
   ip_host?: string;
   porta?: number;
-  porta_resultados?: number;  // 2ª porta recomendada pelo U-WAM para envio de resultados
+  porta_resultados?: number | null;  // 2ª porta recomendada pelo U-WAM para envio de resultados (opcional)
+  usar_segunda_porta?: boolean;      // Se true, utiliza 2 portas (Query + Resultados). Se false, utiliza apenas 1 porta única.
   modo_operacao?: 'DOWNLOAD' | 'QUERY'; // DOWNLOAD = Carga prévia / Batch | QUERY = Tempo Real (U-WAM solicita quando lê o tubo)
   timeout_conexao?: number;
   diretorio_carga?: string;   // Pasta de entrada onde o equipamento lê JSON/XML/ASTM
@@ -99,7 +100,8 @@ export interface IEquipamentoRecord {
   configuracoes?: {
     ip_host?: string;
     porta?: number;
-    porta_resultados?: number;
+    porta_resultados?: number | null;
+    usar_segunda_porta?: boolean;
     modo_operacao?: 'DOWNLOAD' | 'QUERY';
     timeout_conexao?: number;
     diretorio_carga?: string;

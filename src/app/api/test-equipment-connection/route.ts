@@ -12,6 +12,8 @@ export async function POST(request: Request) {
       tipoComunicacao,
       ipHost,
       porta,
+      portaResultados,
+      usarSegundaPorta,
       diretorioCarga,
       diretorioResultados,
       enviarCarga,
@@ -38,10 +40,88 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
+      const temSegundaPorta = Boolean(usarSegundaPorta && portaResultados);
+      const port2Number = temSegundaPorta ? parseInt(String(portaResultados), 10) : null;
+
       // Timeout configurável dinâmico (padrão 15 segundos, mínimo 3s, máximo 60s)
       const timeoutSec = Math.max(3, Math.min(60, parseInt(String(body.timeoutSec || body.timeout_conexao || body.timeout || 15), 10) || 15));
       const timeoutMs = timeoutSec * 1000;
 
+      // Se for apenas handshake de teste (sem enviar payload ou escutar)
+      if (!enviarCarga && !escutarResultados) {
+        const testarPorta = (portaAlvo: number) => {
+          return new Promise<{ success: boolean; erro?: string; isTimeout?: boolean; code?: string }>((resolve) => {
+            const socket = new net.Socket();
+            socket.setTimeout(timeoutMs);
+            socket.on('connect', () => {
+              socket.destroy();
+              resolve({ success: true });
+            });
+            socket.on('timeout', () => {
+              socket.destroy();
+              resolve({ success: false, erro: `Timeout de ${timeoutSec}s`, isTimeout: true });
+            });
+            socket.on('error', (err: any) => {
+              socket.destroy();
+              resolve({ success: false, erro: err.message, code: err.code });
+            });
+            try {
+              socket.connect(portaAlvo, ipHost);
+            } catch (e: any) {
+              resolve({ success: false, erro: e.message });
+            }
+          });
+        };
+
+        const resP1 = await testarPorta(portNumber);
+
+        // Se a segunda porta estiver ativada, testa ela também
+        if (temSegundaPorta && port2Number) {
+          const resP2 = await testarPorta(port2Number);
+
+          if (resP1.success && resP2.success) {
+            return NextResponse.json({
+              success: true,
+              message: `✓ Conexão TCP/IP Estabelecida com Sucesso em AMBAS as portas! Porta 1 (Query: ${portNumber}) OK • Porta 2 (Resultados: ${port2Number}) OK.`
+            });
+          } else if (resP1.success && !resP2.success) {
+            return NextResponse.json({
+              success: false,
+              message: `⚠️ Porta 1 (Query: ${portNumber}) OK, mas a 2ª Porta (Resultados: ${port2Number}) não respondeu (${resP2.erro}). Verifique se o serviço U-WAM está ativo nessa porta.`
+            });
+          } else if (!resP1.success && resP2.success) {
+            return NextResponse.json({
+              success: false,
+              message: `⚠️ 2ª Porta (Resultados: ${port2Number}) OK, mas a Porta 1 (Query: ${portNumber}) falhou (${resP1.erro}).`
+            });
+          } else {
+            return NextResponse.json({
+              success: false,
+              message: `❌ Falha de conexão TCP em ambas as portas (${portNumber} e ${port2Number}) no IP ${ipHost}. Verifique se o analisador está ligado na rede.`
+            });
+          }
+        }
+
+        // Modo Porta Única (2ª Porta Desabilitada)
+        if (resP1.success) {
+          return NextResponse.json({
+            success: true,
+            message: `✓ Conexão TCP/IP Estabelecida com Sucesso na Porta Única (${ipHost}:${portNumber})! (2ª Porta desabilitada conforme configurado).`
+          });
+        } else {
+          const isIpPrivado = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ipHost);
+          let extraMsg = '';
+          if (isIpPrivado) {
+            extraMsg = `\n\n💡 Observação de Rede Local: O IP ${ipHost} é um endereço interno da sua rede local (LAN). Como este teste está sendo disparado pela nuvem (Vercel), a nuvem não consegue acessar o IP interno do laboratório diretamente através da internet.\nCertifique-se de que o Robô MidwayLab local (Bridge porta 4545) está ativo nesta máquina.`;
+          }
+          return NextResponse.json({
+            success: false,
+            message: `❌ Não foi possível conectar na Porta ${portNumber} do host ${ipHost}: ${resP1.erro}.${extraMsg}`
+          });
+        }
+      }
+
+      // Transmissão ou escuta ativa com socket dedicado
       const result = await new Promise<{
         success: boolean;
         message: string;

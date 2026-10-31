@@ -234,6 +234,7 @@ export async function POST(req: NextRequest) {
         modo_operacao: modoOperacao,
         porta,
         porta_resultados: portaResultados,
+        usar_segunda_porta: Boolean(portaResultados),
         ip_host: '192.168.0.16',
         baud_rate: baudRate,
         timeout_conexao: 15,

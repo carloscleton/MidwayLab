@@ -9,6 +9,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as http from 'http';
+import * as net from 'net';
 import * as dotenv from 'dotenv';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
@@ -141,6 +143,19 @@ async function carregarAlvosMonitoramento(): Promise<IFolderTarget[]> {
             diretorioErros: a.diretorioErros,
             diretorioCarga: a.diretorioCarga
           });
+        }
+
+        // Registra configurações de portas dos equipamentos
+        if (Array.isArray(res.data.equipamentos)) {
+          for (const eq of res.data.equipamentos) {
+            if (eq.tipo_comunicacao === 'TCP_IP' && eq.ip_host) {
+              if (eq.usar_segunda_porta && eq.porta_resultados) {
+                console.log(`[Agente] 🔌 ${eq.modelo} [TCP/IP]: ${eq.ip_host} -> Modo 2 Portas Ativado (Query: ${eq.porta} | Resultados: ${eq.porta_resultados})`);
+              } else {
+                console.log(`[Agente] 🔌 ${eq.modelo} [TCP/IP]: ${eq.ip_host} -> Modo Porta Única (${eq.porta}) [2ª Porta Desabilitada]`);
+              }
+            }
+          }
         }
       } else {
         console.warn('[Agente] Resposta inesperada da API:', res.data);
@@ -478,6 +493,142 @@ async function processarPasta(alvo: IFolderTarget) {
     }
   }
 }
+
+// ==============================================================================
+// BRIDGE LOCAL HTTP (Porta 4545)
+// Permite que o Painel Web (local ou em nuvem) execute testes de conectividade
+// TCP/IP e validação de pastas diretamente no ambiente de rede da máquina local.
+// ==============================================================================
+function testarSocketTcp(host: string, port: number, timeoutSec: number): Promise<{ success: boolean; erro?: string }> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(timeoutSec * 1000);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve({ success: true });
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve({ success: false, erro: `Timeout de ${timeoutSec}s` });
+    });
+    socket.on('error', (err: any) => {
+      socket.destroy();
+      resolve({ success: false, erro: err.message });
+    });
+    try {
+      socket.connect(port, host);
+    } catch (e: any) {
+      resolve({ success: false, erro: e.message });
+    }
+  });
+}
+
+function iniciarBridgeLocal() {
+  const server = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+
+    try {
+      const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+      const pathname = parsedUrl.pathname;
+
+      if (pathname === '/test-socket') {
+        const ip = parsedUrl.searchParams.get('ip') || '127.0.0.1';
+        const porta1 = parseInt(parsedUrl.searchParams.get('porta') || '7101', 10);
+        const porta2Raw = parsedUrl.searchParams.get('porta2');
+        const porta2 = porta2Raw ? parseInt(porta2Raw, 10) : null;
+        const timeoutSec = parseInt(parsedUrl.searchParams.get('timeout') || '10', 10);
+
+        testarSocketTcp(ip, porta1, timeoutSec).then((res1) => {
+          if (!res1.success) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              message: `❌ Falha ao conectar na Porta TCP principal (${porta1}) no host ${ip}: ${res1.erro}`
+            }));
+            return;
+          }
+
+          // Se a segunda porta estiver desabilitada
+          if (!porta2) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              message: `✓ Conexão TCP/IP local testada com sucesso na Porta Única ${ip}:${porta1}! (2ª porta desabilitada conforme configurado).`
+            }));
+            return;
+          }
+
+          // Se a segunda porta estiver habilitada, testa também
+          testarSocketTcp(ip, porta2, timeoutSec).then((res2) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            if (res2.success) {
+              res.end(JSON.stringify({
+                success: true,
+                message: `✓ Conexão TCP/IP local testada com sucesso em AMBAS as portas! Porta 1 (Query: ${porta1}) OK • Porta 2 (Resultados: ${porta2}) OK.`
+              }));
+            } else {
+              res.end(JSON.stringify({
+                success: false,
+                message: `⚠️ Porta 1 (Query: ${porta1}) OK, mas a 2ª Porta (Resultados: ${porta2}) falhou: ${res2.erro}. Verifique se o U-WAM está ativo na 2ª porta.`
+              }));
+            }
+          });
+        });
+        return;
+      }
+
+      if (pathname === '/test-folder') {
+        const dirCarga = parsedUrl.searchParams.get('diretorioCarga') || '';
+        const dirRes = parsedUrl.searchParams.get('diretorioResultados') || '';
+        const cargaOk = fs.existsSync(dirCarga);
+        const resOk = fs.existsSync(dirRes);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: cargaOk,
+          message: cargaOk
+            ? `✓ Pastas locais validadas no disco pelo Robô! Carga: ${cargaOk ? 'OK' : 'Não encontrada'} | Resultados: ${resOk ? 'OK' : 'Não encontrada'}`
+            : `❌ Pasta de carga não encontrada no disco: ${dirCarga}`
+        }));
+        return;
+      }
+
+      if (pathname === '/status') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, robo: 'MidwayLab Agent', status: 'Ativo 24/7' }));
+        return;
+      }
+
+      res.writeHead(404);
+      res.end();
+    } catch (e: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: e.message }));
+    }
+  });
+
+  server.listen(4545, '127.0.0.1', () => {
+    console.log('[Agente] 🌐 Bridge Local TCP/IP ativo em http://127.0.0.1:4545 (Porta 4545)');
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log('[Agente] ℹ️ Bridge Local na porta 4545 já em execução.');
+    } else {
+      console.warn('[Agente] Aviso no Bridge Local:', err.message);
+    }
+  });
+}
+
+// Inicia o bridge local
+iniciarBridgeLocal();
 
 // Loop contínuo de monitoramento
 let isExecutandoVarredura = false;

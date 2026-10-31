@@ -124,13 +124,53 @@ export async function GET(request: Request) {
     });
   }
 
+  // Busca configurações de rede e portas de todos os equipamentos do laboratório
+  let equipamentosList: any[] = [];
+  try {
+    const { data: equipsData } = await supabase
+      .from('equipamentos')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .eq('ativo', true);
+
+    if (equipsData && equipsData.length > 0) {
+      equipamentosList = equipsData.map(eq => {
+        const cfg = eq.configuracoes || {};
+        const usar2 = eq.usar_segunda_porta !== undefined
+          ? Boolean(eq.usar_segunda_porta)
+          : (cfg.usar_segunda_porta !== undefined
+              ? Boolean(cfg.usar_segunda_porta)
+              : Boolean(eq.porta_resultados || cfg.porta_resultados));
+        const pResultados = usar2 ? (eq.porta_resultados ?? cfg.porta_resultados ?? null) : null;
+
+        return {
+          id: eq.id,
+          nome: eq.nome,
+          modelo: eq.modelo,
+          tipo_comunicacao: eq.tipo_comunicacao || 'ARQUIVO_COMPARTILHADO',
+          ip_host: eq.ip_host || cfg.ip_host || '',
+          porta: eq.porta ?? cfg.porta ?? null,
+          porta_resultados: pResultados,
+          usar_segunda_porta: usar2,
+          modo_operacao: eq.modo_operacao || cfg.modo_operacao || 'QUERY',
+          timeout_conexao: eq.timeout_conexao ?? cfg.timeout_conexao ?? 15,
+          diretorio_carga: eq.diretorio_carga || cfg.diretorio_carga,
+          diretorio_resultados: eq.diretorio_resultados || cfg.diretorio_resultados
+        };
+      });
+    }
+  } catch (err: any) {
+    console.warn('[Agent API] Aviso ao buscar equipamentos do tenant:', err.message);
+  }
+
   return NextResponse.json({
     ok: true,
     tenant: {
       id: tenant.id,
       nome: tenant.nome
     },
-    alvos
+    alvos,
+    equipamentos: equipamentosList
   });
 }
 
