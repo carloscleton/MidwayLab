@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../db/supabase';
 import { LabfacilParserService } from '../../../services/labfacil-parser-service';
+import { EquipmentSnifferService } from '../../../services/equipment-sniffer-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,6 +97,7 @@ export async function GET(request: Request) {
     diretorioProcessados: string;
     diretorioErros: string;
     diretorioCarga: string;
+    diretorioResultados: string;
   }> = [];
 
   const equipPastas = tenant.configuracoes?.equipamentos_pastas || {};
@@ -106,7 +108,8 @@ export async function GET(request: Request) {
         diretorioEntrada: cfg.diretorio_entrada,
         diretorioProcessados: cfg.diretorio_processados || `${cfg.diretorio_entrada}/Processados`,
         diretorioErros: cfg.diretorio_erros || `${cfg.diretorio_entrada}/Erros`,
-        diretorioCarga: cfg.diretorio_carga || `C:\\MidwayLab/Equipamentos/${modelo}/Carga`
+        diretorioCarga: cfg.diretorio_carga || `C:\\MidwayLab/Equipamentos/${modelo}/Carga`,
+        diretorioResultados: cfg.diretorio_resultados || `C:\\MidwayLab/Equipamentos/${modelo}/Resultados`
       });
     }
   }
@@ -120,7 +123,8 @@ export async function GET(request: Request) {
       diretorioEntrada: ing.diretorio_entrada,
       diretorioProcessados: ing.diretorio_processados || `${ing.diretorio_entrada}/Processados`,
       diretorioErros: ing.diretorio_erros || `${ing.diretorio_entrada}/Erros`,
-      diretorioCarga: `C:\\MidwayLab/Equipamentos/${modelo}/Carga`
+      diretorioCarga: `C:\\MidwayLab/Equipamentos/${modelo}/Carga`,
+      diretorioResultados: `C:\\MidwayLab/Equipamentos/${modelo}/Resultados`
     });
   }
 
@@ -201,6 +205,60 @@ export async function POST(request: Request) {
     // Heartbeat dedicado
     if (body.acao === 'heartbeat') {
       return NextResponse.json({ ok: true, timestamp: new Date().toISOString() });
+    }
+
+    // Processamento de Retorno / Resultados emitidos pelo analisador
+    if (body.acao === 'processar_resultado') {
+      const conteudo = body.conteudoArquivo || body.conteudo || '';
+      const nomeArquivo = body.nomeArquivo || 'resultado.astm';
+      const modelo = body.modeloEquipamento || 'GERAL';
+
+      if (!conteudo.trim()) {
+        return NextResponse.json({ ok: false, erro: 'Conteúdo do resultado está vazio.' }, { status: 400 });
+      }
+
+      const parsed = EquipmentSnifferService.extrairLinhasDeRetornoBruto(conteudo);
+      const codigoAmostra = parsed.amostraLis || body.codigoPedido || '';
+
+      // Tenta localizar o pedido correspondente no Supabase para vincular o resultado
+      let pedidoId = null;
+      if (codigoAmostra) {
+        try {
+          const { data: pedidoEncontrado } = await supabase
+            .from('pedidos')
+            .select('id, codigo_pedido_labfacil, paciente_nome')
+            .eq('tenant_id', tenant.id)
+            .eq('codigo_pedido_labfacil', codigoAmostra)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (pedidoEncontrado) {
+            pedidoId = pedidoEncontrado.id;
+            await supabase
+              .from('pedidos')
+              .update({
+                status: 'PROCESSADO',
+                payload_labfacil_json: JSON.stringify({
+                  resultado_capturado: parsed.linhas,
+                  formato_detectado: parsed.formatoDetectado,
+                  arquivo_resultado: nomeArquivo,
+                  recebido_em: new Date().toISOString()
+                })
+              })
+              .eq('id', pedidoEncontrado.id);
+          }
+        } catch (_) {}
+      }
+
+      return NextResponse.json({
+        ok: true,
+        amostra: codigoAmostra,
+        formatoDetectado: parsed.formatoDetectado,
+        totalAnalitos: parsed.totalDetectados,
+        linhas: parsed.linhas,
+        pedidoVinculado: pedidoId
+      });
     }
 
     // Processamento remoto direto de arquivo do Labfacil (XML ou JSON)

@@ -125,6 +125,7 @@ function Executar-Varredura {
         $dirProcessadosEq = Join-Path $PastaRaiz "Labfacil\$modeloAtual\Processados"
         $dirErrosEq = Join-Path $PastaRaiz "Labfacil\$modeloAtual\Erros"
         $dirCargaEq = Join-Path $PastaRaiz "Equipamentos\$modeloAtual\Carga"
+        $dirResultadosEq = Join-Path $PastaRaiz "Equipamentos\$modeloAtual\Resultados"
 
         if (!(Test-Path $dirEntradaEq)) { continue }
 
@@ -209,6 +210,50 @@ function Executar-Varredura {
                     "Arquivo $nomeArquivo com divergencia ($modeloAtual). Movido para Erros.",
                     [System.Windows.Forms.ToolTipIcon]::Warning
                 )
+            }
+        }
+
+        # Varredura da VOLTA (Resultados gerados pelo analisador)
+        if (Test-Path $dirResultadosEq) {
+            $dirProcRes = Join-Path $dirResultadosEq "Processados"
+            if (!(Test-Path $dirProcRes)) {
+                New-Item -ItemType Directory -Path $dirProcRes -Force | Out-Null
+            }
+
+            $arquivosRes = Get-ChildItem -Path $dirResultadosEq -File -ErrorAction SilentlyContinue | Where-Object {
+                $ext = $_.Extension.ToLower()
+                ($ext -eq ".astm" -or $ext -eq ".txt" -or $ext -eq ".hl7" -or $ext -eq ".xml" -or $ext -eq ".json" -or $ext -eq ".csv") -and !$_.Name.StartsWith("tmp_")
+            }
+
+            foreach ($arqRes in $arquivosRes) {
+                try {
+                    $conteudoRes = [System.IO.File]::ReadAllText($arqRes.FullName, [System.Text.Encoding]::UTF8)
+                    if ([string]::IsNullOrWhiteSpace($conteudoRes)) { continue }
+
+                    $headers = @{ "Content-Type" = "application/json" }
+                    if ($AgentToken) { $headers["x-agent-token"] = $AgentToken }
+
+                    $bodyRes = @{
+                        acao = "processar_resultado"
+                        modeloEquipamento = $modeloAtual
+                        nomeArquivo = $arqRes.Name
+                        conteudoArquivo = $conteudoRes
+                    } | ConvertTo-Json -Depth 5
+
+                    $res = Invoke-RestMethod -Uri "$ApiUrl/api/agent" -Method Post -Headers $headers -Body $bodyRes -TimeoutSec 15
+                    if ($res.ok -eq $true) {
+                        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+                        $destinoProcRes = Join-Path $dirProcRes "$($arqRes.BaseName)_$timestamp$($arqRes.Extension)"
+                        Move-Item -Path $arqRes.FullName -Destination $destinoProcRes -Force
+
+                        $NotifyIcon.ShowBalloonTip(
+                            3000,
+                            "MidwayLab: Resultados Recebidos!",
+                            "Resultados da amostra $($res.amostra) ($modeloAtual) sincronizados na nuvem.",
+                            [System.Windows.Forms.ToolTipIcon]::Info
+                        )
+                    }
+                } catch {}
             }
         }
     }

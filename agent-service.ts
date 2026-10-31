@@ -55,6 +55,7 @@ interface IFolderTarget {
   diretorioProcessados: string;
   diretorioErros: string;
   diretorioCarga?: string;
+  diretorioResultados?: string;
   formato?: string;
 }
 
@@ -141,7 +142,8 @@ async function carregarAlvosMonitoramento(): Promise<IFolderTarget[]> {
             diretorioEntrada: a.diretorioEntrada,
             diretorioProcessados: a.diretorioProcessados,
             diretorioErros: a.diretorioErros,
-            diretorioCarga: a.diretorioCarga
+            diretorioCarga: a.diretorioCarga,
+            diretorioResultados: a.diretorioResultados || path.join('C:\\MidwayLab', 'Equipamentos', a.modeloEquipamento, 'Resultados')
           });
         }
 
@@ -494,6 +496,71 @@ async function processarPasta(alvo: IFolderTarget) {
   }
 }
 
+// Varre e processa resultados gerados pelo analisador (Volta / Retorno de laudos)
+async function processarResultadosPasta(alvo: IFolderTarget) {
+  const dirRes = alvo.diretorioResultados || path.join('C:\\MidwayLab', 'Equipamentos', alvo.modeloEquipamento, 'Resultados');
+  if (!fs.existsSync(dirRes)) return;
+
+  const dirProcRes = path.join(dirRes, 'Processados');
+  assegurarPasta(dirProcRes);
+
+  let arquivos: string[] = [];
+  try {
+    arquivos = fs.readdirSync(dirRes).filter(f => {
+      const lower = f.toLowerCase();
+      const full = path.join(dirRes, f);
+      try {
+        if (fs.statSync(full).isDirectory()) return false;
+      } catch (_) {
+        return false;
+      }
+      return (lower.endsWith('.astm') || lower.endsWith('.txt') || lower.endsWith('.hl7') || lower.endsWith('.xml') || lower.endsWith('.json') || lower.endsWith('.csv')) &&
+        !lower.startsWith('tmp_');
+    });
+  } catch (e) {
+    return;
+  }
+
+  for (const arquivo of arquivos) {
+    const caminhoOrigem = path.join(dirRes, arquivo);
+    try {
+      const conteudo = fs.readFileSync(caminhoOrigem, 'utf8');
+      if (!conteudo.trim()) continue;
+
+      console.log(`\n[Agente] 📊 Detectado retorno de resultados: ${arquivo} (${alvo.modeloEquipamento})`);
+
+      if (modoSeguro) {
+        const res = await axios.post(
+          `${API_URL}/api/agent`,
+          {
+            acao: 'processar_resultado',
+            modeloEquipamento: alvo.modeloEquipamento,
+            nomeArquivo: arquivo,
+            conteudoArquivo: conteudo
+          },
+          {
+            headers: { 'x-agent-token': AGENT_TOKEN },
+            timeout: 15000
+          }
+        );
+
+        if (res.data?.ok) {
+          console.log(`[Agente] ✅ Resultados (${res.data.formatoDetectado || 'Laudo'} - ${res.data.totalAnalitos || 0} analitos) sincronizados na nuvem!`);
+        }
+      }
+
+      // Move para a subpasta Processados
+      const nomeBaseLimpo = path.parse(arquivo).name.slice(0, 50);
+      const extensao = path.extname(arquivo);
+      const destinoProc = path.join(dirProcRes, `${nomeBaseLimpo}_${Date.now()}${extensao}`);
+      fs.copyFileSync(caminhoOrigem, destinoProc);
+      fs.unlinkSync(caminhoOrigem);
+    } catch (err: any) {
+      console.warn(`[Agente] Aviso ao processar resultado ${arquivo}:`, err.message);
+    }
+  }
+}
+
 // ==============================================================================
 // BRIDGE LOCAL HTTP (Porta 4545)
 // Permite que o Painel Web (local ou em nuvem) execute testes de conectividade
@@ -642,6 +709,7 @@ async function executarCiclo() {
     if (alvos.length > 0) {
       for (const alvo of alvos) {
         await processarPasta(alvo);
+        await processarResultadosPasta(alvo);
       }
     }
   } catch (err: any) {
